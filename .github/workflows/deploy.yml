@@ -1,0 +1,24 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Connect EC2
+        uses: appleboy/ssh-action@v1.0.3 # 라이브러리를 사용하여 원격 서버에 접속
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            cd elo-backend-nest
+            git pull origin main
+            npm install
+            npm run build
+            pm2 kill
+            pm2 start dist/main.js --name elo-backend-server
