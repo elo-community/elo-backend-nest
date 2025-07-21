@@ -11,13 +11,19 @@ jobs:
     steps:
       - name: Connect EC2
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          ENV: ${{ secrets.ENV }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_PRIVATE_KEY }}
+          envs: ENV
+          script_stop: true
           script: |
             cd /home/ubuntu/elo-backend-nest
+            rm -rf .env
             git pull origin main
+            echo "$ENV" > .env
             npm install
             npm run build
             pm2 kill
