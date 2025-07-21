@@ -9,6 +9,24 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Github Repository 파일 불러오기
+        uses: actions/checkout@v4
+
+      - name: install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: install dependencies
+        run: npm ci
+
+      - name: .env 파일 생성
+        run: |
+          echo '${{ secrets.ENV }}' >> .env
+
+      - name: test execution
+        run: npm run test
+
       - name: Connect EC2
         uses: appleboy/ssh-action@v1.0.3
         env:
