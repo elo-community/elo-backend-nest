@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Connect EC2
-        uses: appleboy/ssh-action@v1.0.3 # 라이브러리를 사용하여 원격 서버에 접속
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
