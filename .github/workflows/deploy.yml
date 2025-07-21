@@ -13,6 +13,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3 # 라이브러리를 사용하여 원격 서버에 접속
         with:
           host: ${{ secrets.EC2_HOST }}
+          port: 3000
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_KEY }}
           script: |
