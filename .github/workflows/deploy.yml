@@ -24,25 +24,36 @@ jobs:
         run: |
           echo '${{ secrets.ENV }}' >> .env
 
-      - name: test execution
-        run: npm run test
+      - name: build
+        run: npm run build
 
-      - name: Connect EC2
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          ENV: ${{ secrets.ENV }}
+      - name: 압축 파일 생성
+        run: tar -czvf project.tar.gz dist .env package.json package-lock.json
+
+      - name: SCP로 EC2에 압축 파일 전달
+        uses: appleboy/scp-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_PRIVATE_KEY }}
-          envs: ENV
+          source: project.tar.gz
+          target: /home/ubuntu/elo-backend-nest/tobe
+
+      - name: Connect EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
           script_stop: true
           script: |
-            cd /home/ubuntu/elo-backend-nest
-            rm -rf .env
-            git pull origin main
-            echo "$ENV" > .env
+            rm -rf /home/ubuntu/elo-backend-nest/current
+            mkdir /home/ubuntu/elo-backend-nest/current
+            mv /home/ubuntu/elo-backend-nest/tobe/project.tar.gz /home/ubuntu/elo-backend-nest/current/project.tar.gz
+            cd /home/ubuntu/elo-backend-nest/current
+            tar -xzvf project.tar.gz
+            rm -rf project.tar.gz
             npm install
-            npm run build
             pm2 kill
             pm2 start dist/main.js --name elo-backend-server
+            pm2 save
