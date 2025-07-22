@@ -48,9 +48,9 @@ jobs:
           key: ${{ secrets.EC2_PRIVATE_KEY }}
           script_stop: true
           script: |
-              docker stop elo-community-backend-nest || true
-              docker rm elo-community-backend-nest || true
-              docker pull ${{ secrets.DOCKER_USERNAME }}/elo-community-backend-nest:latest
-              docker run -d --name elo-community-backend-nest \
+              sudo docker stop elo-community-backend-nest || true
+              sudo docker rm elo-community-backend-nest || true
+              sudo docker pull ${{ secrets.DOCKER_USERNAME }}/elo-community-backend-nest:latest
+              sudo docker run -d --name elo-community-backend-nest \
                 -p 80:3000 \
                 ${{ secrets.DOCKER_USERNAME }}/elo-community-backend-nest:latest
