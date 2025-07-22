@@ -40,17 +40,23 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/elo-community-backend-nest:latest
             ${{ secrets.DOCKER_USERNAME }}/elo-community-backend-nest:${{ github.sha }}
 
-      - name: Connect EC2
-        uses: appleboy/ssh-action@v1.0.3
+      # EC2 SSH 키 설정
+      - name: Add SSH key
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_PRIVATE_KEY }}
-          script_stop: true
-          script: |
-              sudo docker stop elo-community-backend-nest || true
-              sudo docker rm elo-community-backend-nest || true
-              sudo docker pull ${{ secrets.DOCKER_USERNAME }}/elo-community-backend-nest:latest
-              sudo docker run -d --name elo-community-backend-nest \
-                -p 80:3000 \
-                ${{ secrets.DOCKER_USERNAME }}/elo-community-backend-nest:latest
+          ssh-private-key: ${{ secrets.EC2_PRIVATE_KEY }}
+
+      # EC2로 파일 복사
+      - name: Upload docker-compose and nginx config to EC2
+        run: |
+          scp -o StrictHostKeyChecking=no -r ./docker-compose.yml ./nginx \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USER }}/elo-backend-nest/
+
+      # EC2에서 Docker Compose 실행
+      - name: SSH into EC2 and deploy
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            cd /home/${{ secrets.EC2_USER }}/elo-backed-nest
+            docker compose pull
+            docker compose up -d
+          EOF
