@@ -48,13 +48,13 @@ jobs:
           ssh-private-key: ${{ secrets.EC2_PRIVATE_KEY }}
 
       # .env 파일 생성
-    - name: Create .env file on EC2
-      run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << EOF
-          cat << 'EOT' > /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest/.env
-${{ secrets.ENV_FILE }}
-          EOT
-        EOF
+      - name: Create .env file on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << EOF
+            cat << 'EOT' > /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest/.env
+${{ secrets.ENV }}
+            EOT
+          EOF
 
       # EC2로 파일 복사
       - name: Upload docker-compose and nginx config to EC2
