@@ -56,7 +56,7 @@ jobs:
       - name: SSH into EC2 and deploy
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
-            cd /home/${{ secrets.EC2_USERNAME }}/elo-backed-nest
+            cd /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest
             docker compose pull
             docker compose up -d
           EOF
