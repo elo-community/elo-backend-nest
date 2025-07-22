@@ -50,13 +50,13 @@ jobs:
       - name: Upload docker-compose and nginx config to EC2
         run: |
           scp -o StrictHostKeyChecking=no -r ./docker-compose.yml ./nginx \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USER }}/elo-backend-nest/
+            ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USERNAME }}/elo-backend-nest/
 
       # EC2에서 Docker Compose 실행
       - name: SSH into EC2 and deploy
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            cd /home/${{ secrets.EC2_USER }}/elo-backed-nest
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
+            cd /home/${{ secrets.EC2_USERNAME }}/elo-backed-nest
             docker compose pull
             docker compose up -d
           EOF
