@@ -6,8 +6,10 @@ WORKDIR /usr/src/app
 COPY . .
 # 현재 디렉토리의 모든 파일을 컨테이너의 /usr/src/app 디렉토리에 복사
 
-RUN npm install
+COPY package*.json ./
+RUN npm ci
 
+COPY . .
 RUN npm run build
 
 EXPOSE 3000
