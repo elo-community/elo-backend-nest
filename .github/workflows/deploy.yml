@@ -31,7 +31,7 @@ jobs:
         run: tar -czvf project.tar.gz dist .env package.json package-lock.json
 
       - name: SCP로 EC2에 압축 파일 전달
-        uses: appleboy/scp-action@v1.0.3
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
