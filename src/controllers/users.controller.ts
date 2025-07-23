@@ -1,8 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtUser } from '../auth/jwt-user.interface';
+import { CurrentUser } from '../auth/user.decorator';
 import { UserResponseDto } from '../dtos/user-response.dto';
 import { CreateUserDto, UpdateUserDto } from '../dtos/user.dto';
 import { UserService } from '../services/user.service';
 
+@UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
     constructor(private readonly userService: UserService) { }
@@ -17,6 +21,11 @@ export class UsersController {
     async findOne(@Param('id') id: number): Promise<UserResponseDto | null> {
         const user = await this.userService.findOne(id);
         return user ? new UserResponseDto(user) : null;
+    }
+
+    @Get('me')
+    getMe(@CurrentUser() user: JwtUser) {
+        return user;
     }
 
     @Post()

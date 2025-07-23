@@ -32,4 +32,8 @@ export class CommentService {
     async remove(id: number) {
         return this.commentRepository.delete(id);
     }
+
+    async findByPostId(postId: string | number) {
+        return this.commentRepository.find({ where: { post: { id: Number(postId) } }, relations: ['user', 'post'] });
+    }
 } 

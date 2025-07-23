@@ -1,6 +1,7 @@
 import { Body, Controller, HttpStatus, Inject, Logger, Post, Res } from '@nestjs/common';
 import { Response } from 'express';
 import * as jwt from 'jsonwebtoken';
+import { AuthService } from '../auth/auth.service';
 import { UserService } from '../services/user.service';
 
 // NOTE: 앞으로 생성할 컨트롤러는 모두 복수형 경로로 작성 (예: users, posts, comments, auths)
@@ -11,6 +12,7 @@ export class AuthController {
 
     constructor(
         @Inject(UserService) private readonly userService: UserService,
+        private readonly authService: AuthService,
     ) { }
 
     @Post('login')
@@ -43,11 +45,12 @@ export class AuthController {
                 walletAddress,
             });
         }
-        const accessToken = jwt.sign(
-            { id: user.id, email: user.email },
-            process.env.JWT_SECRET as string,
-            { expiresIn: '24h' },
-        );
-        return res.json({ status: 'success', accessToken });
+        // JWT 발급을 AuthService로 위임
+        const { access_token } = await this.authService.login({
+            id: user.id,
+            username: user.email ?? '',
+            walletAddress: user.walletAddress,
+        });
+        return res.json({ status: 'success', accessToken: access_token });
     }
 } 

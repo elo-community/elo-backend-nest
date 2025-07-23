@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { JwtUser } from 'src/auth/jwt-user.interface';
+import { User } from 'src/entities/user.entity';
 import { Repository } from 'typeorm';
 import { CreatePostDto, UpdatePostDto } from '../dtos/post.dto';
 import { Post } from '../entities/post.entity';
@@ -12,6 +14,8 @@ export class PostService {
         private readonly postRepository: Repository<Post>,
         @InjectRepository(SportCategory)
         private readonly sportCategoryRepository: Repository<SportCategory>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
     ) { }
 
     async findAll(): Promise<Post[]> {
@@ -22,7 +26,8 @@ export class PostService {
         return this.postRepository.findOne({ where: { id }, relations: ['author', 'sportCategory'] });
     }
 
-    async create(createPostDto: CreatePostDto): Promise<Post> {
+    async create(createPostDto: CreatePostDto, user: JwtUser): Promise<Post> {
+
         const { sportCategory, ...rest } = createPostDto;
         let sportCategoryEntity: SportCategory | undefined = undefined;
         if (typeof sportCategory === 'number') {
@@ -32,7 +37,14 @@ export class PostService {
             const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategory.id } });
             sportCategoryEntity = found ?? undefined;
         }
-        const post = this.postRepository.create({ ...rest, sportCategory: sportCategoryEntity });
+        const author = await this.userRepository.findOne({ where: { id: user.userId } });
+        if (!author) throw new Error('Author not found');
+
+        const post = this.postRepository.create({
+            ...rest,
+            sportCategory: sportCategoryEntity,
+            author,
+        });
         return this.postRepository.save(post);
     }
 

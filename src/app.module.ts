@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from './auth/auth.module';
 import { AuthController } from './controllers/auth.controller';
 import { CommentsController } from './controllers/comments.controller';
 import { PostsController } from './controllers/posts.controller';
@@ -33,6 +34,7 @@ import { UserService } from './services/user.service';
       logging: true,
     }),
     TypeOrmModule.forFeature([User, Post, Comment, SportCategory, PostLike, PostMeh, Address]),
+    AuthModule,
   ],
   controllers: [AuthController, UsersController, PostsController, CommentsController],
   providers: [UserService, PostService, CommentService],

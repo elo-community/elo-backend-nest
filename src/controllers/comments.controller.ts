@@ -1,8 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Public } from '../auth/public.decorator';
 import { CommentResponseDto } from '../dtos/comment-response.dto';
 import { CreateCommentDto, UpdateCommentDto } from '../dtos/comment.dto';
 import { CommentService } from '../services/comment.service';
 
+@UseGuards(JwtAuthGuard)
 @Controller('comments')
 export class CommentsController {
     constructor(private readonly commentService: CommentService) { }
@@ -35,5 +38,12 @@ export class CommentsController {
     async remove(@Param('id') id: number): Promise<{ deleted: boolean }> {
         const result = await this.commentService.remove(id);
         return { deleted: !!result.affected };
+    }
+
+    @Public()
+    @Get(':postId')
+    getCommentsByPost(@Param('postId') postId: string) {
+        // 실제 구현에 맞게 수정 필요
+        return this.commentService.findByPostId(postId);
     }
 } 
