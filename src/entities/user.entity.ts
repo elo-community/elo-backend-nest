@@ -2,6 +2,7 @@ import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } f
 import { Address } from './address.entity';
 import { Comment } from './comment.entity';
 import { Post } from './post.entity';
+import { Reply } from './reply.entity';
 // Address, Comment, Post 엔티티는 추후 생성/수정 예정
 
 @Entity('user')
@@ -41,6 +42,9 @@ export class User {
 
     @OneToMany(() => Post, (post) => post.author)
     posts?: Post[];
+
+    @OneToMany(() => Reply, (reply) => reply.user)
+    replies?: Reply[];
 
     addAddress(address: Address) {
         if (!this.addresses) {

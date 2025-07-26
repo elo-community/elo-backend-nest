@@ -1,5 +1,6 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Post } from './post.entity';
+import { Reply } from './reply.entity';
 import { User } from './user.entity';
 
 @Entity('comment')
@@ -23,4 +24,7 @@ export class Comment {
 
     @Column({ type: 'varchar', length: 255, nullable: true })
     content!: string;
+
+    @OneToMany(() => Reply, reply => reply.comment, { cascade: true })
+    replies?: Reply[];
 } 

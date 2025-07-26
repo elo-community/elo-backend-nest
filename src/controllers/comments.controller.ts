@@ -1,49 +1,90 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtUser } from '../auth/jwt-user.interface';
 import { Public } from '../auth/public.decorator';
+import { CurrentUser } from '../auth/user.decorator';
 import { CommentResponseDto } from '../dtos/comment-response.dto';
-import { CreateCommentDto, UpdateCommentDto } from '../dtos/comment.dto';
+import { CommentQueryDto, CreateCommentDto, UpdateCommentDto } from '../dtos/comment.dto';
 import { CommentService } from '../services/comment.service';
 
-@UseGuards(JwtAuthGuard)
 @Controller('comments')
 export class CommentsController {
     constructor(private readonly commentService: CommentService) { }
 
+    @UseGuards(JwtAuthGuard)
     @Get()
-    async findAll(): Promise<CommentResponseDto[]> {
-        const comments = await this.commentService.findAll();
-        return comments.map((comment) => new CommentResponseDto(comment));
+    async findAll(@Query() query: CommentQueryDto) {
+        const comments = await this.commentService.findAll(query);
+        return {
+            success: true,
+            data: comments.map((comment) => new CommentResponseDto(comment)),
+            message: 'Comments retrieved successfully'
+        };
     }
 
+    @UseGuards(JwtAuthGuard)
     @Get(':id')
-    async findOne(@Param('id') id: number): Promise<CommentResponseDto | null> {
+    async findOne(@Param('id') id: number) {
         const comment = await this.commentService.findOne(id);
-        return comment ? new CommentResponseDto(comment) : null;
+        return {
+            success: true,
+            data: new CommentResponseDto(comment),
+            message: 'Comment retrieved successfully'
+        };
     }
 
+    @UseGuards(JwtAuthGuard)
     @Post()
-    async create(@Body() createCommentDto: CreateCommentDto): Promise<CommentResponseDto> {
-        const comment = await this.commentService.create(createCommentDto);
-        return new CommentResponseDto(comment);
+    async create(@Body() createCommentDto: CreateCommentDto, @CurrentUser() user: JwtUser) {
+        const comment = await this.commentService.create(createCommentDto, user);
+        return {
+            success: true,
+            data: new CommentResponseDto(comment),
+            message: 'Comment created successfully'
+        };
     }
 
+    @UseGuards(JwtAuthGuard)
     @Put(':id')
-    async update(@Param('id') id: number, @Body() updateCommentDto: UpdateCommentDto): Promise<CommentResponseDto | null> {
-        const comment = await this.commentService.update(id, updateCommentDto);
-        return comment ? new CommentResponseDto(comment) : null;
+    async update(@Param('id') id: number, @Body() updateCommentDto: UpdateCommentDto, @CurrentUser() user: JwtUser) {
+        const comment = await this.commentService.update(id, updateCommentDto, user);
+        return {
+            success: true,
+            data: new CommentResponseDto(comment),
+            message: 'Comment updated successfully'
+        };
     }
 
+    @UseGuards(JwtAuthGuard)
     @Delete(':id')
-    async remove(@Param('id') id: number): Promise<{ deleted: boolean }> {
-        const result = await this.commentService.remove(id);
-        return { deleted: !!result.affected };
+    async remove(@Param('id') id: number, @CurrentUser() user: JwtUser) {
+        const result = await this.commentService.remove(id, user);
+        return {
+            success: true,
+            data: { deleted: !!result.affected },
+            message: 'Comment deleted successfully'
+        };
     }
 
     @Public()
-    @Get(':postId')
-    getCommentsByPost(@Param('postId') postId: string) {
-        // 실제 구현에 맞게 수정 필요
-        return this.commentService.findByPostId(postId);
+    @Get('post/:postId')
+    async getCommentsByPost(@Param('postId') postId: string) {
+        const comments = await this.commentService.findByPostId(postId);
+        return {
+            success: true,
+            data: comments.map((comment) => new CommentResponseDto(comment)),
+            message: 'Comments retrieved successfully'
+        };
+    }
+
+    @Public()
+    @Get('post/:postId/tree')
+    async getCommentTree(@Param('postId') postId: string) {
+        const comments = await this.commentService.getCommentTree(Number(postId));
+        return {
+            success: true,
+            data: comments.map((comment) => new CommentResponseDto(comment)),
+            message: 'Comment tree retrieved successfully'
+        };
     }
 } 

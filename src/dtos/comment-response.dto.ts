@@ -1,4 +1,5 @@
 import { Comment } from '../entities/comment.entity';
+import { ReplyResponseDto } from './reply-response.dto';
 
 export class CommentResponseDto {
     id: number;
@@ -8,6 +9,7 @@ export class CommentResponseDto {
     userId: number;
     userNickname?: string;
     postId: number;
+    replies?: ReplyResponseDto[];
 
     constructor(comment: Comment) {
         this.id = comment.id;
@@ -17,5 +19,10 @@ export class CommentResponseDto {
         this.userId = comment.user?.id;
         this.userNickname = comment.user?.nickname;
         this.postId = comment.post?.id;
+
+        // 대댓글이 있는 경우 변환
+        if (comment.replies && comment.replies.length > 0) {
+            this.replies = comment.replies.map(reply => new ReplyResponseDto(reply));
+        }
     }
 } 

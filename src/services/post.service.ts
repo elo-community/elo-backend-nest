@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { JwtUser } from 'src/auth/jwt-user.interface';
-import { User } from 'src/entities/user.entity';
 import { Repository } from 'typeorm';
+import { JwtUser } from '../auth/jwt-user.interface';
 import { CreatePostDto, UpdatePostDto } from '../dtos/post.dto';
 import { Post } from '../entities/post.entity';
 import { SportCategory } from '../entities/sport-category.entity';
+import { User } from '../entities/user.entity';
 
 @Injectable()
 export class PostService {
@@ -26,6 +26,28 @@ export class PostService {
         return this.postRepository.findOne({ where: { id }, relations: ['author', 'sportCategory'] });
     }
 
+    async findOneWithDetails(id: number): Promise<Post | null> {
+        return this.postRepository.findOne({
+            where: { id },
+            relations: [
+                'author',
+                'sportCategory',
+                'comments',
+                'comments.user',
+                'comments.replies',
+                'comments.replies.user'
+            ],
+            order: {
+                comments: {
+                    createdAt: 'ASC',
+                    replies: {
+                        createdAt: 'ASC'
+                    }
+                }
+            }
+        });
+    }
+
     async create(createPostDto: CreatePostDto, user: JwtUser): Promise<Post> {
 
         const { sportCategory, ...rest } = createPostDto;
@@ -37,7 +59,7 @@ export class PostService {
             const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategory.id } });
             sportCategoryEntity = found ?? undefined;
         }
-        const author = await this.userRepository.findOne({ where: { id: user.userId } });
+        const author = await this.userRepository.findOne({ where: { id: user.id } });
         if (!author) throw new Error('Author not found');
 
         const post = this.postRepository.create({

@@ -1,8 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
-import { JwtUser } from 'src/auth/jwt-user.interface';
-import { CurrentUser } from 'src/auth/user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtUser } from '../auth/jwt-user.interface';
 import { Public } from '../auth/public.decorator';
+import { CurrentUser } from '../auth/user.decorator';
+import { PostDetailResponseDto } from '../dtos/post-detail-response.dto';
 import { PostResponseDto } from '../dtos/post-response.dto';
 import { CreatePostDto, UpdatePostDto } from '../dtos/post.dto';
 import { CommentService } from '../services/comment.service';
@@ -18,39 +19,76 @@ export class PostsController {
 
     @Public()
     @Get()
-    async findAll(): Promise<PostResponseDto[]> {
+    async findAll() {
         const posts = await this.postService.findAll();
-        return posts.map((post) => new PostResponseDto(post));
+        return {
+            success: true,
+            data: posts.map((post) => new PostResponseDto(post)),
+            message: 'Posts retrieved successfully'
+        };
     }
 
     @Public()
     @Get(':id')
-    async findOne(@Param('id') id: number): Promise<PostResponseDto | null> {
-        const post = await this.postService.findOne(id);
-        return post ? new PostResponseDto(post) : null;
+    async findOneWithDetails(@Param('id') id: number) {
+        const post = await this.postService.findOneWithDetails(id);
+        if (!post) {
+            return {
+                success: false,
+                message: 'Post not found'
+            };
+        }
+        return {
+            success: true,
+            data: new PostDetailResponseDto(post),
+            message: 'Post with details retrieved successfully'
+        };
     }
 
     @Public()
     @Get(':postId/comments')
     async getCommentsByPost(@Param('postId') postId: string) {
-        return this.commentService.findByPostId(postId);
+        const comments = await this.commentService.findByPostId(postId);
+        return {
+            success: true,
+            data: comments,
+            message: 'Comments retrieved successfully'
+        };
     }
 
     @Post()
-    async create(@Body() createPostDto: CreatePostDto, @CurrentUser() user: JwtUser): Promise<PostResponseDto> {
+    async create(@Body() createPostDto: CreatePostDto, @CurrentUser() user: JwtUser) {
         const post = await this.postService.create(createPostDto, user);
-        return new PostResponseDto(post);
+        return {
+            success: true,
+            data: new PostResponseDto(post),
+            message: 'Post created successfully'
+        };
     }
 
     @Put(':id')
-    async update(@Param('id') id: number, @Body() updatePostDto: UpdatePostDto): Promise<PostResponseDto | null> {
+    async update(@Param('id') id: number, @Body() updatePostDto: UpdatePostDto) {
         const post = await this.postService.update(id, updatePostDto);
-        return post ? new PostResponseDto(post) : null;
+        if (!post) {
+            return {
+                success: false,
+                message: 'Post not found'
+            };
+        }
+        return {
+            success: true,
+            data: new PostResponseDto(post),
+            message: 'Post updated successfully'
+        };
     }
 
     @Delete(':id')
-    async remove(@Param('id') id: number): Promise<{ deleted: boolean }> {
+    async remove(@Param('id') id: number) {
         const result = await this.postService.remove(id);
-        return { deleted: !!result.affected };
+        return {
+            success: true,
+            data: { deleted: !!result.affected },
+            message: 'Post deleted successfully'
+        };
     }
 } 

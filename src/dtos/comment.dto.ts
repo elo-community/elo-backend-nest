@@ -1,9 +1,12 @@
 export class CreateCommentDto {
     content!: string;
-    user!: any;
-    post!: any;
+    postId!: number;
 }
 
 export class UpdateCommentDto {
     content?: string;
+}
+
+export class CommentQueryDto {
+    postId?: number;
 } 

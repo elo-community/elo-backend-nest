@@ -1,56 +1,103 @@
-import { Body, Controller, HttpStatus, Inject, Logger, Post, Res } from '@nestjs/common';
-import { Response } from 'express';
-import * as jwt from 'jsonwebtoken';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { jwtDecode } from 'jwt-decode';
 import { AuthService } from '../auth/auth.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Public } from '../auth/public.decorator';
 import { UserService } from '../services/user.service';
 
-// NOTE: 앞으로 생성할 컨트롤러는 모두 복수형 경로로 작성 (예: users, posts, comments, auths)
 @Controller('auth')
 export class AuthController {
+  constructor(
+    private readonly authService: AuthService,
+    private readonly userService: UserService,
+  ) { }
 
-    private readonly logger = new Logger(AuthController.name);
+  @Public()
+  @Post('login')
+  async login(
+    @Body() loginDto: { accounts: any[]; email: string; idToken: string },
+  ) {
+    try {
+      // Google ID Token 디코드
+      const decodedToken = jwtDecode(loginDto.idToken) as any;
 
-    constructor(
-        @Inject(UserService) private readonly userService: UserService,
-        private readonly authService: AuthService,
-    ) { }
+      // 디코드된 토큰에서 정보 추출
+      const walletUserId = decodedToken.user_id || `user_${Date.now()}`;
+      const email = loginDto.email;
 
-    @Post('login')
-    async login(
-        @Body() body: { email?: string; accounts?: any[]; idToken: string },
-        @Res() res: Response,
-    ) {
-        const { email, accounts, idToken } = body;
-        let decoded: any;
-        try {
-            // decoded = jwt.verify(idToken, process.env.ID_TOKEN_PUBLIC_KEY as string);
-            decoded = jwt.decode(idToken);
-        } catch (e) {
-            return res.status(HttpStatus.UNAUTHORIZED).json({ status: 'error', error: 'Invalid idToken' });
-        }
-        this.logger.log(decoded);
-        const userEmail = decoded.email || email;
-        const userId = decoded.user_id;
-        let user = userEmail ? await this.userService.findByEmail(userEmail) : null;
-        if (!user && userId) {
-            user = await this.userService.findByWalletUserId(userId);
-        }
-        if (!user) {
-            const evmVeryAccount = (accounts || []).find(acc => acc.network === 'evmVERY');
-            const walletAddress = evmVeryAccount ? evmVeryAccount.address : undefined;
-            user = await this.userService.create({
-                email: userEmail,
-                walletUserId: userId, // 반드시 할당!
-                addresses: accounts,
-                walletAddress,
-            });
-        }
-        // JWT 발급을 AuthService로 위임
-        const { access_token } = await this.authService.login({
-            id: user.id,
-            username: user.email ?? '',
-            walletAddress: user.walletAddress,
+      // accounts 배열에서 evmVERY 네트워크의 주소 찾기
+      const walletAddress = loginDto.accounts?.find(account => account.network === 'evmVERY');
+
+
+      // 기존 사용자 찾기 (email 또는 walletUserId로)
+      let user = await this.userService.findByEmail(email);
+      if (!user) {
+        user = await this.userService.findByWalletUserId(walletUserId);
+      }
+
+      // 사용자가 없으면 새로 생성
+      if (!user) {
+        user = await this.userService.create({
+          walletUserId: walletUserId,
+          walletAddress: walletAddress,
+          email: email,
         });
-        return res.json({ status: 'success', accessToken: access_token });
+      }
+
+      return this.authService.login({
+        id: user.id,
+        username: user.email || user.walletUserId,
+        walletAddress: user.walletAddress,
+      });
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to process Google login',
+        error: error.message
+      };
     }
-} 
+  }
+
+  @Public()
+  @Post('test-user')
+  async createTestUser() {
+    // 테스트용 사용자 생성
+    const testUser = {
+      walletUserId: `test-user-${Date.now()}`,
+      walletAddress: `0x${Date.now().toString(16)}`,
+      nickname: `TestUser${Date.now()}`,
+      email: `test${Date.now()}@example.com`,
+    };
+
+    const user = await this.userService.create(testUser);
+    const loginResponse = await this.authService.login({
+      id: user.id,
+      username: user.email || user.walletUserId,
+      walletAddress: user.walletAddress,
+    });
+
+    return {
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          walletUserId: user.walletUserId,
+          walletAddress: user.walletAddress,
+          nickname: user.nickname,
+          email: user.email,
+        },
+        accessToken: loginResponse.data?.accessToken,
+        message: 'Test user created successfully',
+      },
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('verify')
+  async verifyToken() {
+    return {
+      success: true,
+      message: 'Token is valid',
+    };
+  }
+}
