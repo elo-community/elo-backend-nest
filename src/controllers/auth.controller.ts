@@ -23,7 +23,7 @@ export class AuthController {
 
       // 디코드된 토큰에서 정보 추출
       const walletUserId = decodedToken.user_id || `user_${Date.now()}`;
-      const email = loginDto.email;
+      const email = decodedToken.email;
 
       // accounts 배열에서 evmVERY 네트워크의 주소 찾기
       const walletAddress = loginDto.accounts?.find(account => account.network === 'evmVERY').address;
@@ -33,6 +33,14 @@ export class AuthController {
       let user = await this.userService.findByEmail(email);
       if (!user) {
         user = await this.userService.findByWalletUserId(walletUserId);
+      }
+
+      // 이메일 인증 여부 확인
+      if (decodedToken.email !== loginDto.email) {
+        return {
+          success: false,
+          message: 'Login failed',
+        };
       }
 
       // 사용자가 없으면 새로 생성
