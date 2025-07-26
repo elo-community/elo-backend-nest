@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, OnModuleInit } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
@@ -6,6 +6,7 @@ import { AuthController } from './controllers/auth.controller';
 import { CommentsController } from './controllers/comments.controller';
 import { PostsController } from './controllers/posts.controller';
 import { RepliesController } from './controllers/replies.controller';
+import { SportCategoriesController } from './controllers/sport-categories.controller';
 import { UsersController } from './controllers/users.controller';
 import { Comment } from './entities/comment.entity';
 import { PostLike } from './entities/post-like.entity';
@@ -17,6 +18,7 @@ import { User } from './entities/user.entity';
 import { CommentService } from './services/comment.service';
 import { PostService } from './services/post.service';
 import { ReplyService } from './services/reply.service';
+import { SportCategoryService } from './services/sport-category.service';
 import { UserService } from './services/user.service';
 
 // NOTE: 앞으로 생성할 컨트롤러/라우트는 모두 복수형으로 작성 (예: users, posts, comments, auths)
@@ -38,7 +40,15 @@ import { UserService } from './services/user.service';
     TypeOrmModule.forFeature([User, Post, Comment, Reply, SportCategory, PostLike, PostMeh]),
     AuthModule,
   ],
-  controllers: [AuthController, UsersController, PostsController, CommentsController, RepliesController],
-  providers: [UserService, PostService, CommentService, ReplyService],
+  controllers: [AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController],
+  providers: [UserService, PostService, CommentService, ReplyService, SportCategoryService],
 })
-export class AppModule { }
+export class AppModule implements OnModuleInit {
+  constructor(private readonly sportCategoryService: SportCategoryService) { }
+
+  async onModuleInit() {
+    // 기본 스포츠 카테고리 생성
+    await this.sportCategoryService.createDefaultCategories();
+    console.log('✅ 기본 스포츠 카테고리가 생성되었습니다.');
+  }
+}

@@ -22,5 +22,5 @@ export class Reply {
     updatedAt!: Date;
 
     @Column({ type: 'varchar', length: 255, nullable: true })
-    content!: string;
+    content?: string;
 } 
