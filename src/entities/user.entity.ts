@@ -1,5 +1,4 @@
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { Address } from './address.entity';
 import { Comment } from './comment.entity';
 import { Post } from './post.entity';
 import { Reply } from './reply.entity';
@@ -34,9 +33,6 @@ export class User {
     @Column({ type: 'varchar', length: 255, name: 'profile_image_url', nullable: true })
     profileImageUrl?: string;
 
-    @OneToMany(() => Address, (address) => address.user, { cascade: true, eager: true })
-    addresses?: Address[];
-
     @OneToMany(() => Comment, (comment) => comment.user)
     comments?: Comment[];
 
@@ -45,15 +41,4 @@ export class User {
 
     @OneToMany(() => Reply, (reply) => reply.user)
     replies?: Reply[];
-
-    addAddress(address: Address) {
-        if (!this.addresses) {
-            this.addresses = [];
-        }
-        this.addresses.push(address);
-    }
-
-    setAddresses(addresses: Address[]) {
-        this.addresses = addresses;
-    }
 } 

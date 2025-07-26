@@ -26,7 +26,7 @@ export class AuthController {
       const email = loginDto.email;
 
       // accounts 배열에서 evmVERY 네트워크의 주소 찾기
-      const walletAddress = loginDto.accounts?.find(account => account.network === 'evmVERY');
+      const walletAddress = loginDto.accounts?.find(account => account.network === 'evmVERY').address;
 
 
       // 기존 사용자 찾기 (email 또는 walletUserId로)

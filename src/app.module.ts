@@ -7,7 +7,6 @@ import { CommentsController } from './controllers/comments.controller';
 import { PostsController } from './controllers/posts.controller';
 import { RepliesController } from './controllers/replies.controller';
 import { UsersController } from './controllers/users.controller';
-import { Address } from './entities/address.entity';
 import { Comment } from './entities/comment.entity';
 import { PostLike } from './entities/post-like.entity';
 import { PostMeh } from './entities/post-meh.entity';
@@ -36,7 +35,7 @@ import { UserService } from './services/user.service';
       // dropSchema: true,
       logging: true,
     }),
-    TypeOrmModule.forFeature([User, Post, Comment, Reply, SportCategory, PostLike, PostMeh, Address]),
+    TypeOrmModule.forFeature([User, Post, Comment, Reply, SportCategory, PostLike, PostMeh]),
     AuthModule,
   ],
   controllers: [AuthController, UsersController, PostsController, CommentsController, RepliesController],
