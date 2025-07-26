@@ -14,6 +14,7 @@ import { PostMeh } from './entities/post-meh.entity';
 import { Post } from './entities/post.entity';
 import { Reply } from './entities/reply.entity';
 import { SportCategory } from './entities/sport-category.entity';
+import { UserElo } from './entities/user-elo.entity';
 import { User } from './entities/user.entity';
 import { CommentService } from './services/comment.service';
 import { PostService } from './services/post.service';
@@ -37,14 +38,17 @@ import { UserService } from './services/user.service';
       dropSchema: true,
       logging: true,
     }),
-    TypeOrmModule.forFeature([User, Post, Comment, Reply, SportCategory, PostLike, PostMeh]),
+    TypeOrmModule.forFeature([User, Post, Comment, Reply, SportCategory, PostLike, PostMeh, UserElo]),
     AuthModule,
   ],
   controllers: [AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController],
   providers: [UserService, PostService, CommentService, ReplyService, SportCategoryService],
 })
 export class AppModule implements OnModuleInit {
-  constructor(private readonly sportCategoryService: SportCategoryService) { }
+  constructor(
+    private readonly sportCategoryService: SportCategoryService,
+    private readonly userService: UserService,
+  ) { }
 
   async onModuleInit() {
     // 기본 스포츠 카테고리 생성

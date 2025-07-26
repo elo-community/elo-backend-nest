@@ -1,15 +1,20 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { CurrentUser } from '../auth/user.decorator';
+import { UserProfileResponseDto } from '../dtos/user-profile-response.dto';
 import { UserResponseDto } from '../dtos/user-response.dto';
 import { CreateUserDto, UpdateUserDto } from '../dtos/user.dto';
+import { SportCategoryService } from '../services/sport-category.service';
 import { UserService } from '../services/user.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
-    constructor(private readonly userService: UserService) { }
+    constructor(
+        private readonly userService: UserService,
+        private readonly sportCategoryService: SportCategoryService,
+    ) { }
 
     @Get()
     async findAll() {
@@ -53,12 +58,25 @@ export class UsersController {
         };
     }
 
+    @Get(':id/profile')
+    async getProfile(@Param('id') id: string, @CurrentUser() user?: JwtUser): Promise<UserProfileResponseDto> {
+        const userId = id === 'me' ? user?.id : parseInt(id);
+
+        if (!userId) {
+            throw new UnauthorizedException('User not authenticated');
+        }
+
+        const profileData = await this.userService.findProfileWithElos(userId);
+        return new UserProfileResponseDto(profileData.user, profileData.userElos);
+    }
+
     @Post()
     async create(@Body() createUserDto: CreateUserDto) {
-        const user = await this.userService.create({
+        const categories = await this.sportCategoryService.findAll();
+        const user = await this.userService.createWithDefaultElos({
             ...createUserDto,
             nickname: createUserDto.nickname || `user${Date.now()}`,
-        });
+        }, categories);
         return {
             success: true,
             data: new UserResponseDto(user),
