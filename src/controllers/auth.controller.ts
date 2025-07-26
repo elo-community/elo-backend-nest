@@ -3,6 +3,7 @@ import { jwtDecode } from 'jwt-decode';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Public } from '../auth/public.decorator';
+import { SportCategoryService } from '../services/sport-category.service';
 import { UserService } from '../services/user.service';
 
 @Controller('auth')
@@ -10,6 +11,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly userService: UserService,
+    private readonly sportCategoryService: SportCategoryService,
   ) { }
 
   @Public()
@@ -45,11 +47,12 @@ export class AuthController {
 
       // 사용자가 없으면 새로 생성
       if (!user) {
-        user = await this.userService.create({
+        const categories = await this.sportCategoryService.findAll();
+        user = await this.userService.createWithDefaultElos({
           walletUserId: walletUserId,
           walletAddress: walletAddress,
           email: email,
-        });
+        }, categories);
       }
 
       return this.authService.login({
