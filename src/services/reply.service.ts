@@ -54,7 +54,7 @@ export class ReplyService {
 
         const reply = this.replyRepository.create({
             content: createReplyDto.content,
-            comment: { id: createReplyDto.commentId },
+            comment: comment,
             user: { id: user.id },
             createdAt: new Date(),
             updatedAt: new Date(),

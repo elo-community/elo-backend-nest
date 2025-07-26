@@ -33,7 +33,7 @@ import { UserService } from './services/user.service';
       database: process.env.DB_DATABASE || 'elo-community',
       autoLoadEntities: true,
       synchronize: true,
-      dropSchema: true,
+      // dropSchema: true,
       logging: true,
     }),
     TypeOrmModule.forFeature([User, Post, Comment, Reply, SportCategory, PostLike, PostMeh, Address]),

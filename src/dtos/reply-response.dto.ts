@@ -1,12 +1,12 @@
 import { Reply } from '../entities/reply.entity';
-import { UserResponseDto } from './user-response.dto';
+import { UserResponseDto, UserSimpleResponseDto } from './user-response.dto';
 
 export class ReplyResponseDto {
     id!: number;
     content!: string;
     createdAt!: Date;
     updatedAt!: Date;
-    user!: UserResponseDto;
+    user?: UserSimpleResponseDto;
     commentId!: number;
 
     constructor(reply: Reply) {
@@ -14,7 +14,7 @@ export class ReplyResponseDto {
         this.content = reply.content;
         this.createdAt = reply.createdAt;
         this.updatedAt = reply.updatedAt;
-        this.user = new UserResponseDto(reply.user);
+        this.user = reply.user ? new UserResponseDto(reply.user) : undefined;
         this.commentId = reply.comment?.id;
     }
 } 

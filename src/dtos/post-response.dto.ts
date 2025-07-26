@@ -1,4 +1,5 @@
 import { Post } from '../entities/post.entity';
+import { UserSimpleResponseDto } from './user-response.dto';
 
 export class PostResponseDto {
     id: number;
@@ -8,8 +9,7 @@ export class PostResponseDto {
     isHidden?: boolean;
     createdAt: Date;
     updatedAt: Date;
-    authorId: number;
-    authorNickname?: string;
+    author?: UserSimpleResponseDto;
     sportCategoryId?: number;
     sportCategoryName?: string;
 
@@ -21,8 +21,7 @@ export class PostResponseDto {
         this.isHidden = post.isHidden;
         this.createdAt = post.createdAt;
         this.updatedAt = post.updatedAt;
-        this.authorId = post.author?.id;
-        this.authorNickname = post.author?.nickname;
+        this.author = post.author ? new UserSimpleResponseDto(post.author) : undefined;
         this.sportCategoryId = post.sportCategory?.id;
         this.sportCategoryName = post.sportCategory?.name;
     }

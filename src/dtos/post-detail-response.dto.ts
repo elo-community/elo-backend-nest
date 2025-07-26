@@ -1,6 +1,6 @@
 import { Post } from '../entities/post.entity';
 import { CommentResponseDto } from './comment-response.dto';
-import { UserResponseDto } from './user-response.dto';
+import { UserSimpleResponseDto } from './user-response.dto';
 
 export class PostDetailResponseDto {
     id: number;
@@ -10,7 +10,7 @@ export class PostDetailResponseDto {
     isHidden?: boolean;
     createdAt: Date;
     updatedAt: Date;
-    author: UserResponseDto;
+    author: UserSimpleResponseDto;
     sportCategoryId?: number;
     sportCategoryName?: string;
     comments?: CommentResponseDto[];
@@ -23,7 +23,7 @@ export class PostDetailResponseDto {
         this.isHidden = post.isHidden;
         this.createdAt = post.createdAt;
         this.updatedAt = post.updatedAt;
-        this.author = new UserResponseDto(post.author);
+        this.author = new UserSimpleResponseDto(post.author);
         this.sportCategoryId = post.sportCategory?.id;
         this.sportCategoryName = post.sportCategory?.name;
 

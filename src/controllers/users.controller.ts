@@ -21,6 +21,22 @@ export class UsersController {
         };
     }
 
+    @Get('me')
+    async getMe(@CurrentUser() currentUser: JwtUser) {
+        const user = await this.userService.findOne(currentUser.id);
+        if (!user) {
+            return {
+                success: false,
+                message: 'User not found'
+            };
+        }
+        return {
+            success: true,
+            data: new UserResponseDto(user),
+            message: 'Current user profile retrieved successfully'
+        };
+    }
+
     @Get(':id')
     async findOne(@Param('id') id: number) {
         const user = await this.userService.findOne(id);
@@ -37,18 +53,31 @@ export class UsersController {
         };
     }
 
-    @Get('me')
-    getMe(@CurrentUser() user: JwtUser) {
+    @Post()
+    async create(@Body() createUserDto: CreateUserDto) {
+        const user = await this.userService.create({
+            ...createUserDto,
+            nickname: createUserDto.nickname || `user${Date.now()}`,
+        });
         return {
             success: true,
-            data: user,
-            message: 'User profile retrieved successfully'
+            data: new UserResponseDto(user),
+            message: 'User created successfully'
         };
     }
 
-    @Post()
-    async create(@Body() createUserDto: CreateUserDto) {
-        const user = await this.userService.create(createUserDto);
+    @Put('me/nickname')
+    async updateNickname(@Body() createUserDto: CreateUserDto, @CurrentUser() currentUser: JwtUser) {
+        const user = await this.userService.findById(currentUser.id);
+        if (!user) {
+            return {
+                success: false,
+                message: 'User not found'
+            };
+        }
+        user.nickname = createUserDto.nickname;
+        await this.userService.update(currentUser.id, user);
+
         return {
             success: true,
             data: new UserResponseDto(user),

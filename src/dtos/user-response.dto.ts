@@ -6,7 +6,6 @@ export class UserResponseDto {
     nickname?: string;
     walletAddress?: string;
     profileImageUrl?: string;
-    createdAt: Date;
     tokenAmount: number;
     availableToken: number;
 
@@ -16,8 +15,19 @@ export class UserResponseDto {
         this.nickname = user.nickname;
         this.walletAddress = user.walletAddress;
         this.profileImageUrl = user.profileImageUrl;
-        this.createdAt = user.createdAt;
         this.tokenAmount = user.tokenAmount;
         this.availableToken = user.availableToken;
+    }
+}
+
+export class UserSimpleResponseDto {
+    id: number;
+    nickname?: string;
+    profileImageUrl?: string;
+
+    constructor(user: User) {
+        this.id = user.id;
+        this.nickname = user.nickname;
+        this.profileImageUrl = user.profileImageUrl;
     }
 } 
