@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { CommentResponseDto } from 'src/dtos/comment-response.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { Public } from '../auth/public.decorator';
@@ -51,7 +52,7 @@ export class PostsController {
         const comments = await this.commentService.findByPostId(postId);
         return {
             success: true,
-            data: comments,
+            data: comments.map(({ comment }) => new CommentResponseDto(comment)),
             message: 'Comments retrieved successfully'
         };
     }

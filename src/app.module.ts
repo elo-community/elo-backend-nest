@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { AuthController } from './controllers/auth.controller';
+import { CommentLikesController } from './controllers/comment-likes.controller';
 import { CommentsController } from './controllers/comments.controller';
 import { PostHatesController } from './controllers/post-hates.controller';
 import { PostLikesController } from './controllers/post-likes.controller';
@@ -10,6 +11,7 @@ import { PostsController } from './controllers/posts.controller';
 import { RepliesController } from './controllers/replies.controller';
 import { SportCategoriesController } from './controllers/sport-categories.controller';
 import { UsersController } from './controllers/users.controller';
+import { CommentLike } from './entities/comment-like.entity';
 import { Comment } from './entities/comment.entity';
 import { PostHate } from './entities/post-hate.entity';
 import { PostLike } from './entities/post-like.entity';
@@ -18,6 +20,7 @@ import { Reply } from './entities/reply.entity';
 import { SportCategory } from './entities/sport-category.entity';
 import { UserElo } from './entities/user-elo.entity';
 import { User } from './entities/user.entity';
+import { CommentLikeService } from './services/comment-like.service';
 import { CommentService } from './services/comment.service';
 import { PostHateService } from './services/post-hate.service';
 import { PostLikeService } from './services/post-like.service';
@@ -42,11 +45,11 @@ import { UserService } from './services/user.service';
       dropSchema: true,
       logging: true,
     }),
-    TypeOrmModule.forFeature([User, Post, Comment, Reply, SportCategory, PostLike, PostHate, UserElo]),
+    TypeOrmModule.forFeature([User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo]),
     AuthModule,
   ],
-  controllers: [AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController],
-  providers: [UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService],
+  controllers: [AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController],
+  providers: [UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService],
 })
 export class AppModule implements OnModuleInit {
   constructor(
