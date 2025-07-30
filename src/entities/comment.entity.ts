@@ -1,4 +1,5 @@
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { CommentLike } from './comment-like.entity';
 import { Post } from './post.entity';
 import { Reply } from './reply.entity';
 import { User } from './user.entity';
@@ -27,4 +28,7 @@ export class Comment {
 
     @OneToMany(() => Reply, reply => reply.comment, { cascade: true })
     replies?: Reply[];
+
+    @OneToMany(() => CommentLike, commentLike => commentLike.comment, { cascade: true })
+    likes?: CommentLike[];
 } 

@@ -7,6 +7,11 @@ import { CommentResponseDto } from '../dtos/comment-response.dto';
 import { CommentQueryDto, CreateCommentDto, UpdateCommentDto } from '../dtos/comment.dto';
 import { CommentService } from '../services/comment.service';
 
+interface LikeCountResponseDto {
+    commentId: number;
+    likeCount: number;
+}
+
 @Controller('comments')
 export class CommentsController {
     constructor(private readonly commentService: CommentService) { }
@@ -17,7 +22,9 @@ export class CommentsController {
         const comments = await this.commentService.findAll(query);
         return {
             success: true,
-            data: comments.map((comment) => new CommentResponseDto(comment)),
+            data: comments.map(({ comment }) =>
+                new CommentResponseDto(comment)
+            ),
             message: 'Comments retrieved successfully'
         };
     }
@@ -25,7 +32,7 @@ export class CommentsController {
     @UseGuards(JwtAuthGuard)
     @Get(':id')
     async findOne(@Param('id') id: number) {
-        const comment = await this.commentService.findOne(id);
+        const { comment } = await this.commentService.findOne(id);
         return {
             success: true,
             data: new CommentResponseDto(comment),
@@ -36,7 +43,7 @@ export class CommentsController {
     @UseGuards(JwtAuthGuard)
     @Post()
     async create(@Body() createCommentDto: CreateCommentDto, @CurrentUser() user: JwtUser) {
-        const comment = await this.commentService.create(createCommentDto, user);
+        const { comment } = await this.commentService.create(createCommentDto, user);
         return {
             success: true,
             data: new CommentResponseDto(comment),
@@ -47,7 +54,7 @@ export class CommentsController {
     @UseGuards(JwtAuthGuard)
     @Put(':id')
     async update(@Param('id') id: number, @Body() updateCommentDto: UpdateCommentDto, @CurrentUser() user: JwtUser) {
-        const comment = await this.commentService.update(id, updateCommentDto, user);
+        const { comment } = await this.commentService.update(id, updateCommentDto, user);
         return {
             success: true,
             data: new CommentResponseDto(comment),
@@ -72,7 +79,7 @@ export class CommentsController {
         const comments = await this.commentService.findByPostId(postId);
         return {
             success: true,
-            data: comments.map((comment) => new CommentResponseDto(comment)),
+            data: comments.map(({ comment }) => new CommentResponseDto(comment)),
             message: 'Comments retrieved successfully'
         };
     }
@@ -83,7 +90,7 @@ export class CommentsController {
         const comments = await this.commentService.getCommentTree(Number(postId));
         return {
             success: true,
-            data: comments.map((comment) => new CommentResponseDto(comment)),
+            data: comments.map(({ comment }) => new CommentResponseDto(comment)),
             message: 'Comment tree retrieved successfully'
         };
     }

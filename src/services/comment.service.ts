@@ -4,12 +4,14 @@ import { Repository } from 'typeorm';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { CommentQueryDto, CreateCommentDto, UpdateCommentDto } from '../dtos/comment.dto';
 import { Comment } from '../entities/comment.entity';
+import { CommentLikeService } from './comment-like.service';
 
 @Injectable()
 export class CommentService {
     constructor(
         @InjectRepository(Comment)
         private readonly commentRepository: Repository<Comment>,
+        private readonly commentLikeService: CommentLikeService,
     ) { }
 
     async findAll(query?: CommentQueryDto) {
@@ -26,7 +28,17 @@ export class CommentService {
         queryBuilder.orderBy('comment.createdAt', 'ASC');
         queryBuilder.addOrderBy('replies.createdAt', 'ASC');
 
-        return queryBuilder.getMany();
+        const comments = await queryBuilder.getMany();
+
+        // 각 댓글의 좋아요 개수를 가져와서 포함
+        const commentsWithLikeCount = await Promise.all(
+            comments.map(async (comment) => {
+                const likeCount = await this.commentLikeService.getLikeCount(comment.id);
+                return { comment, likeCount };
+            })
+        );
+
+        return commentsWithLikeCount;
     }
 
     async findOne(id: number) {
@@ -39,7 +51,8 @@ export class CommentService {
             throw new NotFoundException(`Comment with ID ${id} not found`);
         }
 
-        return comment;
+        const likeCount = await this.commentLikeService.getLikeCount(comment.id);
+        return { comment, likeCount };
     }
 
     async create(createCommentDto: CreateCommentDto, user: JwtUser) {
@@ -56,7 +69,7 @@ export class CommentService {
     }
 
     async update(id: number, updateCommentDto: UpdateCommentDto, user: JwtUser) {
-        const comment = await this.findOne(id);
+        const { comment } = await this.findOne(id);
 
         // 작성자만 수정 가능
         if (comment.user.id !== user.id) {
@@ -72,7 +85,7 @@ export class CommentService {
     }
 
     async remove(id: number, user: JwtUser) {
-        const comment = await this.findOne(id);
+        const { comment } = await this.findOne(id);
 
         // 작성자만 삭제 가능
         if (comment.user.id !== user.id) {
@@ -92,7 +105,7 @@ export class CommentService {
     }
 
     async findByPostId(postId: string | number) {
-        return this.commentRepository.find({
+        const comments = await this.commentRepository.find({
             where: { post: { id: Number(postId) } },
             relations: ['user', 'post', 'replies', 'replies.user'],
             order: {
@@ -102,6 +115,16 @@ export class CommentService {
                 }
             }
         });
+
+        // 각 댓글의 좋아요 개수를 가져와서 포함
+        const commentsWithLikeCount = await Promise.all(
+            comments.map(async (comment) => {
+                const likeCount = await this.commentLikeService.getLikeCount(comment.id);
+                return { comment, likeCount };
+            })
+        );
+
+        return commentsWithLikeCount;
     }
 
     async getCommentTree(postId: number) {
@@ -117,6 +140,14 @@ export class CommentService {
             }
         });
 
-        return comments;
+        // 각 댓글의 좋아요 개수를 가져와서 포함
+        const commentsWithLikeCount = await Promise.all(
+            comments.map(async (comment) => {
+                const likeCount = await this.commentLikeService.getLikeCount(comment.id);
+                return { comment, likeCount };
+            })
+        );
+
+        return commentsWithLikeCount;
     }
 } 
