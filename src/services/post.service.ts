@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtUser } from '../auth/jwt-user.interface';
-import { CreatePostDto, UpdatePostDto } from '../dtos/post.dto';
+import { CreatePostDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
 import { Post } from '../entities/post.entity';
 import { SportCategory } from '../entities/sport-category.entity';
 import { User } from '../entities/user.entity';
@@ -18,8 +18,19 @@ export class PostService {
         private readonly userRepository: Repository<User>,
     ) { }
 
-    async findAll(): Promise<Post[]> {
-        return this.postRepository.find({ relations: ['author', 'sportCategory'] });
+    async findAll(query?: PostQueryDto): Promise<Post[]> {
+        const queryBuilder = this.postRepository.createQueryBuilder('post')
+            .leftJoinAndSelect('post.author', 'author')
+            .leftJoinAndSelect('post.sportCategory', 'sportCategory');
+
+        // 스포츠 카테고리 필터링
+        if (query?.sport) {
+            queryBuilder.andWhere('post.sportCategory.id = :sportId', { sportId: query.sport });
+        }
+
+        queryBuilder.orderBy('post.createdAt', 'DESC');
+
+        return queryBuilder.getMany();
     }
 
     async findOne(id: number): Promise<Post | null> {
@@ -50,15 +61,14 @@ export class PostService {
 
     async create(createPostDto: CreatePostDto, user: JwtUser): Promise<Post> {
 
-        const { sportCategory, ...rest } = createPostDto;
+        const { sportCategoryId, ...rest } = createPostDto;
         let sportCategoryEntity: SportCategory | undefined = undefined;
-        if (typeof sportCategory === 'number') {
-            const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategory } });
-            sportCategoryEntity = found ?? undefined;
-        } else if (sportCategory && typeof sportCategory === 'object' && sportCategory.id) {
-            const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategory.id } });
+
+        if (typeof sportCategoryId === "number") {
+            const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategoryId } });
             sportCategoryEntity = found ?? undefined;
         }
+
         const author = await this.userRepository.findOne({ where: { id: user.id } });
         if (!author) throw new Error('Author not found');
 
@@ -71,15 +81,24 @@ export class PostService {
     }
 
     async update(id: number, updatePostDto: UpdatePostDto): Promise<Post | null> {
-        const { sportCategory, ...rest } = updatePostDto;
+        const { sportCategoryId, ...rest } = updatePostDto;
         let sportCategoryEntity: SportCategory | undefined = undefined;
-        if (typeof sportCategory === 'number') {
-            const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategory } });
+
+        // 스포츠 카테고리가 지정된 경우
+        if (typeof sportCategoryId === 'number') {
+            const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategoryId } });
             sportCategoryEntity = found ?? undefined;
-        } else if (sportCategory && typeof sportCategory === 'object' && sportCategory.id) {
-            const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategory.id } });
+        } else if (sportCategoryId && typeof sportCategoryId === 'object' && sportCategoryId.id) {
+            const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategoryId.id } });
             sportCategoryEntity = found ?? undefined;
         }
+
+        // 스포츠 카테고리가 없으면 자유글로 설정
+        if (!sportCategoryEntity) {
+            const freeCategory = await this.sportCategoryRepository.findOne({ where: { name: '자유글' } });
+            sportCategoryEntity = freeCategory ?? undefined;
+        }
+
         await this.postRepository.update(id, { ...rest, sportCategory: sportCategoryEntity });
         return this.findOne(id);
     }
