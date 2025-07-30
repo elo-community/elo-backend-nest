@@ -1,7 +1,7 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { Comment } from './comment.entity';
+import { PostHate } from './post-hate.entity';
 import { PostLike } from './post-like.entity';
-import { PostMeh } from './post-meh.entity';
 import { SportCategory } from './sport-category.entity';
 import { User } from './user.entity';
 
@@ -42,6 +42,6 @@ export class Post {
     @OneToMany(() => PostLike, (like) => like.post)
     likes?: PostLike[];
 
-    @OneToMany(() => PostMeh, (meh) => meh.post)
-    mehs?: PostMeh[];
+    @OneToMany(() => PostHate, (hate) => hate.post)
+    hates?: PostHate[];
 } 
