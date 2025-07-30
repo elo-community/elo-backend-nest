@@ -55,11 +55,91 @@ export class AppModule implements OnModuleInit {
   constructor(
     private readonly sportCategoryService: SportCategoryService,
     private readonly userService: UserService,
+    private readonly postService: PostService,
   ) { }
 
   async onModuleInit() {
     // 기본 스포츠 카테고리 생성
     await this.sportCategoryService.createDefaultCategories();
     console.log('✅ 기본 스포츠 카테고리가 생성되었습니다.');
+
+    // 샘플 사용자 생성
+    const sampleUser = await this.createSampleUser();
+    console.log('✅ 샘플 사용자가 생성되었습니다.');
+
+    // 각 카테고리별 샘플 게시글 생성
+    await this.createSamplePosts(sampleUser);
+    console.log('✅ 샘플 게시글이 생성되었습니다.');
+  }
+
+  private async createSampleUser() {
+    // 기존 샘플 사용자가 있는지 확인
+    let user = await this.userService.findByWalletAddress('sample-user-wallet');
+
+    if (!user) {
+      user = await this.userService.create({
+        walletUserId: 'sample-user',
+        walletAddress: 'sample-user-wallet',
+        nickname: '샘플유저',
+        email: 'sample@example.com',
+      });
+    }
+
+    return user;
+  }
+
+  private async createSamplePosts(user: any) {
+    // 기존 게시글이 있는지 확인
+    const existingPosts = await this.postService.findAll();
+    if (existingPosts.length > 0) {
+      console.log('이미 게시글이 존재합니다. 샘플 게시글 생성을 건너뜁니다.');
+      return;
+    }
+
+    const categories = await this.sportCategoryService.findAll();
+    const samplePosts = [
+      // 자유글
+      { title: '안녕하세요!', content: '처음 가입했습니다. 반갑습니다!', categoryName: '자유글' },
+      { title: '오늘 날씨가 좋네요', content: '산책하기 좋은 날씨입니다.', categoryName: '자유글' },
+
+      // 테니스
+      { title: '테니스 레슨 후기', content: '오늘 테니스 레슨 받았는데 정말 재미있었어요!', categoryName: '테니스' },
+      { title: '테니스 라켓 추천', content: '초보자용 테니스 라켓 추천해주세요.', categoryName: '테니스' },
+
+      // 배드민턴
+      { title: '배드민턴 동호회 모집', content: '배드민턴 동호회에 가입하고 싶습니다.', categoryName: '배드민턴' },
+      { title: '배드민턴 기술 팁', content: '배드민턴 서브 기술을 연마하고 있습니다.', categoryName: '배드민턴' },
+
+      // 탁구
+      { title: '탁구 대회 정보', content: '다음 달에 탁구 대회가 열린다고 하네요.', categoryName: '탁구' },
+      { title: '탁구 연습 방법', content: '탁구 연습을 위한 좋은 방법이 있을까요?', categoryName: '탁구' },
+
+      // 당구
+      { title: '당구장 추천', content: '좋은 당구장 추천해주세요.', categoryName: '당구' },
+      { title: '당구 기술 연습', content: '당구 기술을 연마하고 있습니다.', categoryName: '당구' },
+
+      // 바둑
+      { title: '바둑 동호회', content: '바둑 동호회에 가입하고 싶습니다.', categoryName: '바둑' },
+      { title: '바둑 기보 공유', content: '재미있는 바둑 기보를 공유합니다.', categoryName: '바둑' },
+
+      // 체스
+      { title: '체스 대회 정보', content: '체스 대회가 열린다고 하네요.', categoryName: '체스' },
+      { title: '체스 전략', content: '체스 전략에 대해 이야기해보세요.', categoryName: '체스' },
+
+      // 공지사항
+      { title: '커뮤니티 이용 안내', content: '커뮤니티 이용 시 주의사항을 확인해주세요.', categoryName: '공지사항' },
+      { title: '새로운 기능 안내', content: '새로운 기능이 추가되었습니다.', categoryName: '공지사항' },
+    ];
+
+    for (const postData of samplePosts) {
+      const category = categories.find(cat => cat.name === postData.categoryName);
+      if (category) {
+        await this.postService.create({
+          title: postData.title,
+          content: postData.content,
+          sportCategoryId: category.id,
+        }, user);
+      }
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { CommentResponseDto } from 'src/dtos/comment-response.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
@@ -6,7 +6,7 @@ import { Public } from '../auth/public.decorator';
 import { CurrentUser } from '../auth/user.decorator';
 import { PostDetailResponseDto } from '../dtos/post-detail-response.dto';
 import { PostResponseDto } from '../dtos/post-response.dto';
-import { CreatePostDto, UpdatePostDto } from '../dtos/post.dto';
+import { CreatePostDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
 import { CommentService } from '../services/comment.service';
 import { PostService } from '../services/post.service';
 
@@ -20,14 +20,25 @@ export class PostsController {
 
     @Public()
     @Get()
-    async findAll() {
-        const posts = await this.postService.findAll();
+    async findAll(@Query() query: PostQueryDto) {
+        const posts = await this.postService.findAll(query);
         return {
             success: true,
             data: posts.map((post) => new PostResponseDto(post)),
             message: 'Posts retrieved successfully'
         };
     }
+
+    // @Public()
+    // @Get('hot')
+    // async findHot() {
+    //     const posts = await this.postService.findHot();
+    //     return {
+    //         success: true,
+    //         data: posts.map((post) => new PostResponseDto(post)),
+    //         message: 'Hot posts retrieved successfully'
+    //     };
+    // }
 
     @Public()
     @Get(':id')
