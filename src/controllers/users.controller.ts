@@ -2,9 +2,11 @@ import { Body, Controller, Delete, Get, Param, Post, Put, UnauthorizedException,
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { CurrentUser } from '../auth/user.decorator';
+import { PostResponseDto } from '../dtos/post-response.dto';
 import { UserProfileResponseDto } from '../dtos/user-profile-response.dto';
 import { UserResponseDto } from '../dtos/user-response.dto';
 import { CreateUserDto, UpdateUserDto } from '../dtos/user.dto';
+import { PostService } from '../services/post.service';
 import { SportCategoryService } from '../services/sport-category.service';
 import { UserService } from '../services/user.service';
 
@@ -14,6 +16,7 @@ export class UsersController {
     constructor(
         private readonly userService: UserService,
         private readonly sportCategoryService: SportCategoryService,
+        private readonly postService: PostService,
     ) { }
 
     @Get()
@@ -68,6 +71,36 @@ export class UsersController {
 
         const profileData = await this.userService.findProfileWithElos(userId);
         return new UserProfileResponseDto(profileData.user, profileData.userElos);
+    }
+
+    @Get(':id/posts')
+    async getUserPosts(@Param('id') id: string, @CurrentUser() currentUser: JwtUser) {
+        const userId = id === 'me' ? currentUser.id : parseInt(id);
+
+        if (!userId) {
+            return {
+                success: false,
+                message: 'Invalid user ID'
+            };
+        }
+
+        // Check if user exists
+        const user = await this.userService.findOne(userId);
+        if (!user) {
+            return {
+                success: false,
+                message: 'User not found'
+            };
+        }
+
+        // Get posts by user
+        const posts = await this.postService.findByUserId(userId);
+
+        return {
+            success: true,
+            data: posts.map((post) => new PostResponseDto(post)),
+            message: 'User posts retrieved successfully'
+        };
     }
 
     @Post()

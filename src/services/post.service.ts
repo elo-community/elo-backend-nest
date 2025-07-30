@@ -59,6 +59,14 @@ export class PostService {
         });
     }
 
+    async findByUserId(userId: number): Promise<Post[]> {
+        return this.postRepository.find({
+            where: { author: { id: userId } },
+            relations: ['author', 'sportCategory'],
+            order: { createdAt: 'DESC' }
+        });
+    }
+
     async create(createPostDto: CreatePostDto, user: JwtUser): Promise<Post> {
 
         const { sportCategoryId, ...rest } = createPostDto;
