@@ -7,6 +7,8 @@ export class PostResponseDto {
     content?: string;
     type?: string;
     isHidden?: boolean;
+    viewCount: number;
+    commentCount: number;
     createdAt: Date;
     updatedAt: Date;
     author?: UserSimpleResponseDto;
@@ -19,6 +21,8 @@ export class PostResponseDto {
         this.content = post.content;
         this.type = post.type;
         this.isHidden = post.isHidden;
+        this.viewCount = post.viewCount;
+        this.commentCount = post.comments?.length || 0;
         this.createdAt = post.createdAt;
         this.updatedAt = post.updatedAt;
         this.author = post.author ? new UserSimpleResponseDto(post.author) : undefined;

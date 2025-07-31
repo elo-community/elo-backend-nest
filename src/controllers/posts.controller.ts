@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
 import { CommentResponseDto } from 'src/dtos/comment-response.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
@@ -42,7 +43,7 @@ export class PostsController {
 
     @Public()
     @Get(':id')
-    async findOneWithDetails(@Param('id') id: number) {
+    async findOneWithDetails(@Param('id') id: number, @Req() req: Request) {
         const post = await this.postService.findOneWithDetails(id);
         if (!post) {
             return {
@@ -50,6 +51,16 @@ export class PostsController {
                 message: 'Post not found'
             };
         }
+
+        // IP 기반으로 중복 조회 방지하면서 조회수 증가
+        const ip = req.ip || req.connection.remoteAddress || 'unknown';
+        const incremented = await this.postService.incrementViewCountIfNotViewed(id, ip);
+
+        // 조회수가 증가된 경우 Post 객체 업데이트
+        if (incremented) {
+            post.viewCount += 1;
+        }
+
         return {
             success: true,
             data: new PostDetailResponseDto(post),

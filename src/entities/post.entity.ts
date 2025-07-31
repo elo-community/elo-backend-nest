@@ -32,6 +32,9 @@ export class Post {
     @Column({ type: 'boolean', name: 'is_hidden', default: false })
     isHidden?: boolean;
 
+    @Column({ type: 'int', name: 'view_count', default: 0 })
+    viewCount!: number;
+
     @ManyToOne(() => SportCategory, { nullable: true })
     @JoinColumn({ name: 'sport_category_id' })
     sportCategory?: SportCategory;

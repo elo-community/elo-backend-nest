@@ -9,6 +9,9 @@ import { User } from '../entities/user.entity';
 
 @Injectable()
 export class PostService {
+    // 조회 기록을 저장할 Map (IP_PostId -> timestamp)
+    private viewedPosts = new Map<string, number>();
+
     constructor(
         @InjectRepository(Post)
         private readonly postRepository: Repository<Post>,
@@ -21,7 +24,8 @@ export class PostService {
     async findAll(query?: PostQueryDto): Promise<Post[]> {
         const queryBuilder = this.postRepository.createQueryBuilder('post')
             .leftJoinAndSelect('post.author', 'author')
-            .leftJoinAndSelect('post.sportCategory', 'sportCategory');
+            .leftJoinAndSelect('post.sportCategory', 'sportCategory')
+            .leftJoinAndSelect('post.comments', 'comments');
 
         // 스포츠 카테고리 필터링
         if (query?.sport) {
@@ -34,7 +38,7 @@ export class PostService {
     }
 
     async findOne(id: number): Promise<Post | null> {
-        return this.postRepository.findOne({ where: { id }, relations: ['author', 'sportCategory'] });
+        return this.postRepository.findOne({ where: { id }, relations: ['author', 'sportCategory', 'comments'] });
     }
 
     async findOneWithDetails(id: number): Promise<Post | null> {
@@ -62,7 +66,7 @@ export class PostService {
     async findByUserId(userId: number): Promise<Post[]> {
         return this.postRepository.find({
             where: { author: { id: userId } },
-            relations: ['author', 'sportCategory'],
+            relations: ['author', 'sportCategory', 'comments'],
             order: { createdAt: 'DESC' }
         });
     }
@@ -113,5 +117,41 @@ export class PostService {
 
     async remove(id: number) {
         return this.postRepository.delete(id);
+    }
+
+    async incrementViewCount(id: number): Promise<void> {
+        await this.postRepository.increment({ id }, 'viewCount', 1);
+    }
+
+    // 중복 조회를 방지하면서 조회수 증가하는 메서드
+    async incrementViewCountIfNotViewed(id: number, ip: string): Promise<boolean> {
+        const key = `${ip}_${id}`;
+        const now = Date.now();
+        const lastViewed = this.viewedPosts.get(key);
+
+        // 1시간(3600000ms) 내에 조회하지 않았으면 증가
+        if (!lastViewed || (now - lastViewed) > 60 * 60 * 1000) {
+            await this.incrementViewCount(id);
+            this.viewedPosts.set(key, now);
+
+            // 메모리 관리를 위해 오래된 기록 정리
+            this.cleanupOldRecords();
+
+            return true; // 조회수 증가됨
+        }
+
+        return false; // 조회수 증가하지 않음 (중복 조회)
+    }
+
+    // 오래된 조회 기록 정리 (메모리 관리)
+    private cleanupOldRecords(): void {
+        const now = Date.now();
+        const oneHour = 60 * 60 * 1000;
+
+        for (const [key, timestamp] of this.viewedPosts.entries()) {
+            if (now - timestamp > oneHour) {
+                this.viewedPosts.delete(key);
+            }
+        }
     }
 } 
