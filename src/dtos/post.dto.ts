@@ -17,4 +17,6 @@ export class UpdatePostDto {
 
 export class PostQueryDto {
     sport?: number;
+    page?: number;
+    limit?: number;
 }

@@ -91,7 +91,7 @@ export class AppModule implements OnModuleInit {
   private async createSamplePosts(user: any) {
     // 기존 게시글이 있는지 확인
     const existingPosts = await this.postService.findAll();
-    if (existingPosts.length > 0) {
+    if (existingPosts.data.length > 0) {
       console.log('이미 게시글이 존재합니다. 샘플 게시글 생성을 건너뜁니다.');
       return;
     }

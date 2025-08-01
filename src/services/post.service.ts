@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtUser } from '../auth/jwt-user.interface';
+import { PaginationResponseDto } from '../dtos/pagination-response.dto';
 import { CreatePostDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
 import { Post } from '../entities/post.entity';
 import { SportCategory } from '../entities/sport-category.entity';
@@ -25,7 +26,7 @@ export class PostService {
         private readonly postHateService: PostHateService,
     ) { }
 
-    async findAll(query?: PostQueryDto): Promise<Post[]> {
+    async findAll(query?: PostQueryDto): Promise<PaginationResponseDto<Post>> {
         const queryBuilder = this.postRepository.createQueryBuilder('post')
             .leftJoinAndSelect('post.author', 'author')
             .leftJoinAndSelect('post.sportCategory', 'sportCategory')
@@ -38,7 +39,21 @@ export class PostService {
 
         queryBuilder.orderBy('post.createdAt', 'DESC');
 
-        return queryBuilder.getMany();
+        // 페이지네이션 파라미터 설정
+        const page = query?.page || 1;
+        const limit = query?.limit || 10;
+        const offset = (page - 1) * limit;
+
+        // 전체 개수 조회
+        const total = await queryBuilder.getCount();
+
+        // 페이지네이션 적용
+        queryBuilder.skip(offset).take(limit);
+
+        // 데이터 조회
+        const posts = await queryBuilder.getMany();
+
+        return new PaginationResponseDto(posts, page, limit, total);
     }
 
     async findOne(id: number): Promise<Post | null> {

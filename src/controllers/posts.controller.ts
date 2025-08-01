@@ -22,11 +22,11 @@ export class PostsController {
 
     @Get()
     async findAll(@Query() query: PostQueryDto, @CurrentUser() user?: JwtUser) {
-        const posts = await this.postService.findAll(query);
+        const paginatedPosts = await this.postService.findAll(query);
 
         // 각 포스트에 대해 사용자의 좋아요/싫어요 여부와 개수 확인
         const postsWithStatus = await Promise.all(
-            posts.map(async (post) => {
+            paginatedPosts.data.map(async (post) => {
                 const isLiked = user ? await this.postService.checkUserLikeStatus(post.id, user.id) : false;
                 const isHated = user ? await this.postService.checkUserHateStatus(post.id, user.id) : false;
                 const likeCount = await this.postService.getPostLikeCount(post.id);
@@ -39,6 +39,7 @@ export class PostsController {
         return {
             success: true,
             data: postsWithStatus,
+            pagination: paginatedPosts.pagination,
             message: 'Posts retrieved successfully'
         };
     }
