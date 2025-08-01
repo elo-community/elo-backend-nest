@@ -26,7 +26,9 @@ export class PostHateService {
         });
 
         if (existingHate) {
-            throw new Error('User has already hated this post');
+            // 이미 싫어요를 누른 경우 토글로 변경
+            existingHate.isHated = !existingHate.isHated;
+            return await this.postHateRepository.save(existingHate);
         }
 
         // 새로운 싫어요 생성

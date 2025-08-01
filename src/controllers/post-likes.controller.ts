@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe, Post, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, ParseIntPipe, Post, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { JwtUser } from 'src/auth/jwt-user.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/user.decorator';
@@ -23,23 +23,25 @@ export class PostLikesController {
             throw new UnauthorizedException('User wallet address is required');
         }
 
-        let postLike = await this.postLikeService.findOne(postId, user.id);
-        if (postLike && postLike.isLiked) {
-            postLike.isLiked = !postLike.isLiked;
-            await this.postLikeService.updateLike(postLike);
-        } else {
-            postLike = await this.postLikeService.createLike(postId, user.id);
-        }
+        try {
+            const postLike = await this.postLikeService.createLike(postId, user.id);
 
-        return {
-            message: 'Like created successfully',
-            data: {
-                postId,
-                success: true,
-                isLiked: postLike.isLiked,
-                likeCount: await this.postLikeService.getLikeCount(postId),
-            },
-        };
+            return {
+                message: 'Like toggled successfully',
+                data: {
+                    postId,
+                    success: true,
+                    isLiked: postLike.isLiked,
+                    likeCount: await this.postLikeService.getLikeCount(postId),
+                },
+            };
+        } catch (error) {
+            if (error instanceof NotFoundException) {
+                throw new NotFoundException('Post not found');
+            } else {
+                throw error;
+            }
+        }
     }
 
     @Get(':postId/likes')

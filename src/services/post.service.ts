@@ -6,6 +6,8 @@ import { CreatePostDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
 import { Post } from '../entities/post.entity';
 import { SportCategory } from '../entities/sport-category.entity';
 import { User } from '../entities/user.entity';
+import { PostHateService } from './post-hate.service';
+import { PostLikeService } from './post-like.service';
 
 @Injectable()
 export class PostService {
@@ -19,6 +21,8 @@ export class PostService {
         private readonly sportCategoryRepository: Repository<SportCategory>,
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        private readonly postLikeService: PostLikeService,
+        private readonly postHateService: PostHateService,
     ) { }
 
     async findAll(query?: PostQueryDto): Promise<Post[]> {
@@ -152,6 +156,44 @@ export class PostService {
             if (now - timestamp > oneHour) {
                 this.viewedPosts.delete(key);
             }
+        }
+    }
+
+    async checkUserLikeStatus(postId: number, userId?: number): Promise<boolean> {
+        if (!userId) return false;
+
+        try {
+            const like = await this.postLikeService.findOne(postId, userId);
+            return like?.isLiked || false;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async checkUserHateStatus(postId: number, userId?: number): Promise<boolean> {
+        if (!userId) return false;
+
+        try {
+            const hate = await this.postHateService.findOne(postId, userId);
+            return hate?.isHated || false;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async getPostLikeCount(postId: number): Promise<number> {
+        try {
+            return await this.postLikeService.getLikeCount(postId);
+        } catch (error) {
+            return 0;
+        }
+    }
+
+    async getPostHateCount(postId: number): Promise<number> {
+        try {
+            return await this.postHateService.getHateCount(postId);
+        } catch (error) {
+            return 0;
         }
     }
 } 

@@ -26,7 +26,9 @@ export class PostLikeService {
         });
 
         if (existingLike) {
-            throw new Error('User has already liked this post');
+            // 이미 좋아요를 누른 경우 토글로 변경
+            existingLike.isLiked = !existingLike.isLiked;
+            return await this.postLikeRepository.save(existingLike);
         }
 
         // 새로운 좋아요 생성

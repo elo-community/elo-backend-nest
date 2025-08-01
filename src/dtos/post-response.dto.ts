@@ -14,8 +14,12 @@ export class PostResponseDto {
     author?: UserSimpleResponseDto;
     sportCategoryId?: number;
     sportCategoryName?: string;
+    isLiked?: boolean;
+    isHated?: boolean;
+    likeCount: number;
+    hateCount: number;
 
-    constructor(post: Post) {
+    constructor(post: Post, isLiked?: boolean, isHated?: boolean, likeCount?: number, hateCount?: number) {
         this.id = post.id;
         this.title = post.title;
         this.content = post.content;
@@ -28,5 +32,9 @@ export class PostResponseDto {
         this.author = post.author ? new UserSimpleResponseDto(post.author) : undefined;
         this.sportCategoryId = post.sportCategory?.id;
         this.sportCategoryName = post.sportCategory?.name;
+        this.isLiked = isLiked;
+        this.isHated = isHated;
+        this.likeCount = likeCount || 0;
+        this.hateCount = hateCount || 0;
     }
 } 

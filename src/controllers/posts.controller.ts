@@ -3,6 +3,7 @@ import { Request } from 'express';
 import { CommentResponseDto } from 'src/dtos/comment-response.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { Public } from '../auth/public.decorator';
 import { CurrentUser } from '../auth/user.decorator';
 import { PostDetailResponseDto } from '../dtos/post-detail-response.dto';
@@ -11,7 +12,7 @@ import { CreatePostDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
 import { CommentService } from '../services/comment.service';
 import { PostService } from '../services/post.service';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(OptionalJwtAuthGuard)
 @Controller('posts')
 export class PostsController {
     constructor(
@@ -19,13 +20,25 @@ export class PostsController {
         private readonly commentService: CommentService,
     ) { }
 
-    @Public()
     @Get()
-    async findAll(@Query() query: PostQueryDto) {
+    async findAll(@Query() query: PostQueryDto, @CurrentUser() user?: JwtUser) {
         const posts = await this.postService.findAll(query);
+
+        // 각 포스트에 대해 사용자의 좋아요/싫어요 여부와 개수 확인
+        const postsWithStatus = await Promise.all(
+            posts.map(async (post) => {
+                const isLiked = user ? await this.postService.checkUserLikeStatus(post.id, user.id) : false;
+                const isHated = user ? await this.postService.checkUserHateStatus(post.id, user.id) : false;
+                const likeCount = await this.postService.getPostLikeCount(post.id);
+                const hateCount = await this.postService.getPostHateCount(post.id);
+
+                return new PostResponseDto(post, isLiked, isHated, likeCount, hateCount);
+            })
+        );
+
         return {
             success: true,
-            data: posts.map((post) => new PostResponseDto(post)),
+            data: postsWithStatus,
             message: 'Posts retrieved successfully'
         };
     }
@@ -41,9 +54,9 @@ export class PostsController {
     //     };
     // }
 
-    @Public()
+    @UseGuards(OptionalJwtAuthGuard)
     @Get(':id')
-    async findOneWithDetails(@Param('id') id: number, @Req() req: Request) {
+    async findOneWithDetails(@Param('id') id: number, @Req() req: Request, @CurrentUser() user?: JwtUser) {
         const post = await this.postService.findOneWithDetails(id);
         if (!post) {
             return {
@@ -61,9 +74,15 @@ export class PostsController {
             post.viewCount += 1;
         }
 
+        // 사용자의 좋아요/싫어요 여부와 개수 확인
+        const isLiked = user ? await this.postService.checkUserLikeStatus(id, user.id) : false;
+        const isHated = user ? await this.postService.checkUserHateStatus(id, user.id) : false;
+        const likeCount = await this.postService.getPostLikeCount(id);
+        const hateCount = await this.postService.getPostHateCount(id);
+
         return {
             success: true,
-            data: new PostDetailResponseDto(post),
+            data: new PostDetailResponseDto(post, isLiked, isHated, likeCount, hateCount),
             message: 'Post with details retrieved successfully'
         };
     }
@@ -79,6 +98,7 @@ export class PostsController {
         };
     }
 
+    @UseGuards(JwtAuthGuard)
     @Post()
     async create(@Body() createPostDto: CreatePostDto, @CurrentUser() user: JwtUser) {
         const post = await this.postService.create(createPostDto, user);
@@ -89,6 +109,7 @@ export class PostsController {
         };
     }
 
+    @UseGuards(JwtAuthGuard)
     @Put(':id')
     async update(@Param('id') id: number, @Body() updatePostDto: UpdatePostDto) {
         const post = await this.postService.update(id, updatePostDto);
@@ -105,6 +126,7 @@ export class PostsController {
         };
     }
 
+    @UseGuards(JwtAuthGuard)
     @Delete(':id')
     async remove(@Param('id') id: number) {
         const result = await this.postService.remove(id);
