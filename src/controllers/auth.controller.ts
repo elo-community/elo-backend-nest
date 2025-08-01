@@ -70,6 +70,67 @@ export class AuthController {
   }
 
   @Public()
+  @Post('sample-login')
+  async sampleLogin(
+    @Body() loginDto: { userType: 'sample-user' | 'table-tennis-user' },
+  ) {
+    try {
+      let walletAddress: string;
+      let nickname: string;
+
+      if (loginDto.userType === 'sample-user') {
+        walletAddress = 'sample-user-wallet';
+        nickname = '샘플유저';
+      } else if (loginDto.userType === 'table-tennis-user') {
+        walletAddress = 'table-tennis-user-wallet';
+        nickname = '탁구왕민수';
+      } else {
+        return {
+          success: false,
+          message: 'Invalid user type. Use "sample-user" or "table-tennis-user"',
+        };
+      }
+
+      // 기존 사용자 찾기
+      let user = await this.userService.findByWalletAddress(walletAddress);
+
+      if (!user) {
+        return {
+          success: false,
+          message: 'Sample user not found. Please start the application first to create sample users.',
+        };
+      }
+
+      const loginResponse = await this.authService.login({
+        id: user.id,
+        username: user.email || user.walletUserId,
+        walletAddress: user.walletAddress,
+      });
+
+      return {
+        success: true,
+        data: {
+          user: {
+            id: user.id,
+            walletUserId: user.walletUserId,
+            walletAddress: user.walletAddress,
+            nickname: user.nickname,
+            email: user.email,
+          },
+          accessToken: loginResponse.data?.accessToken,
+        },
+        message: `Logged in as ${nickname}`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to login with sample user',
+        error: error.message
+      };
+    }
+  }
+
+  @Public()
   @Post('test-user')
   async createTestUser() {
     // 테스트용 사용자 생성

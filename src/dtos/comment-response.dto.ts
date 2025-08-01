@@ -9,7 +9,7 @@ export class CommentResponseDto {
     updatedAt: Date;
     user?: UserSimpleResponseDto;
     postId: number;
-    replies?: ReplyResponseDto[];
+    replies: ReplyResponseDto[];
     likeCount: number;
 
     constructor(comment: Comment) {
@@ -21,9 +21,11 @@ export class CommentResponseDto {
         this.postId = comment.post?.id;
         this.likeCount = comment.likes?.length || 0;
 
-        // 대댓글이 있는 경우 변환
+        // 대댓글이 있는 경우 변환, 없으면 빈 배열
         if (comment.replies && comment.replies.length > 0) {
             this.replies = comment.replies.map(reply => new ReplyResponseDto(reply));
+        } else {
+            this.replies = [];
         }
     }
 } 

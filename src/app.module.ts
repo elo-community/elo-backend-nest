@@ -1,10 +1,12 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { AuthController } from './controllers/auth.controller';
 import { CommentLikesController } from './controllers/comment-likes.controller';
 import { CommentsController } from './controllers/comments.controller';
+import { MatchResultsController, UserMatchesController } from './controllers/match-results.controller';
 import { PostHatesController } from './controllers/post-hates.controller';
 import { PostLikesController } from './controllers/post-likes.controller';
 import { PostsController } from './controllers/posts.controller';
@@ -13,6 +15,7 @@ import { SportCategoriesController } from './controllers/sport-categories.contro
 import { UsersController } from './controllers/users.controller';
 import { CommentLike } from './entities/comment-like.entity';
 import { Comment } from './entities/comment.entity';
+import { MatchResult } from './entities/match-result.entity';
 import { PostHate } from './entities/post-hate.entity';
 import { PostLike } from './entities/post-like.entity';
 import { Post } from './entities/post.entity';
@@ -20,8 +23,10 @@ import { Reply } from './entities/reply.entity';
 import { SportCategory } from './entities/sport-category.entity';
 import { UserElo } from './entities/user-elo.entity';
 import { User } from './entities/user.entity';
+import { MatchResultScheduler } from './schedulers/match-result.scheduler';
 import { CommentLikeService } from './services/comment-like.service';
 import { CommentService } from './services/comment.service';
+import { MatchResultService } from './services/match-result.service';
 import { PostHateService } from './services/post-hate.service';
 import { PostLikeService } from './services/post-like.service';
 import { PostService } from './services/post.service';
@@ -33,6 +38,7 @@ import { UserService } from './services/user.service';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DB_HOST || 'localhost',
@@ -45,17 +51,24 @@ import { UserService } from './services/user.service';
       dropSchema: true,
       logging: true,
     }),
-    TypeOrmModule.forFeature([User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo]),
+    TypeOrmModule.forFeature([
+      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult
+    ]),
     AuthModule,
   ],
-  controllers: [AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController],
-  providers: [UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService],
+  controllers: [
+    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController
+  ],
+  providers: [
+    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler
+  ],
 })
 export class AppModule implements OnModuleInit {
   constructor(
     private readonly sportCategoryService: SportCategoryService,
     private readonly userService: UserService,
     private readonly postService: PostService,
+    private readonly matchResultService: MatchResultService,
   ) { }
 
   async onModuleInit() {
@@ -63,21 +76,26 @@ export class AppModule implements OnModuleInit {
     await this.sportCategoryService.createDefaultCategories();
     console.log('✅ 기본 스포츠 카테고리가 생성되었습니다.');
 
-    // 샘플 사용자 생성
-    const sampleUser = await this.createSampleUser();
-    console.log('✅ 샘플 사용자가 생성되었습니다.');
+    // 샘플 사용자들 생성
+    const sampleUsers = await this.createSampleUsers();
+    console.log('✅ 샘플 사용자들이 생성되었습니다.');
 
     // 각 카테고리별 샘플 게시글 생성
-    await this.createSamplePosts(sampleUser);
+    await this.createSamplePosts(sampleUsers.mainUser);
     console.log('✅ 샘플 게시글이 생성되었습니다.');
+
+    // 샘플 매치 요청 생성
+    await this.createSampleMatchRequests(sampleUsers);
+    console.log('✅ 샘플 매치 요청이 생성되었습니다.');
   }
 
-  private async createSampleUser() {
+  private async createSampleUsers() {
     // 기존 샘플 사용자가 있는지 확인
-    let user = await this.userService.findByWalletAddress('sample-user-wallet');
+    let mainUser = await this.userService.findByWalletAddress('sample-user-wallet');
+    let tableTennisUser = await this.userService.findByWalletAddress('table-tennis-user-wallet');
 
-    if (!user) {
-      user = await this.userService.create({
+    if (!mainUser) {
+      mainUser = await this.userService.create({
         walletUserId: 'sample-user',
         walletAddress: 'sample-user-wallet',
         nickname: '샘플유저',
@@ -85,7 +103,59 @@ export class AppModule implements OnModuleInit {
       });
     }
 
-    return user;
+    if (!tableTennisUser) {
+      tableTennisUser = await this.userService.create({
+        walletUserId: 'table-tennis-user',
+        walletAddress: 'table-tennis-user-wallet',
+        nickname: '탁구왕민수',
+        email: 'tabletennis@example.com',
+      });
+    }
+
+    return {
+      mainUser,
+      tableTennisUser
+    };
+  }
+
+  private async createSampleMatchRequests(sampleUsers: any) {
+    // 기존 매치 요청이 있는지 확인
+    const existingRequests = await this.matchResultService.findSentRequests({
+      id: sampleUsers.mainUser.id,
+      nickname: sampleUsers.mainUser.nickname
+    } as any);
+
+    if (existingRequests.length > 0) {
+      console.log('이미 매치 요청이 존재합니다. 샘플 매치 요청 생성을 건너뜁니다.');
+      return;
+    }
+
+    const categories = await this.sportCategoryService.findAll();
+    const tableTennisCategory = categories.find(cat => cat.name === '탁구');
+
+    if (tableTennisCategory) {
+      // 샘플유저가 탁구왕민수에게 보낸 매치 요청 생성
+      // 샘플유저의 JWT 정보를 올바르게 전달
+      const sampleUserJwt = {
+        id: sampleUsers.mainUser.id,
+        nickname: sampleUsers.mainUser.nickname,
+        email: sampleUsers.mainUser.email,
+        walletUserId: sampleUsers.mainUser.walletUserId,
+        walletAddress: sampleUsers.mainUser.walletAddress,
+        tokenAmount: sampleUsers.mainUser.tokenAmount,
+        availableToken: sampleUsers.mainUser.availableToken,
+        createdAt: sampleUsers.mainUser.createdAt
+      };
+
+      await this.matchResultService.create({
+        partnerNickname: '탁구왕민수',
+        sportCategoryId: tableTennisCategory.id,
+        myResult: 'win',
+        isHandicap: false
+      }, sampleUserJwt);
+
+      console.log('샘플 매치 요청이 생성되었습니다: 샘플유저 → 탁구왕민수');
+    }
   }
 
   private async createSamplePosts(user: any) {

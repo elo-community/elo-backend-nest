@@ -15,7 +15,7 @@ export class PostDetailResponseDto {
     author: UserSimpleResponseDto;
     sportCategoryId?: number;
     sportCategoryName?: string;
-    comments?: CommentResponseDto[];
+    comments: CommentResponseDto[];
     isLiked?: boolean;
     isHated?: boolean;
     likeCount: number;
@@ -39,9 +39,11 @@ export class PostDetailResponseDto {
         this.likeCount = likeCount || 0;
         this.hateCount = hateCount || 0;
 
-        // 댓글이 있는 경우 변환
+        // 댓글이 있는 경우 변환, 없으면 빈 배열
         if (post.comments && post.comments.length > 0) {
             this.comments = post.comments.map(comment => new CommentResponseDto(comment));
+        } else {
+            this.comments = [];
         }
     }
 } 
