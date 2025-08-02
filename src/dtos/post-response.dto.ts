@@ -34,7 +34,7 @@ export class PostResponseDto {
         this.sportCategoryName = post.sportCategory?.name;
         this.isLiked = isLiked;
         this.isHated = isHated;
-        this.likeCount = likeCount || 0;
-        this.hateCount = hateCount || 0;
+        this.likeCount = likeCount || post.likes?.filter(like => like.isLiked === true).length || 0;
+        this.hateCount = hateCount || post.hates?.filter(hate => hate.isHated === true).length || 0;
     }
 } 

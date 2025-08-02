@@ -24,15 +24,14 @@ export class PostsController {
     async findAll(@Query() query: PostQueryDto, @CurrentUser() user?: JwtUser) {
         const paginatedPosts = await this.postService.findAll(query);
 
-        // 각 포스트에 대해 사용자의 좋아요/싫어요 여부와 개수 확인
+        // 각 포스트에 대해 사용자의 좋아요/싫어요 여부 확인
         const postsWithStatus = await Promise.all(
             paginatedPosts.data.map(async (post) => {
+                // 사용자의 좋아요/싫어요 여부 확인
                 const isLiked = user ? await this.postService.checkUserLikeStatus(post.id, user.id) : false;
                 const isHated = user ? await this.postService.checkUserHateStatus(post.id, user.id) : false;
-                const likeCount = await this.postService.getPostLikeCount(post.id);
-                const hateCount = await this.postService.getPostHateCount(post.id);
 
-                return new PostResponseDto(post, isLiked, isHated, likeCount, hateCount);
+                return new PostResponseDto(post, isLiked, isHated);
             })
         );
 

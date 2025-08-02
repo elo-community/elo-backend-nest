@@ -30,7 +30,9 @@ export class PostService {
         const queryBuilder = this.postRepository.createQueryBuilder('post')
             .leftJoinAndSelect('post.author', 'author')
             .leftJoinAndSelect('post.sportCategory', 'sportCategory')
-            .leftJoinAndSelect('post.comments', 'comments');
+            .leftJoinAndSelect('post.comments', 'comments')
+            .leftJoinAndSelect('post.likes', 'likes')
+            .leftJoinAndSelect('post.hates', 'hates');
 
         // 스포츠 카테고리 필터링
         if (query?.sport) {
