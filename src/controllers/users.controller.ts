@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Public } from 'src/auth/public.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { CurrentUser } from '../auth/user.decorator';
@@ -61,9 +62,23 @@ export class UsersController {
         };
     }
 
+
+    @Get('me/profile')
+    async getMyProfile(@CurrentUser() user?: JwtUser): Promise<UserProfileResponseDto> {
+        const userId = user?.id;
+
+        if (!userId) {
+            throw new UnauthorizedException('User not authenticated');
+        }
+
+        const profileData = await this.userService.findProfileWithElos(userId);
+        return new UserProfileResponseDto(profileData.user, profileData.userElos);
+    }
+
+    @Public()
     @Get(':id/profile')
-    async getProfile(@Param('id') id: string, @CurrentUser() user?: JwtUser): Promise<UserProfileResponseDto> {
-        const userId = id === 'me' ? user?.id : parseInt(id);
+    async getProfile(@Param('id') id: string): Promise<UserProfileResponseDto> {
+        const userId = parseInt(id);
 
         if (!userId) {
             throw new UnauthorizedException('User not authenticated');
@@ -96,9 +111,18 @@ export class UsersController {
         // Get posts by user
         const posts = await this.postService.findByUserId(userId);
 
+        // 각 포스트에 대해 사용자의 좋아요/싫어요 여부 확인
+        const postsWithStatus = await Promise.all(
+            posts.map(async (post) => {
+                const isLiked = await this.postService.checkUserLikeStatus(post.id, currentUser.id);
+                const isHated = await this.postService.checkUserHateStatus(post.id, currentUser.id);
+                return new PostResponseDto(post, isLiked, isHated);
+            })
+        );
+
         return {
             success: true,
-            data: posts.map((post) => new PostResponseDto(post)),
+            data: postsWithStatus,
             message: 'User posts retrieved successfully'
         };
     }

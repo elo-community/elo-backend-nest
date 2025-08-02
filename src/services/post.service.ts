@@ -89,7 +89,7 @@ export class PostService {
     async findByUserId(userId: number): Promise<Post[]> {
         return this.postRepository.find({
             where: { author: { id: userId } },
-            relations: ['author', 'sportCategory', 'comments'],
+            relations: ['author', 'sportCategory', 'comments', 'likes', 'hates'],
             order: { createdAt: 'DESC' }
         });
     }
