@@ -69,7 +69,9 @@ export class PostService {
                 'comments',
                 'comments.user',
                 'comments.replies',
-                'comments.replies.user'
+                'comments.replies.user',
+                'comments.likes',
+                'comments.likes.user'
             ],
             order: {
                 comments: {

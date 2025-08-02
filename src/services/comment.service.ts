@@ -19,7 +19,9 @@ export class CommentService {
             .leftJoinAndSelect('comment.user', 'user')
             .leftJoinAndSelect('comment.post', 'post')
             .leftJoinAndSelect('comment.replies', 'replies')
-            .leftJoinAndSelect('replies.user', 'replyUser');
+            .leftJoinAndSelect('replies.user', 'replyUser')
+            .leftJoinAndSelect('comment.likes', 'likes')
+            .leftJoinAndSelect('likes.user', 'likeUser');
 
         if (query?.postId) {
             queryBuilder.andWhere('comment.post.id = :postId', { postId: query.postId });
@@ -30,29 +32,20 @@ export class CommentService {
 
         const comments = await queryBuilder.getMany();
 
-        // 각 댓글의 좋아요 개수를 가져와서 포함
-        const commentsWithLikeCount = await Promise.all(
-            comments.map(async (comment) => {
-                const likeCount = await this.commentLikeService.getLikeCount(comment.id);
-                return { comment, likeCount };
-            })
-        );
-
-        return commentsWithLikeCount;
+        return comments;
     }
 
     async findOne(id: number) {
         const comment = await this.commentRepository.findOne({
             where: { id },
-            relations: ['user', 'post', 'replies', 'replies.user']
+            relations: ['user', 'post', 'replies', 'replies.user', 'likes', 'likes.user']
         });
 
         if (!comment) {
             throw new NotFoundException(`Comment with ID ${id} not found`);
         }
 
-        const likeCount = await this.commentLikeService.getLikeCount(comment.id);
-        return { comment, likeCount };
+        return { comment };
     }
 
     async create(createCommentDto: CreateCommentDto, user: JwtUser) {
@@ -107,7 +100,7 @@ export class CommentService {
     async findByPostId(postId: string | number) {
         const comments = await this.commentRepository.find({
             where: { post: { id: Number(postId) } },
-            relations: ['user', 'post', 'replies', 'replies.user'],
+            relations: ['user', 'post', 'replies', 'replies.user', 'likes', 'likes.user'],
             order: {
                 createdAt: 'ASC',
                 replies: {
@@ -116,22 +109,14 @@ export class CommentService {
             }
         });
 
-        // 각 댓글의 좋아요 개수를 가져와서 포함
-        const commentsWithLikeCount = await Promise.all(
-            comments.map(async (comment) => {
-                const likeCount = await this.commentLikeService.getLikeCount(comment.id);
-                return { comment, likeCount };
-            })
-        );
-
-        return commentsWithLikeCount;
+        return comments;
     }
 
     async getCommentTree(postId: number) {
         // 게시글의 모든 댓글을 트리 구조로 반환
         const comments = await this.commentRepository.find({
             where: { post: { id: postId } },
-            relations: ['user', 'replies', 'replies.user'],
+            relations: ['user', 'replies', 'replies.user', 'likes', 'likes.user'],
             order: {
                 createdAt: 'ASC',
                 replies: {
@@ -140,14 +125,6 @@ export class CommentService {
             }
         });
 
-        // 각 댓글의 좋아요 개수를 가져와서 포함
-        const commentsWithLikeCount = await Promise.all(
-            comments.map(async (comment) => {
-                const likeCount = await this.commentLikeService.getLikeCount(comment.id);
-                return { comment, likeCount };
-            })
-        );
-
-        return commentsWithLikeCount;
+        return comments;
     }
 } 

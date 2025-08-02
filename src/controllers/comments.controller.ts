@@ -1,16 +1,13 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { Public } from '../auth/public.decorator';
 import { CurrentUser } from '../auth/user.decorator';
 import { CommentResponseDto } from '../dtos/comment-response.dto';
 import { CommentQueryDto, CreateCommentDto, UpdateCommentDto } from '../dtos/comment.dto';
 import { CommentService } from '../services/comment.service';
 
-interface LikeCountResponseDto {
-    commentId: number;
-    likeCount: number;
-}
 
 @Controller('comments')
 export class CommentsController {
@@ -18,12 +15,12 @@ export class CommentsController {
 
     @UseGuards(JwtAuthGuard)
     @Get()
-    async findAll(@Query() query: CommentQueryDto) {
+    async findAll(@Query() query: CommentQueryDto, @CurrentUser() user: JwtUser) {
         const comments = await this.commentService.findAll(query);
         return {
             success: true,
-            data: comments.map(({ comment }) =>
-                new CommentResponseDto(comment)
+            data: comments.map(comment =>
+                new CommentResponseDto(comment, user.id)
             ),
             message: 'Comments retrieved successfully'
         };
@@ -31,11 +28,11 @@ export class CommentsController {
 
     @UseGuards(JwtAuthGuard)
     @Get(':id')
-    async findOne(@Param('id') id: number) {
+    async findOne(@Param('id') id: number, @CurrentUser() user: JwtUser) {
         const { comment } = await this.commentService.findOne(id);
         return {
             success: true,
-            data: new CommentResponseDto(comment),
+            data: new CommentResponseDto(comment, user.id),
             message: 'Comment retrieved successfully'
         };
     }
@@ -46,7 +43,7 @@ export class CommentsController {
         const { comment } = await this.commentService.create(createCommentDto, user);
         return {
             success: true,
-            data: new CommentResponseDto(comment),
+            data: new CommentResponseDto(comment, user.id),
             message: 'Comment created successfully'
         };
     }
@@ -57,7 +54,7 @@ export class CommentsController {
         const { comment } = await this.commentService.update(id, updateCommentDto, user);
         return {
             success: true,
-            data: new CommentResponseDto(comment),
+            data: new CommentResponseDto(comment, user.id),
             message: 'Comment updated successfully'
         };
     }
@@ -73,24 +70,15 @@ export class CommentsController {
         };
     }
 
-    @Public()
-    @Get('post/:postId')
-    async getCommentsByPost(@Param('postId') postId: string) {
-        const comments = await this.commentService.findByPostId(postId);
-        return {
-            success: true,
-            data: comments.map(({ comment }) => new CommentResponseDto(comment)),
-            message: 'Comments retrieved successfully'
-        };
-    }
 
     @Public()
+    @UseGuards(OptionalJwtAuthGuard)
     @Get('post/:postId/tree')
-    async getCommentTree(@Param('postId') postId: string) {
+    async getCommentTree(@Param('postId') postId: string, @CurrentUser() user?: JwtUser) {
         const comments = await this.commentService.getCommentTree(Number(postId));
         return {
             success: true,
-            data: comments.map(({ comment }) => new CommentResponseDto(comment)),
+            data: comments.map(comment => new CommentResponseDto(comment, user?.id)),
             message: 'Comment tree retrieved successfully'
         };
     }

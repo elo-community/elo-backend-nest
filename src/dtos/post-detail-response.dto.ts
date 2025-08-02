@@ -21,7 +21,7 @@ export class PostDetailResponseDto {
     likeCount: number;
     hateCount: number;
 
-    constructor(post: Post, isLiked?: boolean, isHated?: boolean, likeCount?: number, hateCount?: number) {
+    constructor(post: Post, isLiked?: boolean, isHated?: boolean, likeCount?: number, hateCount?: number, userId?: number) {
         this.id = post.id;
         this.title = post.title;
         this.content = post.content;
@@ -41,7 +41,7 @@ export class PostDetailResponseDto {
 
         // 댓글이 있는 경우 변환, 없으면 빈 배열
         if (post.comments && post.comments.length > 0) {
-            this.comments = post.comments.map(comment => new CommentResponseDto(comment));
+            this.comments = post.comments.map(comment => new CommentResponseDto(comment, userId));
         } else {
             this.comments = [];
         }

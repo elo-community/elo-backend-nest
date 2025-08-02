@@ -83,18 +83,19 @@ export class PostsController {
 
         return {
             success: true,
-            data: new PostDetailResponseDto(post, isLiked, isHated, likeCount, hateCount),
+            data: new PostDetailResponseDto(post, isLiked, isHated, likeCount, hateCount, user?.id),
             message: 'Post with details retrieved successfully'
         };
     }
 
     @Public()
+    @UseGuards(OptionalJwtAuthGuard)
     @Get(':postId/comments')
-    async getCommentsByPost(@Param('postId') postId: string) {
+    async getCommentsByPost(@Param('postId') postId: string, @CurrentUser() user?: JwtUser) {
         const comments = await this.commentService.findByPostId(postId);
         return {
             success: true,
-            data: comments.map(({ comment }) => new CommentResponseDto(comment)),
+            data: comments.map((comment) => new CommentResponseDto(comment, user?.id)),
             message: 'Comments retrieved successfully'
         };
     }
