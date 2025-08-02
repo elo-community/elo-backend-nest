@@ -94,22 +94,24 @@ export class AppModule implements OnModuleInit {
     let mainUser = await this.userService.findByWalletAddress('sample-user-wallet');
     let tableTennisUser = await this.userService.findByWalletAddress('table-tennis-user-wallet');
 
+    const categories = await this.sportCategoryService.findAll();
+
     if (!mainUser) {
-      mainUser = await this.userService.create({
+      mainUser = await this.userService.createWithDefaultElos({
         walletUserId: 'sample-user',
         walletAddress: 'sample-user-wallet',
         nickname: '샘플유저',
         email: 'sample@example.com',
-      });
+      }, categories);
     }
 
     if (!tableTennisUser) {
-      tableTennisUser = await this.userService.create({
+      tableTennisUser = await this.userService.createWithDefaultElos({
         walletUserId: 'table-tennis-user',
         walletAddress: 'table-tennis-user-wallet',
         nickname: '탁구왕민수',
         email: 'tabletennis@example.com',
-      });
+      }, categories);
     }
 
     return {
