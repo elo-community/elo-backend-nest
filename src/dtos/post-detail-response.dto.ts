@@ -20,6 +20,7 @@ export class PostDetailResponseDto {
     isHated?: boolean;
     likeCount: number;
     hateCount: number;
+    imageUrls?: string[];
 
     constructor(post: Post, isLiked?: boolean, isHated?: boolean, likeCount?: number, hateCount?: number, userId?: number) {
         this.id = post.id;
@@ -38,6 +39,7 @@ export class PostDetailResponseDto {
         this.isHated = isHated;
         this.likeCount = likeCount || 0;
         this.hateCount = hateCount || 0;
+        this.imageUrls = post.imageUrls;
 
         // 댓글이 있는 경우 변환, 없으면 빈 배열
         if (post.comments && post.comments.length > 0) {

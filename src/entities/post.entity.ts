@@ -47,4 +47,7 @@ export class Post {
 
     @OneToMany(() => PostHate, (hate) => hate.post)
     hates?: PostHate[];
+
+    @Column({ type: 'json', nullable: true })
+    imageUrls?: string[];
 } 

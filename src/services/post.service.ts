@@ -9,6 +9,7 @@ import { SportCategory } from '../entities/sport-category.entity';
 import { User } from '../entities/user.entity';
 import { PostHateService } from './post-hate.service';
 import { PostLikeService } from './post-like.service';
+import { TempImageService } from './temp-image.service';
 
 @Injectable()
 export class PostService {
@@ -24,6 +25,7 @@ export class PostService {
         private readonly userRepository: Repository<User>,
         private readonly postLikeService: PostLikeService,
         private readonly postHateService: PostHateService,
+        private readonly tempImageService: TempImageService,
     ) { }
 
     async findAll(query?: PostQueryDto): Promise<PaginationResponseDto<Post>> {
@@ -95,8 +97,7 @@ export class PostService {
     }
 
     async create(createPostDto: CreatePostDto, user: JwtUser): Promise<Post> {
-
-        const { sportCategoryId, ...rest } = createPostDto;
+        const { sportCategoryId, content, ...rest } = createPostDto;
         let sportCategoryEntity: SportCategory | undefined = undefined;
 
         if (typeof sportCategoryId === "number") {
@@ -107,16 +108,32 @@ export class PostService {
         const author = await this.userRepository.findOne({ where: { id: user.id } });
         if (!author) throw new Error('Author not found');
 
+        // content에서 실제 사용된 이미지 URL 추출
+        const usedImageUrls = this.extractImageUrlsFromContent(content || '');
+
         const post = this.postRepository.create({
             ...rest,
+            content,
             sportCategory: sportCategoryEntity,
             author,
+            imageUrls: usedImageUrls,
         });
-        return this.postRepository.save(post);
+
+        const savedPost = await this.postRepository.save(post);
+
+        // 사용된 이미지들을 임시 이미지에서 제거
+        for (const imageUrl of usedImageUrls) {
+            await this.tempImageService.markImageAsUsed(imageUrl, user.id);
+        }
+
+        // 사용되지 않은 임시 이미지들 정리
+        await this.tempImageService.cleanupUnusedImages(usedImageUrls, user.id);
+
+        return savedPost;
     }
 
     async update(id: number, updatePostDto: UpdatePostDto): Promise<Post | null> {
-        const { sportCategoryId, ...rest } = updatePostDto;
+        const { sportCategoryId, content, ...rest } = updatePostDto;
         let sportCategoryEntity: SportCategory | undefined = undefined;
 
         // 스포츠 카테고리가 지정된 경우
@@ -134,7 +151,26 @@ export class PostService {
             sportCategoryEntity = freeCategory ?? undefined;
         }
 
-        await this.postRepository.update(id, { ...rest, sportCategory: sportCategoryEntity });
+        // content에서 실제 사용된 이미지 URL 추출
+        const usedImageUrls = this.extractImageUrlsFromContent(content || '');
+
+        await this.postRepository.update(id, {
+            ...rest,
+            content,
+            sportCategory: sportCategoryEntity,
+            imageUrls: usedImageUrls
+        });
+
+        // 사용된 이미지들을 임시 이미지에서 제거
+        const post = await this.findOne(id);
+        if (post) {
+            for (const imageUrl of usedImageUrls) {
+                await this.tempImageService.markImageAsUsed(imageUrl, post.author.id);
+            }
+            // 사용되지 않은 임시 이미지들 정리
+            await this.tempImageService.cleanupUnusedImages(usedImageUrls, post.author.id);
+        }
+
         return this.findOne(id);
     }
 
@@ -214,5 +250,12 @@ export class PostService {
         } catch (error) {
             return 0;
         }
+    }
+
+    // content에서 이미지 URL 추출
+    private extractImageUrlsFromContent(content: string): string[] {
+        const imageUrlRegex = /https:\/\/[^\s<>"']+\.(jpg|jpeg|png|gif|webp)/gi;
+        const matches = content.match(imageUrlRegex);
+        return matches ? [...new Set(matches)] : []; // 중복 제거
     }
 } 

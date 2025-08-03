@@ -3,9 +3,11 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
+import s3Config from './config/s3.config';
 import { AuthController } from './controllers/auth.controller';
 import { CommentLikesController } from './controllers/comment-likes.controller';
 import { CommentsController } from './controllers/comments.controller';
+import { ImageController } from './controllers/image.controller';
 import { MatchResultsController, UserMatchesController } from './controllers/match-results.controller';
 import { PostHatesController } from './controllers/post-hates.controller';
 import { PostLikesController } from './controllers/post-likes.controller';
@@ -21,9 +23,11 @@ import { PostLike } from './entities/post-like.entity';
 import { Post } from './entities/post.entity';
 import { Reply } from './entities/reply.entity';
 import { SportCategory } from './entities/sport-category.entity';
+import { TempImage } from './entities/temp-image.entity';
 import { UserElo } from './entities/user-elo.entity';
 import { User } from './entities/user.entity';
 import { MatchResultScheduler } from './schedulers/match-result.scheduler';
+import { TempImageCleanupScheduler } from './schedulers/temp-image-cleanup.scheduler';
 import { CommentLikeService } from './services/comment-like.service';
 import { CommentService } from './services/comment.service';
 import { MatchResultService } from './services/match-result.service';
@@ -31,13 +35,18 @@ import { PostHateService } from './services/post-hate.service';
 import { PostLikeService } from './services/post-like.service';
 import { PostService } from './services/post.service';
 import { ReplyService } from './services/reply.service';
+import { S3Service } from './services/s3.service';
 import { SportCategoryService } from './services/sport-category.service';
+import { TempImageService } from './services/temp-image.service';
 import { UserService } from './services/user.service';
 
 // NOTE: 앞으로 생성할 컨트롤러/라우트는 모두 복수형으로 작성 (예: users, posts, comments, auths)
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [s3Config],
+    }),
     ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',
@@ -52,15 +61,15 @@ import { UserService } from './services/user.service';
       logging: true,
     }),
     TypeOrmModule.forFeature([
-      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult
+      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, TempImage
     ]),
     AuthModule,
   ],
   controllers: [
-    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController
+    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController
   ],
   providers: [
-    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler
+    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, TempImageService, TempImageCleanupScheduler
   ],
 })
 export class AppModule implements OnModuleInit {

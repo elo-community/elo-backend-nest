@@ -18,6 +18,7 @@ export class PostResponseDto {
     isHated?: boolean;
     likeCount: number;
     hateCount: number;
+    imageUrls?: string[];
 
     constructor(post: Post, isLiked?: boolean, isHated?: boolean, likeCount?: number, hateCount?: number) {
         this.id = post.id;
@@ -36,5 +37,6 @@ export class PostResponseDto {
         this.isHated = isHated;
         this.likeCount = likeCount || post.likes?.filter(like => like.isLiked === true).length || 0;
         this.hateCount = hateCount || post.hates?.filter(hate => hate.isHated === true).length || 0;
+        this.imageUrls = post.imageUrls;
     }
 } 
