@@ -135,15 +135,34 @@ export class MatchResultService {
         });
     }
 
-    async findUserMatchHistory(user: JwtUser): Promise<any[]> {
-        // 사용자가 참여한 모든 매치 결과 조회 (승인된 것만)
+    async findUserMatchHistory(user: JwtUser, query: any = {}): Promise<{ data: any[], pagination: any }> {
+        const { sport, page = 1, limit = 10 } = query;
+
+        // 기본 쿼리 조건
+        const baseWhere = [
+            { user: { id: user.id }, status: MatchStatus.ACCEPTED },
+            { partner: { id: user.id }, status: MatchStatus.ACCEPTED }
+        ];
+
+        // 스포츠 카테고리 필터링 추가
+        if (sport) {
+            baseWhere[0]['sportCategory'] = { id: sport };
+            baseWhere[1]['sportCategory'] = { id: sport };
+        }
+
+        // 전체 개수 조회
+        const totalCount = await this.matchResultRepository.count({
+            where: baseWhere,
+            relations: ['sportCategory']
+        });
+
+        // 페이지네이션 적용하여 데이터 조회
         const matchResults = await this.matchResultRepository.find({
-            where: [
-                { user: { id: user.id }, status: MatchStatus.ACCEPTED },
-                { partner: { id: user.id }, status: MatchStatus.ACCEPTED }
-            ],
+            where: baseWhere,
             relations: ['sportCategory', 'user', 'partner'],
-            order: { createdAt: 'DESC' }
+            order: { createdAt: 'DESC' },
+            skip: (page - 1) * limit,
+            take: limit
         });
 
         const historyItems: any[] = [];
@@ -188,6 +207,21 @@ export class MatchResultService {
             });
         }
 
-        return historyItems;
+        // 페이지네이션 정보 계산
+        const totalPages = Math.ceil(totalCount / limit);
+        const hasNext = page < totalPages;
+        const hasPrev = page > 1;
+
+        return {
+            data: historyItems,
+            pagination: {
+                page,
+                limit,
+                total: totalCount,
+                totalPages,
+                hasNext,
+                hasPrev
+            }
+        };
     }
 } 

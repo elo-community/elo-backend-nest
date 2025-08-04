@@ -13,4 +13,10 @@ export class MatchResultHistoryItemDto {
     elo_before: number;
     elo_after: number;
     elo_delta: number;
+}
+
+export class MatchResultHistoryQueryDto {
+    sport?: number;
+    page?: number;
+    limit?: number;
 } 

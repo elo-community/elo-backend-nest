@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { Public } from 'src/auth/public.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { CurrentUser } from '../auth/user.decorator';
+import { MatchResultHistoryQueryDto } from '../dtos/match-result-history.dto';
 import { PostResponseDto } from '../dtos/post-response.dto';
 import { UserProfileResponseDto } from '../dtos/user-profile-response.dto';
 import { UserResponseDto } from '../dtos/user-response.dto';
@@ -179,14 +180,15 @@ export class UsersController {
     }
 
     @Get('me/match-results')
-    async getMyMatchHistory(@CurrentUser() currentUser: JwtUser) {
-        const matchHistory = await this.matchResultService.findUserMatchHistory(currentUser);
+    async getMyMatchHistory(@Query() query: MatchResultHistoryQueryDto, @CurrentUser() currentUser: JwtUser) {
+        const matchHistory = await this.matchResultService.findUserMatchHistory(currentUser, query);
 
         return {
             success: true,
             data: {
-                matches: matchHistory
+                matches: matchHistory.data
             },
+            pagination: matchHistory.pagination,
             message: 'Match history retrieved successfully'
         };
     }
