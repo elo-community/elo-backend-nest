@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/comm
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { CurrentUser } from '../auth/user.decorator';
-import { CreateMatchResultDto, MatchResultResponseDto, UpdateMatchResultDto } from '../dtos/match-result.dto';
+import { CreateMatchResultDto, MatchResultResponseDto, ReceivedMatchResultResponseDto, SentMatchResultResponseDto, UpdateMatchResultDto } from '../dtos/match-result.dto';
 import { MatchResultService } from '../services/match-result.service';
 
 @UseGuards(JwtAuthGuard)
@@ -17,7 +17,7 @@ export class MatchResultsController {
         const matchResult = await this.matchResultService.create(createMatchResultDto, user);
         return {
             success: true,
-            data: new MatchResultResponseDto(matchResult),
+            data: new MatchResultResponseDto(matchResult, user.id),
             message: 'Match request created successfully'
         };
     }
@@ -28,7 +28,7 @@ export class MatchResultsController {
 
         return {
             success: true,
-            data: matchResults.map(matchResult => new MatchResultResponseDto(matchResult)),
+            data: matchResults.map(matchResult => new SentMatchResultResponseDto(matchResult)),
             message: 'Sent match requests retrieved successfully'
         };
     }
@@ -39,7 +39,7 @@ export class MatchResultsController {
 
         return {
             success: true,
-            data: matchResults.map(matchResult => new MatchResultResponseDto(matchResult)),
+            data: matchResults.map(matchResult => new ReceivedMatchResultResponseDto(matchResult)),
             message: 'Received match requests retrieved successfully'
         };
     }
@@ -54,7 +54,7 @@ export class MatchResultsController {
 
         return {
             success: true,
-            data: new MatchResultResponseDto(matchResult),
+            data: new MatchResultResponseDto(matchResult, user.id),
             message: `Match request ${updateMatchResultDto.action}ed successfully`
         };
     }
@@ -76,7 +76,7 @@ export class UserMatchesController {
 
         return {
             success: true,
-            data: matchResults.map(matchResult => new MatchResultResponseDto(matchResult)),
+            data: matchResults.map(matchResult => new MatchResultResponseDto(matchResult, user.id)),
             message: 'User matches retrieved successfully'
         };
     }
