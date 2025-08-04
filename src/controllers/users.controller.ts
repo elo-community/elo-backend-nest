@@ -7,6 +7,7 @@ import { PostResponseDto } from '../dtos/post-response.dto';
 import { UserProfileResponseDto } from '../dtos/user-profile-response.dto';
 import { UserResponseDto } from '../dtos/user-response.dto';
 import { CreateUserDto, UpdateUserDto } from '../dtos/user.dto';
+import { MatchResultService } from '../services/match-result.service';
 import { PostService } from '../services/post.service';
 import { SportCategoryService } from '../services/sport-category.service';
 import { UserService } from '../services/user.service';
@@ -18,6 +19,7 @@ export class UsersController {
         private readonly userService: UserService,
         private readonly sportCategoryService: SportCategoryService,
         private readonly postService: PostService,
+        private readonly matchResultService: MatchResultService,
     ) { }
 
     @Get()
@@ -173,6 +175,19 @@ export class UsersController {
             success: true,
             data: new UserResponseDto(user),
             message: 'User updated successfully'
+        };
+    }
+
+    @Get('me/match-results')
+    async getMyMatchHistory(@CurrentUser() currentUser: JwtUser) {
+        const matchHistory = await this.matchResultService.findUserMatchHistory(currentUser);
+
+        return {
+            success: true,
+            data: {
+                matches: matchHistory
+            },
+            message: 'Match history retrieved successfully'
         };
     }
 

@@ -134,4 +134,60 @@ export class MatchResultService {
             relations: ['sportCategory', 'user', 'partner']
         });
     }
+
+    async findUserMatchHistory(user: JwtUser): Promise<any[]> {
+        // 사용자가 참여한 모든 매치 결과 조회 (승인된 것만)
+        const matchResults = await this.matchResultRepository.find({
+            where: [
+                { user: { id: user.id }, status: MatchStatus.ACCEPTED },
+                { partner: { id: user.id }, status: MatchStatus.ACCEPTED }
+            ],
+            relations: ['sportCategory', 'user', 'partner'],
+            order: { createdAt: 'DESC' }
+        });
+
+        const historyItems: any[] = [];
+
+        for (const match of matchResults) {
+            // 현재 사용자가 매치의 주체인지 파트너인지 확인
+            const isUserCreator = match.user.id === user.id;
+            const partner = isUserCreator ? match.partner : match.user;
+
+            // partner가 undefined인 경우 스킵
+            if (!partner) {
+                continue;
+            }
+
+            // 결과 결정
+            let result: 'win' | 'lose' | 'draw';
+            if (isUserCreator) {
+                result = match.myResult || 'draw';
+            } else {
+                // 파트너의 결과는 반대
+                result = match.myResult === 'win' ? 'lose' :
+                    match.myResult === 'lose' ? 'win' : 'draw';
+            }
+
+            // ELO 정보 조회 (실제 구현에서는 ELO 히스토리 테이블이 필요할 수 있음)
+            // 현재는 기본값으로 설정
+            const elo_before = 1400; // 기본 ELO
+            const elo_after = 1400; // 기본 ELO
+            const elo_delta = 0; // 기본 변화량
+
+            historyItems.push({
+                id: match.id,
+                partner: partner.id,
+                partner_nickname: partner.nickname || 'Unknown',
+                sportCategory: match.sportCategory.name || 'Unknown',
+                result,
+                isHandicap: match.isHandicap,
+                created_at: match.createdAt,
+                elo_before,
+                elo_after,
+                elo_delta
+            });
+        }
+
+        return historyItems;
+    }
 } 
