@@ -17,6 +17,7 @@ export class MatchResultHistoryItemDto {
 
 export class MatchResultHistoryQueryDto {
     sport?: number;
+    partner?: string;
     page?: number;
     limit?: number;
 } 

@@ -136,34 +136,36 @@ export class MatchResultService {
     }
 
     async findUserMatchHistory(user: JwtUser, query: any = {}): Promise<{ data: any[], pagination: any }> {
-        const { sport, page = 1, limit = 10 } = query;
+        const { sport, partner, page = 1, limit = 10 } = query;
 
-        // 기본 쿼리 조건
-        const baseWhere = [
-            { user: { id: user.id }, status: MatchStatus.ACCEPTED },
-            { partner: { id: user.id }, status: MatchStatus.ACCEPTED }
-        ];
+        // QueryBuilder를 사용하여 더 정확한 필터링 구현
+        const queryBuilder = this.matchResultRepository
+            .createQueryBuilder('match')
+            .leftJoinAndSelect('match.sportCategory', 'sportCategory')
+            .leftJoinAndSelect('match.user', 'user')
+            .leftJoinAndSelect('match.partner', 'partner')
+            .where('match.status = :status', { status: MatchStatus.ACCEPTED })
+            .andWhere('(match.user.id = :userId OR match.partner.id = :userId)', { userId: user.id });
 
-        // 스포츠 카테고리 필터링 추가
+        // 스포츠 카테고리 필터링
         if (sport) {
-            baseWhere[0]['sportCategory'] = { id: sport };
-            baseWhere[1]['sportCategory'] = { id: sport };
+            queryBuilder.andWhere('sportCategory.id = :sportId', { sportId: sport });
+        }
+
+        // 파트너 필터링
+        if (partner) {
+            queryBuilder.andWhere('(partner.nickname = :partnerName OR user.nickname = :partnerName)', { partnerName: partner });
         }
 
         // 전체 개수 조회
-        const totalCount = await this.matchResultRepository.count({
-            where: baseWhere,
-            relations: ['sportCategory']
-        });
+        const totalCount = await queryBuilder.getCount();
 
         // 페이지네이션 적용하여 데이터 조회
-        const matchResults = await this.matchResultRepository.find({
-            where: baseWhere,
-            relations: ['sportCategory', 'user', 'partner'],
-            order: { createdAt: 'DESC' },
-            skip: (page - 1) * limit,
-            take: limit
-        });
+        const matchResults = await queryBuilder
+            .orderBy('match.createdAt', 'DESC')
+            .skip((page - 1) * limit)
+            .take(limit)
+            .getMany();
 
         const historyItems: any[] = [];
 
