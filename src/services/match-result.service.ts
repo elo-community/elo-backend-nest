@@ -91,16 +91,22 @@ export class MatchResultService {
 
     async findSentRequests(user: JwtUser): Promise<MatchResult[]> {
         return this.matchResultRepository.find({
-            where: { user: { id: user.id } },
+            where: {
+                user: { id: user.id },
+                status: MatchStatus.PENDING // pending 상태만 필터링
+            },
             relations: ['sportCategory', 'partner'],
             order: { createdAt: 'DESC' }
         });
     }
 
     async findReceivedRequests(user: JwtUser): Promise<MatchResult[]> {
-        // 받은 요청은 partner가 현재 사용자인 것들
+        // 받은 요청은 partner가 현재 사용자인 것들 (pending 상태만)
         return this.matchResultRepository.find({
-            where: { partner: { id: user.id } },
+            where: {
+                partner: { id: user.id },
+                status: MatchStatus.PENDING // pending 상태만 필터링
+            },
             relations: ['sportCategory', 'user'],
             order: { createdAt: 'DESC' }
         });
@@ -162,13 +168,12 @@ export class MatchResultService {
         const now = new Date();
 
         try {
-            // 만료된 요청 개수 확인
+            // 만료된 요청 개수 확인 (별칭 명확화)
             const expiredCount = await this.matchResultRepository
-                .createQueryBuilder()
+                .createQueryBuilder('matchResult')
                 .select('COUNT(*)', 'count')
-                .from(MatchResult, 'match')
-                .where('status = :status', { status: MatchStatus.PENDING })
-                .andWhere('expired_time < :now', { now })
+                .where('matchResult.status = :status', { status: MatchStatus.PENDING })
+                .andWhere('matchResult.expiredTime < :now', { now })
                 .getRawOne();
 
             const count = parseInt(expiredCount?.count || '0');
@@ -176,13 +181,13 @@ export class MatchResultService {
             if (count > 0) {
                 console.log(`[MatchResultService] 만료된 요청 ${count}개 발견, 정리 시작`);
 
-                // 만료된 요청들을 찾고 업데이트
+                // 만료된 요청들을 찾고 업데이트 (별칭 명확화)
                 const result = await this.matchResultRepository
-                    .createQueryBuilder()
+                    .createQueryBuilder('matchResult')
                     .update(MatchResult)
                     .set({ status: MatchStatus.EXPIRED })
-                    .where('status = :status', { status: MatchStatus.PENDING })
-                    .andWhere('expired_time < :now', { now })
+                    .where('matchResult.status = :status', { status: MatchStatus.PENDING })
+                    .andWhere('matchResult.expiredTime < :now', { now })
                     .execute();
 
                 console.log(`[MatchResultService] 만료 처리 완료: ${result.affected}개 요청`);
