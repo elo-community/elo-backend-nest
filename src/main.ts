@@ -8,7 +8,7 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'https://www.trivus.net',
-      'https://trivust.net',
+      'https://trivus.net',
       'http://localhost:3009'
     ],
     credentials: true,
