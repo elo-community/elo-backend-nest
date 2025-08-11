@@ -226,11 +226,49 @@ export class MatchResultService {
             // Elo 계산 및 적용 (저장된 MatchResult 전달)
             await this.applyEloToMatch(updatedMatchResult);
 
+            // SSE 알림 전송: 매치 생성자에게 승인 알림
+            if (updatedMatchResult.user && updatedMatchResult.sportCategory) {
+                this.sseService.sendMatchResultStatusNotification(
+                    updatedMatchResult.user.id,
+                    updatedMatchResult.id,
+                    'approved',
+                    updatedMatchResult.sportCategory.name || 'Unknown'
+                );
+            }
+
+            // SSE 알림 전송: 승인한 사람에게 승인 완료 알림
+            this.sseService.sendMatchResultStatusNotification(
+                user.id,
+                updatedMatchResult.id,
+                'approved',
+                updatedMatchResult.sportCategory?.name || 'Unknown'
+            );
+
             return updatedMatchResult;
         } else if (action === 'reject') {
             // 거부 시 REJECTED로 변경
             matchResult.status = MatchStatus.REJECTED;
-            return await this.matchResultRepository.save(matchResult);
+            const rejectedMatchResult = await this.matchResultRepository.save(matchResult);
+
+            // SSE 알림 전송: 매치 생성자에게 거부 알림
+            if (rejectedMatchResult.user && rejectedMatchResult.sportCategory) {
+                this.sseService.sendMatchResultStatusNotification(
+                    rejectedMatchResult.user.id,
+                    rejectedMatchResult.id,
+                    'rejected',
+                    rejectedMatchResult.sportCategory.name || 'Unknown'
+                );
+            }
+
+            // SSE 알림 전송: 거부한 사람에게 거부 완료 알림
+            this.sseService.sendMatchResultStatusNotification(
+                user.id,
+                rejectedMatchResult.id,
+                'rejected',
+                rejectedMatchResult.sportCategory?.name || 'Unknown'
+            );
+
+            return rejectedMatchResult;
         }
 
         throw new Error('Invalid action');
