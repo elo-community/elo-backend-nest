@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { CurrentUser } from '../auth/user.decorator';
-import { CreateMatchResultDto, MatchResultResponseDto, ReceivedMatchResultResponseDto, SentMatchResultResponseDto, UpdateMatchResultDto } from '../dtos/match-result.dto';
+import { CreateMatchResultDto, MatchResultResponseDto, ReceivedMatchResultResponseDto, SentMatchResultResponseDto } from '../dtos/match-result.dto';
 import { RespondMatchResultDto } from '../dtos/respond-match-result.dto';
 import { MatchResultService } from '../services/match-result.service';
 
@@ -71,21 +71,6 @@ export class MatchResultsController {
         };
     }
 
-    @Put(':id')
-    async updateStatus(
-        @Param('id') id: number,
-        @Body() updateMatchResultDto: UpdateMatchResultDto,
-        @CurrentUser() user: JwtUser
-    ) {
-        const matchResult = await this.matchResultService.updateStatus(id, updateMatchResultDto.action, user);
-
-        return {
-            success: true,
-            data: new MatchResultResponseDto(matchResult, user.id),
-            message: `Match request ${updateMatchResultDto.action}ed successfully`
-        };
-    }
-
     @Post(':id/respond')
     async respond(
         @Param('id') id: number,
@@ -98,20 +83,6 @@ export class MatchResultsController {
             success: true,
             data: new MatchResultResponseDto(matchResult, user.id),
             message: `Match request ${respondDto.action}ed successfully`
-        };
-    }
-
-    @Post(':id/confirm')
-    async confirm(
-        @Param('id') id: number,
-        @CurrentUser() user: JwtUser
-    ) {
-        const matchResult = await this.matchResultService.confirm(id, user);
-
-        return {
-            success: true,
-            data: new MatchResultResponseDto(matchResult, user.id),
-            message: 'Match result confirmed successfully'
         };
     }
 }

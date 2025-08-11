@@ -145,50 +145,6 @@ export class MatchResultService {
         });
     }
 
-    async updateStatus(id: number, action: 'accept' | 'reject', user: JwtUser): Promise<MatchResult> {
-        const matchResult = await this.findOne(id);
-        if (!matchResult) {
-            throw new Error('Match result not found');
-        }
-
-        // 만료 시간 확인
-        if (new Date() > matchResult.expiredTime) {
-            matchResult.status = MatchStatus.EXPIRED;
-            await this.matchResultRepository.save(matchResult);
-            throw new Error('Match request has expired');
-        }
-
-        // 권한 확인 (받은 요청만 처리 가능)
-        if (matchResult.partner?.id !== user.id) {
-            throw new Error('You can only respond to requests sent to you');
-        }
-
-        // 상태 업데이트
-        matchResult.status = action === 'accept' ? MatchStatus.CONFIRMED : MatchStatus.REJECTED;
-
-        const updatedMatchResult = await this.matchResultRepository.save(matchResult);
-
-        // 매치 결과를 생성한 사용자에게 상태 변경 알림 전송
-        console.log(`[MatchResultService] Sending SSE status change notification to match creator ${matchResult.user.id} for match result ${updatedMatchResult.id}`);
-        this.sseService.sendMatchResultStatusNotification(
-            matchResult.user.id,
-            updatedMatchResult.id,
-            action === 'accept' ? 'approved' : 'rejected',
-            matchResult.sportCategory?.name || 'Unknown Sport'
-        );
-
-        // 승인/거부한 사용자(파트너)에게도 상태 변경 알림 전송
-        console.log(`[MatchResultService] Sending SSE status change notification to partner ${matchResult.partner.id} for match result ${updatedMatchResult.id}`);
-        this.sseService.sendMatchResultStatusNotification(
-            matchResult.partner.id,
-            updatedMatchResult.id,
-            action === 'accept' ? 'approved' : 'rejected',
-            matchResult.sportCategory?.name || 'Unknown Sport'
-        );
-
-        return updatedMatchResult;
-    }
-
     // 만료된 요청들을 정리하는 메서드 (스케줄러에서 사용)
     async cleanupExpiredRequests(): Promise<void> {
         const now = new Date();
@@ -244,12 +200,21 @@ export class MatchResultService {
             throw new Error('Match result is not pending');
         }
 
-        const { action, partnerResult } = respondDto;
+        const { action } = respondDto;
 
         if (action === 'accept') {
             // 승인 시 즉시 CONFIRMED로 변경하고 Elo 계산
             matchResult.status = MatchStatus.CONFIRMED;
             matchResult.confirmedAt = new Date();
+
+            // partnerResult 자동 설정 (상대방의 myResult와 반대)
+            if (matchResult.myResult === 'win') {
+                matchResult.partnerResult = 'lose';
+            } else if (matchResult.myResult === 'lose') {
+                matchResult.partnerResult = 'win';
+            } else {
+                matchResult.partnerResult = 'draw';
+            }
 
             const updatedMatchResult = await this.matchResultRepository.save(matchResult);
 
@@ -261,60 +226,16 @@ export class MatchResultService {
             // 거부 시 REJECTED로 변경
             matchResult.status = MatchStatus.REJECTED;
             return await this.matchResultRepository.save(matchResult);
-        } else if (action === 'counter') {
-            // 반박 시 partner_result 설정하고 PENDING 유지
-            if (!partnerResult) {
-                throw new Error('Partner result is required for counter action');
-            }
-            matchResult.partnerResult = partnerResult;
-            return await this.matchResultRepository.save(matchResult);
         }
 
         throw new Error('Invalid action');
     }
 
     /**
-     * Reporter confirms the match result after counter
-     */
-    async confirm(matchResultId: number, user: JwtUser): Promise<MatchResult> {
-        const matchResult = await this.findOne(matchResultId);
-        if (!matchResult) {
-            throw new Error('Match result not found');
-        }
-
-        // 권한 확인 (보고자만 확인 가능)
-        if (matchResult.user?.id !== user.id) {
-            throw new Error('You can only confirm your own match results');
-        }
-
-        // 상태 확인
-        if (matchResult.status !== MatchStatus.PENDING) {
-            throw new Error('Match result is not pending');
-        }
-
-        // partner_result가 있어야 함
-        if (!matchResult.partnerResult) {
-            throw new Error('No partner result to confirm');
-        }
-
-        // 최종 결과를 partner_result로 설정하고 CONFIRMED로 변경
-        matchResult.myResult = matchResult.partnerResult;
-        matchResult.status = MatchStatus.CONFIRMED;
-        matchResult.confirmedAt = new Date();
-
-        const updatedMatchResult = await this.matchResultRepository.save(matchResult);
-
-        // Elo 계산 및 적용
-        await this.applyEloToMatch(updatedMatchResult);
-
-        return updatedMatchResult;
-    }
-
-    /**
      * Calculate H2H gap between two users in the same sport
      */
     async h2hGap(sportCategoryId: number, aId: number, bId: number): Promise<number> {
-        // CONFIRMED 상태의 매치만 계산에 포함
+        // CONFIRMED 상태의 매치만 계산에 포함 (relations 포함)
         const confirmedMatches = await this.matchResultRepository.find({
             where: [
                 {
@@ -330,12 +251,17 @@ export class MatchResultService {
                     status: MatchStatus.CONFIRMED,
                 },
             ],
+            relations: ['user', 'partner'],
         });
 
         let aWins = 0;
         let aLosses = 0;
 
         for (const match of confirmedMatches) {
+            if (!match.user || !match.partner) {
+                continue; // 잘못된 데이터는 스킵
+            }
+
             if (match.user.id === aId) {
                 if (match.myResult === 'win') aWins++;
                 else if (match.myResult === 'lose') aLosses++;
@@ -358,18 +284,22 @@ export class MatchResultService {
 
         // 트랜잭션으로 Elo 계산 및 적용
         await this.dataSource.transaction(async (manager) => {
-            // Pessimistic write lock으로 매치 결과 로드
+            // 매치 결과 로드 (relations 포함, lock 제거)
             const lockedMatchResult = await manager.findOne(MatchResult, {
                 where: { id: matchResult.id },
-                lock: { mode: 'pessimistic_write' },
+                relations: ['user', 'partner', 'sportCategory'],
             });
 
             if (!lockedMatchResult || lockedMatchResult.status !== MatchStatus.CONFIRMED) {
                 throw new Error('Match result is not confirmed or has been modified');
             }
 
+            if (!lockedMatchResult.user || !lockedMatchResult.partner || !lockedMatchResult.sportCategory) {
+                throw new Error('Invalid match result: missing user, partner, or sport category');
+            }
+
             const userId = lockedMatchResult.user.id;
-            const partnerId = lockedMatchResult.partner!.id;
+            const partnerId = lockedMatchResult.partner.id;
             const sportCategoryId = lockedMatchResult.sportCategory.id;
             const isHandicap = lockedMatchResult.isHandicap;
             const result = lockedMatchResult.myResult;
