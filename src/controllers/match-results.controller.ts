@@ -44,6 +44,32 @@ export class MatchResultsController {
         };
     }
 
+    @Get(':id')
+    async findOne(@Param('id') id: number, @CurrentUser() user: JwtUser) {
+        const matchResult = await this.matchResultService.findOne(id);
+
+        if (!matchResult) {
+            return {
+                success: false,
+                message: 'Match result not found'
+            };
+        }
+
+        // 권한 확인: 매치 결과의 사용자이거나 파트너여야 함
+        if (matchResult.user?.id !== user.id && matchResult.partner?.id !== user.id) {
+            return {
+                success: false,
+                message: 'You do not have permission to view this match result'
+            };
+        }
+
+        return {
+            success: true,
+            data: new MatchResultResponseDto(matchResult, user.id),
+            message: 'Match result retrieved successfully'
+        };
+    }
+
     @Put(':id')
     async updateStatus(
         @Param('id') id: number,

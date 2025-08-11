@@ -6,6 +6,7 @@ import { CreateMatchResultDto } from '../dtos/match-result.dto';
 import { MatchResult, MatchStatus } from '../entities/match-result.entity';
 import { SportCategory } from '../entities/sport-category.entity';
 import { User } from '../entities/user.entity';
+import { SseService } from './sse.service';
 
 @Injectable()
 export class MatchResultService {
@@ -16,6 +17,7 @@ export class MatchResultService {
         private readonly sportCategoryRepository: Repository<SportCategory>,
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        private readonly sseService: SseService,
     ) { }
 
     async create(createMatchResultDto: CreateMatchResultDto, user: JwtUser): Promise<MatchResult> {
@@ -63,7 +65,28 @@ export class MatchResultService {
             expiredTime,
         });
 
-        return this.matchResultRepository.save(matchResult);
+        const savedMatchResult = await this.matchResultRepository.save(matchResult);
+
+        // 상대방에게 SSE 알림 전송
+        console.log(`[MatchResultService] Sending SSE notification to partner user ${partnerUser.id} for match result ${savedMatchResult.id}`);
+        console.log(`[MatchResultService] Partner user details:`, {
+            id: partnerUser.id,
+            nickname: partnerUser.nickname,
+            email: partnerUser.email
+        });
+        console.log(`[MatchResultService] Current user details:`, {
+            id: userEntity.id,
+            nickname: userEntity.nickname,
+            email: userEntity.email
+        });
+
+        this.sseService.sendMatchResultNotification(
+            partnerUser.id,
+            savedMatchResult.id,
+            sportCategory.name || 'Unknown Sport'
+        );
+
+        return savedMatchResult;
     }
 
     async findSentRequests(user: JwtUser): Promise<MatchResult[]> {
@@ -111,7 +134,27 @@ export class MatchResultService {
         // 상태 업데이트
         matchResult.status = action === 'accept' ? MatchStatus.ACCEPTED : MatchStatus.REJECTED;
 
-        return this.matchResultRepository.save(matchResult);
+        const updatedMatchResult = await this.matchResultRepository.save(matchResult);
+
+        // 매치 결과를 생성한 사용자에게 상태 변경 알림 전송
+        console.log(`[MatchResultService] Sending SSE status change notification to match creator ${matchResult.user.id} for match result ${updatedMatchResult.id}`);
+        this.sseService.sendMatchResultStatusNotification(
+            matchResult.user.id,
+            updatedMatchResult.id,
+            action === 'accept' ? 'approved' : 'rejected',
+            matchResult.sportCategory?.name || 'Unknown Sport'
+        );
+
+        // 승인/거부한 사용자(파트너)에게도 상태 변경 알림 전송
+        console.log(`[MatchResultService] Sending SSE status change notification to partner ${matchResult.partner.id} for match result ${updatedMatchResult.id}`);
+        this.sseService.sendMatchResultStatusNotification(
+            matchResult.partner.id,
+            updatedMatchResult.id,
+            action === 'accept' ? 'approved' : 'rejected',
+            matchResult.sportCategory?.name || 'Unknown Sport'
+        );
+
+        return updatedMatchResult;
     }
 
     // 만료된 요청들을 정리하는 메서드 (스케줄러에서 사용)

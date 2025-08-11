@@ -6,11 +6,7 @@ async function bootstrap() {
 
   // CORS 설정
   app.enableCors({
-    origin: [
-      'https://www.trivus.net',
-      'https://trivust.net',
-      'http://localhost:3009'
-    ],
+    origin: true, // 모든 origin 허용 (개발 환경용)
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],

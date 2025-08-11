@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE 매치 결과 알림 테스트</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .notifications {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #f8f9fa;
+        }
+
+        .notification {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+            background-color: white;
+        }
+
+        .notification.match-request {
+            border-left-color: #28a745;
+        }
+
+        .notification.status-change {
+            border-left-color: #ffc107;
+        }
+
+        .notification:hover {
+            background-color: #f8f9fa;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .notification.clickable {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .connection-status {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .api-status {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+            background-color: #e2e3e5;
+            color: #383d41;
+            border: 1px solid #d6d8db;
+        }
+
+        .user-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+
+        .user-section h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #495057;
+        }
+
+        .timestamp {
+            color: #6c757d;
+            font-size: 0.8em;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .status-pending {
+            color: #007bff;
+        }
+
+        .status-accepted {
+            color: #28a745;
+        }
+
+        .status-rejected {
+            color: #dc3545;
+        }
+
+        .status-expired {
+            color: #6c757d;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>SSE 매치 결과 알림 테스트</h1>
+
+        <!-- SSE 연결 상태 -->
+        <div id="connectionStatus" class="connection-status disconnected">
+            SSE 연결 상태: 연결되지 않음
+        </div>
+
+        <!-- 사용자 선택 및 토큰 생성 -->
+        <div class="user-section">
+            <h3>사용자 선택 및 토큰 생성</h3>
+            <div class="form-group">
+                <label for="userType">테스트 사용자:</label>
+                <select id="userType">
+                    <option value="sample-user">샘플유저</option>
+                    <option value="table-tennis-user">탁구왕민수</option>
+                </select>
+                <button onclick="generateToken()">토큰 생성</button>
+            </div>
+            <div class="form-group">
+                <label for="currentUser">현재 사용자:</label>
+                <input type="text" id="currentUser" readonly placeholder="토큰을 생성해주세요">
+            </div>
+            <div class="form-group">
+                <label for="tokenStatus">토큰 상태:</label>
+                <input type="text" id="tokenStatus" readonly placeholder="토큰 상태가 여기에 표시됩니다">
+            </div>
+        </div>
+
+        <!-- API 상태 표시 -->
+        <div id="apiStatus" class="api-status">
+            API 상태: 대기 중
+        </div>
+
+        <!-- SSE 연결/해제 버튼 -->
+        <div class="form-group">
+            <button id="connectBtn" onclick="connectSSE()">SSE 연결</button>
+            <button id="disconnectBtn" onclick="disconnectSSE()" disabled>SSE 연결 해제</button>
+            <button onclick="checkConnectedUsers()">연결된 사용자 확인</button>
+        </div>
+
+        <!-- 매치 결과 생성 폼 -->
+        <h3>매치 결과 생성 (알림 테스트)</h3>
+        <form id="matchForm">
+            <div class="form-group">
+                <label for="sportCategory">스포츠 카테고리:</label>
+                <select id="sportCategory" required>
+                    <option value="">선택하세요</option>
+                    <option value="1">테니스</option>
+                    <option value="2">배드민턴</option>
+                    <option value="3">탁구</option>
+                    <option value="4">골프</option>
+                    <option value="5">축구</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="partnerNickname">상대방 닉네임:</label>
+                <input type="text" id="partnerNickname" readonly placeholder="자동으로 설정됩니다">
+            </div>
+            <div class="form-group">
+                <label for="myResult">내 결과:</label>
+                <select id="myResult" required>
+                    <option value="">선택하세요</option>
+                    <option value="win">승리</option>
+                    <option value="lose">패배</option>
+                    <option value="draw">무승부</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="isHandicap">핸디캡 경기 여부:</label>
+                <select id="isHandicap" required>
+                    <option value="false">일반 경기</option>
+                    <option value="true">핸디캡 경기</option>
+                </select>
+            </div>
+            <button type="submit">매치 결과 생성</button>
+        </form>
+
+        <!-- 알림 목록 -->
+        <h3>실시간 알림</h3>
+        <div id="notifications" class="notifications">
+            <p>알림이 여기에 표시됩니다...</p>
+        </div>
+
+        <!-- 받은 매치 요청 목록 -->
+        <h3>받은 매치 요청</h3>
+        <div class="form-group">
+            <button onclick="loadReceivedRequests()">받은 요청 새로고침</button>
+        </div>
+        <div id="receivedRequests" class="notifications">
+            <p>받은 매치 요청이 여기에 표시됩니다...</p>
+        </div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let isConnected = false;
+        let currentToken = ''; // Added to store the token for API calls
+
+        // 토큰 생성
+        async function generateToken() {
+            const userType = document.getElementById('userType').value;
+            const currentUserInput = document.getElementById('currentUser');
+
+            try {
+                updateApiStatus('토큰 생성 중...');
+
+                const response = await fetch('http://localhost:3000/api/v1/auth/sample-login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ userType })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        currentToken = result.data.accessToken;
+                        console.log('토큰이 설정되었습니다:', currentToken); // 디버깅용 로그
+
+                        currentUserInput.value = userType === 'sample-user' ? '샘플유저' : '탁구왕민수';
+
+                        // 상대방 닉네임 자동 설정
+                        const partnerNicknameInput = document.getElementById('partnerNickname');
+                        if (userType === 'sample-user') {
+                            partnerNicknameInput.value = '탁구왕민수';
+                        } else {
+                            partnerNicknameInput.value = '샘플유저';
+                        }
+
+                        updateApiStatus('토큰 생성 성공', true);
+                        updateTokenStatus('토큰 생성됨');
+                        console.log('토큰 생성 성공:', result.data);
+                        console.log('현재 토큰 변수 상태:', currentToken); // 디버깅용 로그
+
+                        // 버튼 상태 업데이트
+                        updateButtons();
+
+                        // 기존 SSE 연결이 있다면 자동으로 재연결
+                        if (isConnected) {
+                            disconnectSSE();
+                            setTimeout(() => connectSSE(), 1000);
+                        }
+                    } else {
+                        updateApiStatus(`토큰 생성 실패: ${result.message}`, false);
+                        console.error('토큰 생성 실패:', result);
+                    }
+                } else {
+                    const error = await response.json();
+                    updateApiStatus(`토큰 생성 실패: ${error.message}`, false);
+                    console.error('토큰 생성 실패:', error);
+                }
+            } catch (error) {
+                console.error('토큰 생성 오류:', error);
+                updateApiStatus('토큰 생성 중 오류 발생', false);
+            }
+        }
+
+        // 토큰 검증
+        async function validateToken() {
+            if (!currentToken) {
+                updateTokenStatus('토큰이 없습니다');
+                return false;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3000/api/v1/auth/verify', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    updateTokenStatus('토큰 유효함');
+                    return true;
+                } else {
+                    updateTokenStatus('토큰이 유효하지 않음');
+                    return false;
+                }
+            } catch (error) {
+                console.error('토큰 검증 오류:', error);
+                updateTokenStatus('토큰 검증 오류');
+                return false;
+            }
+        }
+
+        // 토큰 상태 업데이트
+        function updateTokenStatus(status) {
+            const tokenStatusInput = document.getElementById('tokenStatus');
+            if (tokenStatusInput) {
+                tokenStatusInput.value = status;
+            }
+        }
+
+        // SSE 연결
+        async function connectSSE() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            console.log('현재 토큰 상태:', currentToken); // 디버깅용 로그
+
+            if (!currentToken) {
+                alert('먼저 토큰을 생성해주세요.');
+                return;
+            }
+
+            // 토큰 검증
+            updateApiStatus('토큰 검증 중...');
+            const isValid = await validateToken();
+            if (!isValid) {
+                updateApiStatus('토큰이 유효하지 않습니다. 새로운 토큰을 생성해주세요.', false);
+                currentToken = '';
+                updateButtons();
+                return;
+            }
+
+            const url = `http://localhost:3000/api/v1/sse/subscribe?token=${encodeURIComponent(currentToken)}`;
+
+            console.log('Connecting to SSE at:', url);
+            eventSource = new EventSource(url);
+
+            eventSource.onopen = function (event) {
+                console.log('SSE 연결됨');
+                isConnected = true;
+                updateConnectionStatus();
+                updateButtons();
+                updateApiStatus('SSE 연결 성공', true);
+
+                // 연결 성공 후 사용자 정보 확인 및 받은 요청 로드
+                checkCurrentUserInfo();
+                loadReceivedRequests();
+            };
+
+            eventSource.onmessage = function (event) {
+                console.log('SSE 메시지 수신:', event.data);
+                try {
+                    const data = JSON.parse(event.data);
+                    displayNotification(data);
+
+                    // 연결 확인 메시지일 때 사용자 정보 로그
+                    if (data.type === 'CONNECTION_ESTABLISHED') {
+                        console.log('SSE 연결이 설정되었습니다. 사용자 ID:', data.userId);
+                    }
+                } catch (error) {
+                    console.error('SSE 메시지 파싱 오류:', error);
+                }
+            };
+
+            eventSource.onerror = function (event) {
+                console.error('SSE 연결 오류:', event);
+                isConnected = false;
+                updateConnectionStatus();
+                updateButtons();
+
+                // 토큰 만료 등의 오류 처리
+                if (event.target.readyState === EventSource.CLOSED) {
+                    updateApiStatus('SSE 연결이 종료되었습니다. 토큰을 다시 생성해주세요.', false);
+                } else {
+                    updateApiStatus('SSE 연결 오류가 발생했습니다.', false);
+                }
+            };
+        }
+
+        // 현재 사용자 정보 확인
+        async function checkCurrentUserInfo() {
+            try {
+                const response = await fetch('http://localhost:3000/api/v1/auth/verify', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    console.log('현재 사용자 인증 상태: 유효함');
+                } else {
+                    console.error('현재 사용자 인증 상태: 유효하지 않음');
+                }
+            } catch (error) {
+                console.error('사용자 정보 확인 오류:', error);
+            }
+        }
+
+        // 연결된 사용자 확인
+        async function checkConnectedUsers() {
+            if (!currentToken) {
+                alert('먼저 토큰을 생성해주세요.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`http://localhost:3000/api/v1/sse/health?token=${encodeURIComponent(currentToken)}`, {
+                    method: 'GET'
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('연결된 사용자 정보:', result);
+                    alert(`연결된 사용자 수: ${result.data.totalConnections || '알 수 없음'}`);
+                } else {
+                    console.error('연결된 사용자 확인 실패');
+                    alert('연결된 사용자 확인에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('연결된 사용자 확인 오류:', error);
+                alert('연결된 사용자 확인 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 받은 매치 요청 조회
+        async function loadReceivedRequests() {
+            if (!currentToken) {
+                alert('먼저 토큰을 생성해주세요.');
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3000/api/v1/match-results/received', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    displayReceivedRequests(result.data);
+                } else {
+                    const error = await response.json();
+                    alert(`받은 요청 조회 실패: ${error.message}`);
+                }
+            } catch (error) {
+                console.error('받은 요청 조회 오류:', error);
+                alert('받은 요청 조회 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 받은 매치 요청 표시
+        function displayReceivedRequests(requests) {
+            const container = document.getElementById('receivedRequests');
+
+            if (!requests || requests.length === 0) {
+                container.innerHTML = '<p>받은 매치 요청이 없습니다.</p>';
+                return;
+            }
+
+            let html = '';
+            requests.forEach(request => {
+                const statusText = request.status === 'pending' ? '대기 중' :
+                    request.status === 'accepted' ? '승인됨' :
+                        request.status === 'rejected' ? '거부됨' : '만료됨';
+
+                const actionButtons = request.status === 'pending' ?
+                    `<button onclick="updateMatchStatus(${request.id}, 'accept')" style="background-color: #28a745; margin-right: 5px;">승인</button>
+                     <button onclick="updateMatchStatus(${request.id}, 'reject')" style="background-color: #dc3545;">거부</button>` : '';
+
+                html += `
+                    <div class="notification" style="border-left-color: #007bff; cursor: pointer;" onclick="viewMatchResultDetail(${request.id})">
+                        <strong>매치 요청: ${request.sportCategoryName || '알 수 없음'}</strong><br>
+                        <div class="timestamp">${new Date(request.createdAt).toLocaleString()}</div>
+                        <div>요청자: ${request.senderNickname || '알 수 없음'}</div>
+                        <div>결과: ${request.myResult}</div>
+                        <div>핸디캡: ${request.isHandicap ? '예' : '아니오'}</div>
+                        <div>상태: ${statusText}</div>
+                        ${actionButtons}
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // 매치 결과 상세 정보 조회
+        async function viewMatchResultDetail(matchId) {
+            if (!currentToken) {
+                alert('먼저 토큰을 생성해주세요.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`http://localhost:3000/api/v1/match-results/${matchId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    displayMatchResultDetail(result.data);
+                } else {
+                    const error = await response.json();
+                    alert(`매치 결과 조회 실패: ${error.message}`);
+                }
+            } catch (error) {
+                console.error('매치 결과 조회 오류:', error);
+                alert('매치 결과 조회 중 오류가 발생했습니다.');
+            }
+        }
+
+        // 매치 결과 상세 정보 표시
+        function displayMatchResultDetail(matchResult) {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+
+            const content = document.createElement('div');
+            content.className = 'modal-content';
+
+            const statusText = matchResult.status === 'pending' ? '대기 중' :
+                matchResult.status === 'accepted' ? '승인됨' :
+                    matchResult.status === 'rejected' ? '거부됨' : '만료됨';
+
+            const statusClass = matchResult.status === 'pending' ? 'status-pending' :
+                matchResult.status === 'accepted' ? 'status-accepted' :
+                    matchResult.status === 'rejected' ? 'status-rejected' : 'status-expired';
+
+            content.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>매치 결과 상세 정보</h2>
+                    <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong>스포츠:</strong> ${matchResult.sportCategory?.name || '알 수 없음'}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong>상태:</strong> <span class="${statusClass}">${statusText}</span>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong>생성일:</strong> ${new Date(matchResult.createdAt).toLocaleString()}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong>만료일:</strong> ${new Date(matchResult.expiredTime).toLocaleString()}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong>요청자:</strong> ${matchResult.user?.nickname || '알 수 없음'}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong>파트너:</strong> ${matchResult.partner?.nickname || '알 수 없음'}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong>요청자 결과:</strong> ${matchResult.myResult}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong>파트너 결과:</strong> ${matchResult.partnerResult || '아직 입력되지 않음'}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <strong>핸디캡:</strong> ${matchResult.isHandicap ? '예' : '아니오'}
+                </div>
+                ${matchResult.status === 'pending' ? `
+                    <div style="margin-top: 20px; text-align: center;">
+                        <button onclick="updateMatchStatus(${matchResult.id}, 'accept')" style="background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin-right: 10px; cursor: pointer;">승인</button>
+                        <button onclick="updateMatchStatus(${matchResult.id}, 'reject')" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">거부</button>
+                    </div>
+                ` : ''}
+            `;
+
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+
+            // 모달 외부 클릭 시 닫기
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+
+        // 매치 상태 업데이트 (승인/거부)
+        async function updateMatchStatus(matchId, action) {
+            if (!currentToken) {
+                alert('먼저 토큰을 생성해주세요.');
+                return;
+            }
+            console.log(action);
+
+            try {
+                const response = await fetch(`http://localhost:3000/api/v1/match-results/${matchId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({ action })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`매치 요청이 ${action === 'accept' ? '승인' : '거부'}되었습니다!`);
+                    console.log('매치 상태 업데이트 성공:', result);
+
+                    // 열린 모달 닫기
+                    const modal = document.querySelector('.modal');
+                    if (modal) {
+                        modal.remove();
+                    }
+
+                    // 받은 요청 목록 새로고침
+                    loadReceivedRequests();
+                } else {
+                    const error = await response.json();
+                    alert(`매치 상태 업데이트 실패: ${error.message}`);
+                    console.error('매치 상태 업데이트 실패:', error);
+                }
+            } catch (error) {
+                console.error('매치 상태 업데이트 오류:', error);
+                alert('매치 상태 업데이트 중 오류가 발생했습니다.');
+            }
+        }
+
+        // SSE 연결 해제
+        function disconnectSSE() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            isConnected = false;
+            // 토큰은 유지하여 재연결 가능하도록 함
+            updateConnectionStatus();
+            updateButtons();
+        }
+
+        // 연결 상태 업데이트
+        function updateConnectionStatus() {
+            const statusDiv = document.getElementById('connectionStatus');
+            if (isConnected) {
+                statusDiv.className = 'connection-status connected';
+                statusDiv.textContent = 'SSE 연결 상태: 연결됨';
+            } else {
+                statusDiv.className = 'connection-status disconnected';
+                statusDiv.textContent = 'SSE 연결 상태: 연결되지 않음';
+            }
+        }
+
+        // 버튼 상태 업데이트
+        function updateButtons() {
+            document.getElementById('connectBtn').disabled = isConnected;
+            document.getElementById('disconnectBtn').disabled = !isConnected;
+
+            // 토큰이 있으면 SSE 연결 버튼 활성화
+            const connectBtn = document.getElementById('connectBtn');
+            if (currentToken && !isConnected) {
+                connectBtn.disabled = false;
+                connectBtn.textContent = 'SSE 연결';
+            } else if (!currentToken) {
+                connectBtn.disabled = true;
+                connectBtn.textContent = '토큰 생성 필요';
+            }
+        }
+
+        // API 상태 업데이트
+        function updateApiStatus(message, isSuccess = true) {
+            const apiStatusDiv = document.getElementById('apiStatus');
+            apiStatusDiv.textContent = `API 상태: ${message}`;
+            apiStatusDiv.style.backgroundColor = isSuccess ? '#d4edda' : '#f8d7da';
+            apiStatusDiv.style.color = isSuccess ? '#155724' : '#721c24';
+            apiStatusDiv.style.borderColor = isSuccess ? '#c3e6cb' : '#f5c6cb';
+        }
+
+        // 알림 표시
+        function displayNotification(data) {
+            const notificationsDiv = document.getElementById('notifications');
+            const notificationDiv = document.createElement('div');
+
+            let className = 'notification';
+            let title = '알림';
+
+            if (data.type === 'MATCH_RESULT_REQUEST') {
+                className += ' match-request';
+                title = '새로운 매치 결과 요청';
+            } else if (data.type === 'MATCH_RESULT_STATUS_CHANGED') {
+                className += ' status-change';
+                title = '매치 결과 상태 변경';
+            }
+
+            notificationDiv.className = className;
+            notificationDiv.innerHTML = `
+                <strong>${title}</strong><br>
+                <div class="timestamp">${new Date(data.timestamp).toLocaleString()}</div>
+                <div>${data.data.message}</div>
+                ${data.data.sportCategory ? `<div>스포츠: ${data.data.sportCategory}</div>` : ''}
+                ${data.data.matchResultId ? `<div>매치 ID: ${data.data.matchResultId}</div>` : ''}
+                ${data.data.status ? `<div>상태: ${data.data.status === 'approved' ? '승인됨' : '거부됨'}</div>` : ''}
+            `;
+
+            notificationsDiv.insertBefore(notificationDiv, notificationsDiv.firstChild);
+
+            // 매치 결과 상태 변경 알림이 오면 받은 요청 목록 새로고침
+            if (data.type === 'MATCH_RESULT_STATUS_CHANGED') {
+                setTimeout(() => loadReceivedRequests(), 1000);
+            }
+        }
+
+        // 매치 결과 생성 폼 제출
+        document.getElementById('matchForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            if (!currentToken) {
+                alert('먼저 SSE에 연결해주세요.');
+                return;
+            }
+
+            const formData = {
+                sportCategoryId: parseInt(document.getElementById('sportCategory').value),
+                partnerNickname: document.getElementById('partnerNickname').value,
+                myResult: document.getElementById('myResult').value,
+                isHandicap: document.getElementById('isHandicap').value === 'true'
+            };
+
+            // 현재 사용자와 상대방 설정
+            const currentUser = document.getElementById('currentUser').value;
+            if (currentUser === '샘플유저') {
+                formData.partnerNickname = '탁구왕민수';
+            } else if (currentUser === '탁구왕민수') {
+                formData.partnerNickname = '샘플유저';
+            }
+
+            try {
+                updateApiStatus('매치 결과 생성 중...');
+                const response = await fetch('http://localhost:3000/api/v1/match-results', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    alert('매치 결과가 생성되었습니다!');
+                    console.log('매치 결과 생성 성공:', result);
+                    updateApiStatus('매치 결과 생성 성공', true);
+                } else {
+                    const error = await response.json();
+                    alert(`매치 결과 생성 실패: ${error.message}`);
+                    console.error('매치 결과 생성 실패:', error);
+                    updateApiStatus(`매치 결과 생성 실패: ${error.message}`, false);
+                }
+            } catch (error) {
+                console.error('매치 결과 생성 오류:', error);
+                alert('매치 결과 생성 중 오류가 발생했습니다.');
+                updateApiStatus('매치 결과 생성 중 오류 발생', false);
+            }
+        });
+
+        // 초기 상태 설정
+        updateConnectionStatus();
+        updateApiStatus('대기 중');
+        updateTokenStatus('토큰이 없습니다');
+        updateButtons();
+    </script>
+</body>
+
+</html>

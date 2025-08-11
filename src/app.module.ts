@@ -14,6 +14,7 @@ import { PostLikesController } from './controllers/post-likes.controller';
 import { PostsController } from './controllers/posts.controller';
 import { RepliesController } from './controllers/replies.controller';
 import { SportCategoriesController } from './controllers/sport-categories.controller';
+import { SseController } from './controllers/sse.controller';
 import { UsersController } from './controllers/users.controller';
 import { CommentLike } from './entities/comment-like.entity';
 import { Comment } from './entities/comment.entity';
@@ -37,6 +38,7 @@ import { PostService } from './services/post.service';
 import { ReplyService } from './services/reply.service';
 import { S3Service } from './services/s3.service';
 import { SportCategoryService } from './services/sport-category.service';
+import { SseService } from './services/sse.service';
 import { TempImageService } from './services/temp-image.service';
 import { UserService } from './services/user.service';
 
@@ -66,10 +68,10 @@ import { UserService } from './services/user.service';
     AuthModule,
   ],
   controllers: [
-    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController
+    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController
   ],
   providers: [
-    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, TempImageService, TempImageCleanupScheduler
+    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler
   ],
 })
 export class AppModule implements OnModuleInit {

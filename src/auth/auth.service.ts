@@ -34,4 +34,12 @@ export class AuthService {
             message: 'Login successful'
         };
     }
+
+    verifyToken(token: string): any {
+        try {
+            return this.jwtService.verify(token);
+        } catch (error) {
+            throw new Error('Invalid token');
+        }
+    }
 } 
