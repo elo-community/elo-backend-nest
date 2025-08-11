@@ -23,4 +23,16 @@ export class UserElo {
 
     @Column({ type: 'decimal', precision: 5, scale: 2, nullable: false, default: 50.00 })
     percentile!: number;
+
+    @Column({ type: 'int', name: 'wins', nullable: false, default: 0 })
+    wins!: number;
+
+    @Column({ type: 'int', name: 'losses', nullable: false, default: 0 })
+    losses!: number;
+
+    @Column({ type: 'int', name: 'draws', nullable: false, default: 0 })
+    draws!: number;
+
+    @Column({ type: 'int', name: 'total_matches', nullable: false, default: 0 })
+    totalMatches!: number;
 } 
