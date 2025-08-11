@@ -18,12 +18,12 @@ export class CreateMatchResultDto {
     partnerNickname!: string;
 
     @ApiProperty({
-        description: 'Match result from reporter\'s perspective',
+        description: 'Match result from sender\'s perspective',
         enum: ['win', 'lose', 'draw'],
         example: 'win',
     })
     @IsEnum(['win', 'lose', 'draw'])
-    myResult!: 'win' | 'lose' | 'draw';
+    senderResult!: 'win' | 'lose' | 'draw';
 
     @ApiPropertyOptional({
         description: 'Whether the match has handicap',

@@ -4,7 +4,7 @@ import { User } from './user.entity';
 
 export enum MatchStatus {
     PENDING = 'pending',
-    CONFIRMED = 'confirmed',
+    ACCEPTED = 'accepted',
     REJECTED = 'rejected',
     EXPIRED = 'expired',
     CANCELLED = 'cancelled'
@@ -28,7 +28,7 @@ export class MatchResult {
     sportCategory!: SportCategory;
 
     @Column({ type: 'enum', enum: ['win', 'lose', 'draw'], nullable: true })
-    myResult?: 'win' | 'lose' | 'draw';
+    senderResult?: 'win' | 'lose' | 'draw';
 
     @Column({ type: 'boolean', name: 'is_handicap', default: false })
     isHandicap!: boolean;

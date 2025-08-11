@@ -2,7 +2,8 @@ import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { CurrentUser } from '../auth/user.decorator';
-import { CreateMatchResultDto, MatchResultResponseDto, ReceivedMatchResultResponseDto, SentMatchResultResponseDto } from '../dtos/match-result.dto';
+import { CreateMatchResultDto } from '../dtos/create-match-result.dto';
+import { MatchResultResponseDto } from '../dtos/match-result.dto';
 import { RespondMatchResultDto } from '../dtos/respond-match-result.dto';
 import { MatchResultService } from '../services/match-result.service';
 
@@ -18,7 +19,7 @@ export class MatchResultsController {
         const matchResult = await this.matchResultService.create(createMatchResultDto, user);
         return {
             success: true,
-            data: new MatchResultResponseDto(matchResult, user.id),
+            data: new MatchResultResponseDto(matchResult),
             message: 'Match request created successfully'
         };
     }
@@ -29,7 +30,7 @@ export class MatchResultsController {
 
         return {
             success: true,
-            data: matchResults.map(matchResult => new SentMatchResultResponseDto(matchResult)),
+            data: matchResults.map(matchResult => new MatchResultResponseDto(matchResult)),
             message: 'Sent match requests retrieved successfully'
         };
     }
@@ -40,7 +41,7 @@ export class MatchResultsController {
 
         return {
             success: true,
-            data: matchResults.map(matchResult => new ReceivedMatchResultResponseDto(matchResult)),
+            data: matchResults.map(matchResult => new MatchResultResponseDto(matchResult)),
             message: 'Received match requests retrieved successfully'
         };
     }
@@ -66,7 +67,7 @@ export class MatchResultsController {
 
         return {
             success: true,
-            data: new MatchResultResponseDto(matchResult, user.id),
+            data: new MatchResultResponseDto(matchResult),
             message: 'Match result retrieved successfully'
         };
     }
@@ -81,7 +82,7 @@ export class MatchResultsController {
 
         return {
             success: true,
-            data: new MatchResultResponseDto(matchResult, user.id),
+            data: new MatchResultResponseDto(matchResult),
             message: `Match request ${respondDto.action}ed successfully`
         };
     }
@@ -103,7 +104,7 @@ export class UserMatchesController {
 
         return {
             success: true,
-            data: matchResults.map(matchResult => new MatchResultResponseDto(matchResult, user.id)),
+            data: matchResults.map(matchResult => new MatchResultResponseDto(matchResult)),
             message: 'User matches retrieved successfully'
         };
     }

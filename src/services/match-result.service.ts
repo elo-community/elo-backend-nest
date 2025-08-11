@@ -31,7 +31,7 @@ export class MatchResultService {
     ) { }
 
     async create(createMatchResultDto: CreateMatchResultDto, user: JwtUser): Promise<MatchResult> {
-        const { sportCategoryId, partnerNickname, myResult, isHandicap = false, playedAt, ...rest } = createMatchResultDto;
+        const { sportCategoryId, partnerNickname, senderResult, isHandicap = false, playedAt, ...rest } = createMatchResultDto;
 
         // 스포츠 카테고리 조회
         const sportCategory = await this.sportCategoryRepository.findOne({
@@ -92,7 +92,7 @@ export class MatchResultService {
             sportCategory,
             user: userEntity,
             partner: partnerUser,
-            myResult,
+            senderResult,
             isHandicap,
             playedAt: playedAtDate,
             playedDate,
@@ -203,22 +203,31 @@ export class MatchResultService {
         const { action } = respondDto;
 
         if (action === 'accept') {
-            // 승인 시 즉시 CONFIRMED로 변경하고 Elo 계산
-            matchResult.status = MatchStatus.CONFIRMED;
+            // 승인 시 즉시 ACCEPTED로 변경하고 Elo 계산
+            matchResult.status = MatchStatus.ACCEPTED;
             matchResult.confirmedAt = new Date();
 
-            // partnerResult 자동 설정 (상대방의 myResult와 반대)
-            if (matchResult.myResult === 'win') {
+            // partnerResult 설정: 파트너의 결과는 보고자의 결과와 반대
+            if (matchResult.senderResult === 'win') {
                 matchResult.partnerResult = 'lose';
-            } else if (matchResult.myResult === 'lose') {
+            } else if (matchResult.senderResult === 'lose') {
                 matchResult.partnerResult = 'win';
-            } else {
-                matchResult.partnerResult = 'draw';
+            } else if (matchResult.senderResult === 'draw') {
+                matchResult.partnerResult = 'draw'; // draw는 그대로
             }
 
+            console.log('Setting partnerResult:', {
+                senderResult: matchResult.senderResult,
+                partnerResult: matchResult.partnerResult,
+                action: action
+            });
+
+            // 먼저 MatchResult를 저장
             const updatedMatchResult = await this.matchResultRepository.save(matchResult);
 
-            // Elo 계산 및 적용
+            console.log('After save - partnerResult:', updatedMatchResult.partnerResult);
+
+            // Elo 계산 및 적용 (저장된 MatchResult 전달)
             await this.applyEloToMatch(updatedMatchResult);
 
             return updatedMatchResult;
@@ -235,20 +244,20 @@ export class MatchResultService {
      * Calculate H2H gap between two users in the same sport
      */
     async h2hGap(sportCategoryId: number, aId: number, bId: number): Promise<number> {
-        // CONFIRMED 상태의 매치만 계산에 포함 (relations 포함)
+        // ACCEPTED 상태의 매치만 계산에 포함 (relations 포함)
         const confirmedMatches = await this.matchResultRepository.find({
             where: [
                 {
                     sportCategory: { id: sportCategoryId },
                     user: { id: aId },
                     partner: { id: bId },
-                    status: MatchStatus.CONFIRMED,
+                    status: MatchStatus.ACCEPTED,
                 },
                 {
                     sportCategory: { id: sportCategoryId },
                     user: { id: bId },
                     partner: { id: aId },
-                    status: MatchStatus.CONFIRMED,
+                    status: MatchStatus.ACCEPTED,
                 },
             ],
             relations: ['user', 'partner'],
@@ -263,11 +272,11 @@ export class MatchResultService {
             }
 
             if (match.user.id === aId) {
-                if (match.myResult === 'win') aWins++;
-                else if (match.myResult === 'lose') aLosses++;
+                if (match.senderResult === 'win') aWins++;
+                else if (match.senderResult === 'lose') aLosses++;
             } else {
-                if (match.myResult === 'lose') aWins++;
-                else if (match.myResult === 'win') aLosses++;
+                if (match.senderResult === 'lose') aWins++;
+                else if (match.senderResult === 'win') aLosses++;
             }
         }
 
@@ -290,8 +299,8 @@ export class MatchResultService {
                 relations: ['user', 'partner', 'sportCategory'],
             });
 
-            if (!lockedMatchResult || lockedMatchResult.status !== MatchStatus.CONFIRMED) {
-                throw new Error('Match result is not confirmed or has been modified');
+            if (!lockedMatchResult || lockedMatchResult.status !== MatchStatus.ACCEPTED) {
+                throw new Error('Match result is not accepted or has been modified');
             }
 
             if (!lockedMatchResult.user || !lockedMatchResult.partner || !lockedMatchResult.sportCategory) {
@@ -302,7 +311,7 @@ export class MatchResultService {
             const partnerId = lockedMatchResult.partner.id;
             const sportCategoryId = lockedMatchResult.sportCategory.id;
             const isHandicap = lockedMatchResult.isHandicap;
-            const result = lockedMatchResult.myResult;
+            const result = lockedMatchResult.senderResult;
 
             if (!result) {
                 throw new Error('Match result is missing');
@@ -407,7 +416,7 @@ export class MatchResultService {
             .leftJoinAndSelect('match.sportCategory', 'sportCategory')
             .leftJoinAndSelect('match.user', 'user')
             .leftJoinAndSelect('match.partner', 'partner')
-            .where('match.status = :status', { status: MatchStatus.CONFIRMED })
+            .where('match.status = :status', { status: MatchStatus.ACCEPTED })
             .andWhere('(match.user.id = :userId OR match.partner.id = :userId)', { userId: user.id });
 
         // 스포츠 카테고리 필터링
@@ -445,11 +454,11 @@ export class MatchResultService {
             // 결과 결정
             let result: 'win' | 'lose' | 'draw';
             if (isUserCreator) {
-                result = match.myResult || 'draw';
+                result = match.senderResult || 'draw';
             } else {
                 // 파트너의 결과는 반대
-                result = match.myResult === 'win' ? 'lose' :
-                    match.myResult === 'lose' ? 'win' : 'draw';
+                result = match.senderResult === 'win' ? 'lose' :
+                    match.senderResult === 'lose' ? 'win' : 'draw';
             }
 
             // ELO 정보 조회 (실제 Elo 값 사용)

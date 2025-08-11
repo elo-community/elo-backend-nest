@@ -167,7 +167,7 @@ export class AppModule implements OnModuleInit {
       await this.matchResultService.create({
         partnerNickname: '탁구왕민수',
         sportCategoryId: tableTennisCategory.id,
-        myResult: 'win',
+        senderResult: 'win',
         isHandicap: false,
         playedAt: new Date() // 현재 시간으로 설정
       }, sampleUserJwt);
