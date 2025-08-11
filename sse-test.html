@@ -244,6 +244,9 @@
             <button id="connectBtn" onclick="connectSSE()">SSE 연결</button>
             <button id="disconnectBtn" onclick="disconnectSSE()" disabled>SSE 연결 해제</button>
             <button onclick="checkConnectedUsers()">연결된 사용자 확인</button>
+            <label style="margin-left: 20px;">
+                <input type="checkbox" id="debugMode" onchange="toggleDebugMode()"> 디버그 모드
+            </label>
         </div>
 
         <!-- 매치 결과 생성 폼 -->
@@ -300,9 +303,23 @@
     </div>
 
     <script>
-        let eventSource = null;
         let isConnected = false;
-        let currentToken = ''; // Added to store the token for API calls
+        let eventSource = null;
+        let currentToken = '';
+        let debugMode = false; // 디버그 모드 상태
+
+        // 디버그 모드 토글
+        function toggleDebugMode() {
+            debugMode = document.getElementById('debugMode').checked;
+            console.log('디버그 모드:', debugMode ? '활성화' : '비활성화');
+        }
+
+        // 디버그 로그 함수
+        function debugLog(message, ...args) {
+            if (debugMode) {
+                console.log(message, ...args);
+            }
+        }
 
         // 토큰 생성
         async function generateToken() {
@@ -407,7 +424,7 @@
                 eventSource.close();
             }
 
-            console.log('현재 토큰 상태:', currentToken); // 디버깅용 로그
+            debugLog('현재 토큰 상태:', currentToken);
 
             if (!currentToken) {
                 alert('먼저 토큰을 생성해주세요.');
@@ -424,9 +441,9 @@
                 return;
             }
 
-            const url = `http://localhost:3000/api/v1/sse/subscribe?token=${encodeURIComponent(currentToken)}`;
+            const url = `http://localhost:3000/api/v1/sse/notifications?token=${encodeURIComponent(currentToken)}`;
 
-            console.log('Connecting to SSE at:', url);
+            debugLog('Connecting to SSE at:', url);
             eventSource = new EventSource(url);
 
             eventSource.onopen = function (event) {
@@ -442,14 +459,20 @@
             };
 
             eventSource.onmessage = function (event) {
-                console.log('SSE 메시지 수신:', event.data);
+                // 알림 메시지만 로그 출력 (연결 확인 메시지는 제외)
                 try {
                     const data = JSON.parse(event.data);
+
+                    // 연결 확인 메시지가 아닌 실제 알림만 로그 출력
+                    if (data.type !== 'CONNECTION_ESTABLISHED') {
+                        console.log('SSE 알림 수신:', data);
+                    }
+
                     displayNotification(data);
 
                     // 연결 확인 메시지일 때 사용자 정보 로그
                     if (data.type === 'CONNECTION_ESTABLISHED') {
-                        console.log('SSE 연결이 설정되었습니다. 사용자 ID:', data.userId);
+                        debugLog('SSE 연결이 설정되었습니다. 사용자 ID:', data.data?.userId);
                     }
                 } catch (error) {
                     console.error('SSE 메시지 파싱 오류:', error);
@@ -458,15 +481,28 @@
 
             eventSource.onerror = function (event) {
                 console.error('SSE 연결 오류:', event);
-                isConnected = false;
-                updateConnectionStatus();
-                updateButtons();
 
-                // 토큰 만료 등의 오류 처리
+                // 연결이 실제로 끊어진 경우에만 상태 업데이트
                 if (event.target.readyState === EventSource.CLOSED) {
-                    updateApiStatus('SSE 연결이 종료되었습니다. 토큰을 다시 생성해주세요.', false);
+                    debugLog('SSE 연결이 종료됨');
+                    isConnected = false;
+                    updateConnectionStatus();
+                    updateButtons();
+                    updateApiStatus('SSE 연결이 종료되었습니다. 재연결을 시도합니다...', false);
+
+                    // 자동 재연결 시도 (5초 후)
+                    setTimeout(() => {
+                        if (!isConnected && currentToken) {
+                            debugLog('SSE 자동 재연결 시도...');
+                            connectSSE();
+                        }
+                    }, 5000);
+                } else if (event.target.readyState === EventSource.CONNECTING) {
+                    debugLog('SSE 재연결 시도 중...');
+                    updateApiStatus('SSE 재연결 시도 중...', false);
                 } else {
-                    updateApiStatus('SSE 연결 오류가 발생했습니다.', false);
+                    debugLog('SSE 연결 오류 발생 (상태:', event.target.readyState, ')');
+                    updateApiStatus('SSE 연결 오류가 발생했습니다. 재연결을 시도합니다...', false);
                 }
             };
         }
@@ -516,6 +552,47 @@
                 alert('연결된 사용자 확인 중 오류가 발생했습니다.');
             }
         }
+
+        // SSE 연결 상태 확인
+        function checkSSEConnectionHealth() {
+            if (!eventSource) {
+                return false;
+            }
+
+            const readyState = eventSource.readyState;
+
+            // 정상 상태일 때는 로그 출력하지 않음
+            if (readyState === EventSource.OPEN) {
+                return true;
+            }
+
+            // 문제가 있을 때만 로그 출력
+            switch (readyState) {
+                case EventSource.CONNECTING:
+                    console.log('SSE 재연결 시도 중...');
+                    return false;
+                case EventSource.CLOSED:
+                    console.log('SSE 연결이 종료됨');
+                    return false;
+                default:
+                    console.log('SSE 알 수 없는 상태:', readyState);
+                    return false;
+            }
+        }
+
+        // 주기적으로 SSE 연결 상태 확인 (1분마다, 문제가 있을 때만 로그)
+        setInterval(() => {
+            if (isConnected && currentToken) {
+                const isHealthy = checkSSEConnectionHealth();
+                if (!isHealthy && isConnected) {
+                    console.log('SSE 연결 상태 불일치 감지, 상태 업데이트...');
+                    isConnected = false;
+                    updateConnectionStatus();
+                    updateButtons();
+                    updateApiStatus('SSE 연결 상태를 확인 중입니다...', false);
+                }
+            }
+        }, 60000); // 1분마다로 변경
 
         // 받은 매치 요청 조회
         async function loadReceivedRequests() {
@@ -720,13 +797,17 @@
         // SSE 연결 해제
         function disconnectSSE() {
             if (eventSource) {
+                console.log('SSE 연결 해제 중...');
                 eventSource.close();
                 eventSource = null;
             }
+
             isConnected = false;
-            // 토큰은 유지하여 재연결 가능하도록 함
             updateConnectionStatus();
             updateButtons();
+            updateApiStatus('SSE 연결이 해제되었습니다.', false);
+
+            console.log('SSE 연결 해제 완료');
         }
 
         // 연결 상태 업데이트

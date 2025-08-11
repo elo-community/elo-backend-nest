@@ -46,10 +46,12 @@ export class SseService {
             };
             subject.next(notificationEvent);
             this.logger.log(`Notification sent to user ${userId}: ${event.type}`);
-            console.log(`[SSEService] Notification sent to user ${userId}:`, notificationEvent);
+            // 상세 로그는 디버깅 시에만 필요할 때 주석 해제
+            // console.log(`[SSEService] Notification sent to user ${userId}:`, notificationEvent);
         } else {
             this.logger.warn(`User ${userId} is not connected to SSE`);
-            console.log(`[SSEService] User ${userId} is not connected to SSE. Connected users:`, Array.from(this.userConnections.keys()));
+            // 연결되지 않은 사용자 정보는 디버깅 시에만 출력
+            // console.log(`[SSEService] User ${userId} is not connected to SSE. Connected users:`, Array.from(this.userConnections.keys()));
         }
     }
 

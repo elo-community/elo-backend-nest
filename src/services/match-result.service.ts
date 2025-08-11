@@ -161,14 +161,37 @@ export class MatchResultService {
     async cleanupExpiredRequests(): Promise<void> {
         const now = new Date();
 
-        // TypeORM의 QueryBuilder를 사용하여 만료된 요청들을 찾고 업데이트
-        await this.matchResultRepository
-            .createQueryBuilder()
-            .update(MatchResult)
-            .set({ status: MatchStatus.EXPIRED })
-            .where('status = :status', { status: MatchStatus.PENDING })
-            .andWhere('expired_time < :now', { now })
-            .execute();
+        try {
+            // 만료된 요청 개수 확인
+            const expiredCount = await this.matchResultRepository
+                .createQueryBuilder()
+                .select('COUNT(*)', 'count')
+                .from(MatchResult, 'match')
+                .where('status = :status', { status: MatchStatus.PENDING })
+                .andWhere('expired_time < :now', { now })
+                .getRawOne();
+
+            const count = parseInt(expiredCount?.count || '0');
+
+            if (count > 0) {
+                console.log(`[MatchResultService] 만료된 요청 ${count}개 발견, 정리 시작`);
+
+                // 만료된 요청들을 찾고 업데이트
+                const result = await this.matchResultRepository
+                    .createQueryBuilder()
+                    .update(MatchResult)
+                    .set({ status: MatchStatus.EXPIRED })
+                    .where('status = :status', { status: MatchStatus.PENDING })
+                    .andWhere('expired_time < :now', { now })
+                    .execute();
+
+                console.log(`[MatchResultService] 만료 처리 완료: ${result.affected}개 요청`);
+            }
+            // 만료된 요청이 없으면 로그 출력하지 않음
+        } catch (error) {
+            console.error('[MatchResultService] 만료된 요청 정리 중 오류 발생:', error);
+            throw error;
+        }
     }
 
     async findByUserId(userId: number): Promise<MatchResult[]> {
