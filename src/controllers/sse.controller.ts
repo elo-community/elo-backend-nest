@@ -1,4 +1,4 @@
-import { Controller, Get, OnModuleDestroy, Query, Res, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, OnModuleDestroy, Query, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from '../auth/auth.service';
 import { JwtUser } from '../auth/jwt-user.interface';
@@ -14,6 +14,7 @@ export class SseController implements OnModuleDestroy {
     @Get('subscribe')
     async subscribeToNotifications(
         @Query('token') token: string,
+        @Req() req: Request,
         @Res() res: Response,
     ): Promise<void> {
         if (!token) {
@@ -35,11 +36,15 @@ export class SseController implements OnModuleDestroy {
             // SSE 헤더 설정
             res.writeHead(200, {
                 'Content-Type': 'text/event-stream',
-                'Cache-Control': 'no-cache',
+                'Cache-Control': 'no-cache, no-transform',
                 'Connection': 'keep-alive',
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Headers': 'Cache-Control, Last-Event-ID',
+                'X-Accel-Buffering': 'no',
             });
+
+            res.flushHeaders?.();
+            res.socket?.setKeepAlive(true);
 
             // 연결 확인 메시지 전송
             res.write(`data: ${JSON.stringify({
@@ -52,18 +57,28 @@ export class SseController implements OnModuleDestroy {
                 timestamp: new Date().toISOString(),
             })}\n\n`);
 
+            // ★ 하트비트 (10~15초 권장)
+            const heartbeat = setInterval(() => {
+                res.write(`: ping ${Date.now()}\n\n`);
+                // res.flush?.(); // 있으면 호출
+            }, 15000);
+
+
             // 사용자 등록 및 알림 구독
             const notificationStream = this.sseService.registerUser(user.id);
 
-            // 클라이언트 연결 해제 감지
+            let closed = false;
             const cleanup = () => {
-                this.sseService.unregisterUser(user.id);
-                res.end();
+                if (closed) return;
+                closed = true;
+                clearInterval(heartbeat);
+                try { this.sseService.unregisterUser(user.id); } catch { }
+                try { res.end(); } catch { }
+                subscription.unsubscribe();
+                (req as any).removeListener('aborted', cleanup);
+                res.removeListener('close', cleanup);
+                res.removeListener('error', cleanup);
             };
-
-            // 클라이언트 연결 해제 이벤트 리스너
-            res.on('close', cleanup);
-            res.on('error', cleanup);
 
             // 알림 스트림 구독
             const subscription = notificationStream.subscribe({
@@ -84,6 +99,9 @@ export class SseController implements OnModuleDestroy {
             res.on('close', () => {
                 subscription.unsubscribe();
             });
+            res.on('close', cleanup);
+            res.on('error', cleanup);
+            (req as any).on('aborted', cleanup);
 
         } catch (error) {
             console.error('JWT verification failed:', error);
