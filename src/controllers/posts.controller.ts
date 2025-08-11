@@ -8,7 +8,7 @@ import { Public } from '../auth/public.decorator';
 import { CurrentUser } from '../auth/user.decorator';
 import { PostDetailResponseDto } from '../dtos/post-detail-response.dto';
 import { PostResponseDto } from '../dtos/post-response.dto';
-import { CreatePostDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
+import { CreatePostDto, HotPostsByCategoryDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
 import { CommentService } from '../services/comment.service';
 import { PostService } from '../services/post.service';
 
@@ -43,16 +43,20 @@ export class PostsController {
         };
     }
 
-    // @Public()
-    // @Get('hot')
-    // async findHot() {
-    //     const posts = await this.postService.findHot();
-    //     return {
-    //         success: true,
-    //         data: posts.map((post) => new PostResponseDto(post)),
-    //         message: 'Hot posts retrieved successfully'
-    //     };
-    // }
+    @Public()
+    @Get('hot')
+    async findHot() {
+        const hotPosts = await this.postService.getHotPosts();
+        const formattedHotPosts = hotPosts.map(category =>
+            new HotPostsByCategoryDto(category.categoryId, category.categoryName, category.posts)
+        );
+
+        return {
+            success: true,
+            data: formattedHotPosts,
+            message: 'Hot posts retrieved successfully'
+        };
+    }
 
     @UseGuards(OptionalJwtAuthGuard)
     @Get(':id')

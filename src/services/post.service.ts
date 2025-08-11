@@ -245,10 +245,118 @@ export class PostService {
     }
 
     async getPostHateCount(postId: number): Promise<number> {
+        return this.postRepository
+            .createQueryBuilder('post')
+            .leftJoin('post.hates', 'hate')
+            .where('post.id = :postId', { postId })
+            .andWhere('hate.isHated = :isHated', { isHated: true })
+            .getCount();
+    }
+
+    /**
+     * 카테고리별 인기글 조회 (최근 24시간 반응 기준)
+     */
+    async getHotPosts(): Promise<any[]> {
+        const oneDayAgo = new Date();
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
         try {
-            return await this.postHateService.getHateCount(postId);
+            // 1. 모든 게시글을 기본 정보와 함께 조회 (숨겨지지 않은 것만)
+            const allPosts = await this.postRepository.find({
+                where: { isHidden: false },
+                relations: ['author', 'sportCategory']
+            });
+
+            // 2. 각 게시글에 대해 인기점수 계산
+            const postsWithScore: any[] = [];
+
+            for (const post of allPosts) {
+                if (!post.sportCategory) continue;
+
+                // 좋아요 수 조회
+                const likeCount = await this.postRepository
+                    .createQueryBuilder('post')
+                    .leftJoin('post.likes', 'like')
+                    .where('post.id = :postId', { postId: post.id })
+                    .andWhere('like.isLiked = :isLiked', { isLiked: true })
+                    .andWhere('like.created_at >= :oneDayAgo', { oneDayAgo })
+                    .getCount();
+
+                // 댓글 수 조회
+                const commentCount = await this.postRepository
+                    .createQueryBuilder('post')
+                    .leftJoin('post.comments', 'comment')
+                    .where('post.id = :postId', { postId: post.id })
+                    .andWhere('comment.created_at >= :oneDayAgo', { oneDayAgo })
+                    .getCount();
+
+                // 싫어요 수 조회
+                const hateCount = await this.postRepository
+                    .createQueryBuilder('post')
+                    .leftJoin('post.hates', 'hate')
+                    .where('post.id = :postId', { postId: post.id })
+                    .andWhere('hate.isHated = :isHated', { isHated: true })
+                    .andWhere('hate.created_at >= :oneDayAgo', { oneDayAgo })
+                    .getCount();
+
+                // 인기점수 계산
+                const popularityScore = (likeCount * 2) + (commentCount * 1) - (hateCount * 0.5);
+
+                postsWithScore.push({
+                    ...post,
+                    popularityScore
+                });
+            }
+
+            // 3. 카테고리별로 그룹화
+            const groupedPosts = new Map<number, any[]>();
+
+            postsWithScore.forEach(post => {
+                const categoryId = post.sportCategory.id;
+                if (!groupedPosts.has(categoryId)) {
+                    groupedPosts.set(categoryId, []);
+                }
+                groupedPosts.get(categoryId)!.push(post);
+            });
+
+            // 4. 각 카테고리 내에서 인기점수 순으로 정렬하고 상위 3개만 유지
+            for (const [categoryId, posts] of groupedPosts) {
+                posts.sort((a, b) => b.popularityScore - a.popularityScore);
+                groupedPosts.set(categoryId, posts.slice(0, 3));
+            }
+
+            // 5. 결과를 배열로 변환
+            const result: any[] = [];
+            for (const [categoryId, posts] of groupedPosts) {
+                const category = posts[0]?.sportCategory;
+                if (category) {
+                    result.push({
+                        categoryId,
+                        categoryName: category.name || 'Unknown',
+                        posts: posts.map(post => ({
+                            id: post.id,
+                            title: post.title,
+                            content: post.content,
+                            author: {
+                                id: post.author.id,
+                                nickname: post.author.nickname
+                            },
+                            sportCategory: {
+                                id: post.sportCategory.id,
+                                name: post.sportCategory.name
+                            },
+                            popularityScore: post.popularityScore,
+                            createdAt: post.createdAt,
+                            viewCount: post.viewCount
+                        }))
+                    });
+                }
+            }
+
+            return result;
         } catch (error) {
-            return 0;
+            console.error('Error in getHotPosts:', error);
+            return [];
         }
     }
 
