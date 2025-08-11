@@ -50,6 +50,10 @@ export class UserService {
                 eloPoint: 1400,
                 tier: 'BRONZE',
                 percentile: 50.0,
+                wins: 0,
+                losses: 0,
+                draws: 0,
+                totalMatches: 0
             }));
         await this.userEloRepository.save(userElos);
         return user;
