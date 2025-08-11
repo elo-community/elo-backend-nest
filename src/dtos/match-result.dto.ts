@@ -1,8 +1,9 @@
 export class CreateMatchResultDto {
     partnerNickname: string;
     sportCategoryId: number;
-    myResult?: 'win' | 'lose' | 'draw';
+    myResult: 'win' | 'lose' | 'draw';
     isHandicap?: boolean;
+    playedAt: string | Date;
 }
 
 export class UpdateMatchResultDto {
@@ -18,9 +19,13 @@ export class SentMatchResultResponseDto {
     sportCategoryName: string;
     myResult?: 'win' | 'lose' | 'draw';
     isHandicap: boolean;
-    status: 'pending' | 'accepted' | 'rejected' | 'expired';
+    status: 'pending' | 'confirmed' | 'rejected' | 'expired' | 'cancelled';
     expiredTime: Date;
     createdAt: Date;
+    playedAt: Date;
+    playedDate: Date;
+    confirmedAt?: Date;
+    partnerResult?: 'win' | 'lose' | 'draw';
 
     constructor(matchResult: any) {
         this.id = matchResult.id;
@@ -28,11 +33,15 @@ export class SentMatchResultResponseDto {
         this.partnerNickname = matchResult.partner?.nickname;
         this.sportCategoryId = matchResult.sportCategory.id;
         this.sportCategoryName = matchResult.sportCategory.name;
-        this.myResult = matchResult.myResult; // 보낸 사람의 원래 결과
+        this.myResult = matchResult.myResult;
         this.isHandicap = matchResult.isHandicap;
         this.status = matchResult.status;
         this.expiredTime = matchResult.expiredTime;
         this.createdAt = matchResult.createdAt;
+        this.playedAt = matchResult.playedAt;
+        this.playedDate = matchResult.playedDate;
+        this.confirmedAt = matchResult.confirmedAt;
+        this.partnerResult = matchResult.partnerResult;
     }
 }
 
@@ -45,9 +54,13 @@ export class ReceivedMatchResultResponseDto {
     sportCategoryName: string;
     myResult?: 'win' | 'lose' | 'draw';
     isHandicap: boolean;
-    status: 'pending' | 'accepted' | 'rejected' | 'expired';
+    status: 'pending' | 'confirmed' | 'rejected' | 'expired' | 'cancelled';
     expiredTime: Date;
     createdAt: Date;
+    playedAt: Date;
+    playedDate: Date;
+    confirmedAt?: Date;
+    partnerResult?: 'win' | 'lose' | 'draw';
 
     constructor(matchResult: any) {
         this.id = matchResult.id;
@@ -62,6 +75,10 @@ export class ReceivedMatchResultResponseDto {
         this.status = matchResult.status;
         this.expiredTime = matchResult.expiredTime;
         this.createdAt = matchResult.createdAt;
+        this.playedAt = matchResult.playedAt;
+        this.playedDate = matchResult.playedDate;
+        this.confirmedAt = matchResult.confirmedAt;
+        this.partnerResult = matchResult.partnerResult;
     }
 }
 
@@ -76,9 +93,13 @@ export class MatchResultResponseDto {
     sportCategoryName: string;
     myResult?: 'win' | 'lose' | 'draw';
     isHandicap: boolean;
-    status: 'pending' | 'accepted' | 'rejected' | 'expired';
+    status: 'pending' | 'confirmed' | 'rejected' | 'expired' | 'cancelled';
     expiredTime: Date;
     createdAt: Date;
+    playedAt: Date;
+    playedDate: Date;
+    confirmedAt?: Date;
+    partnerResult?: 'win' | 'lose' | 'draw';
 
     constructor(matchResult: any, currentUserId?: number) {
         this.id = matchResult.id;
@@ -98,26 +119,23 @@ export class MatchResultResponseDto {
                 this.myResult = matchResult.myResult;
             } else {
                 // 받은 사람: 보낸 사람 정보 표시
-                this.partnerId = matchResult.user?.id;
-                this.partnerNickname = matchResult.user?.nickname;
                 this.senderId = matchResult.user?.id;
                 this.senderNickname = matchResult.user?.nickname;
-                // 결과를 반대로
+                this.partnerId = matchResult.partner?.id;
+                this.partnerNickname = matchResult.partner?.nickname;
+                // 받은 사람 입장에서는 결과를 반대로 표시
                 this.myResult = matchResult.myResult === 'win' ? 'lose' :
                     matchResult.myResult === 'lose' ? 'win' : 'draw';
             }
-        } else {
-            // currentUserId가 없으면 원래 정보 그대로
-            this.partnerId = matchResult.partner?.id;
-            this.partnerNickname = matchResult.partner?.nickname;
-            this.senderId = matchResult.user?.id;
-            this.senderNickname = matchResult.user?.nickname;
-            this.myResult = matchResult.myResult;
         }
 
         this.isHandicap = matchResult.isHandicap;
         this.status = matchResult.status;
         this.expiredTime = matchResult.expiredTime;
         this.createdAt = matchResult.createdAt;
+        this.playedAt = matchResult.playedAt;
+        this.playedDate = matchResult.playedDate;
+        this.confirmedAt = matchResult.confirmedAt;
+        this.partnerResult = matchResult.partnerResult;
     }
 } 

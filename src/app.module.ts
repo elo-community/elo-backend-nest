@@ -16,8 +16,11 @@ import { RepliesController } from './controllers/replies.controller';
 import { SportCategoriesController } from './controllers/sport-categories.controller';
 import { SseController } from './controllers/sse.controller';
 import { UsersController } from './controllers/users.controller';
+import { EloModule } from './elo/elo.module';
+import { EloService } from './elo/elo.service';
 import { CommentLike } from './entities/comment-like.entity';
 import { Comment } from './entities/comment.entity';
+import { MatchResultHistory } from './entities/match-result-history.entity';
 import { MatchResult } from './entities/match-result.entity';
 import { PostHate } from './entities/post-hate.entity';
 import { PostLike } from './entities/post-like.entity';
@@ -63,15 +66,16 @@ import { UserService } from './services/user.service';
       logging: true,
     }),
     TypeOrmModule.forFeature([
-      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, TempImage
+      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage
     ]),
     AuthModule,
+    EloModule,
   ],
   controllers: [
     AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController
   ],
   providers: [
-    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler
+    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService
   ],
 })
 export class AppModule implements OnModuleInit {
@@ -164,7 +168,8 @@ export class AppModule implements OnModuleInit {
         partnerNickname: '탁구왕민수',
         sportCategoryId: tableTennisCategory.id,
         myResult: 'win',
-        isHandicap: false
+        isHandicap: false,
+        playedAt: new Date() // 현재 시간으로 설정
       }, sampleUserJwt);
 
       console.log('샘플 매치 요청이 생성되었습니다: 샘플유저 → 탁구왕민수');
