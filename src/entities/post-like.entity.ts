@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Post } from './post.entity';
 import { User } from './user.entity';
 
@@ -17,4 +17,7 @@ export class PostLike {
 
     @Column({ type: 'boolean', name: 'is_liked', nullable: true })
     isLiked?: boolean;
+
+    @CreateDateColumn({ type: 'timestamp', name: 'created_at', nullable: false })
+    createdAt!: Date;
 } 
