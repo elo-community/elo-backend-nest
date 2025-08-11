@@ -27,7 +27,7 @@ export class MatchResultResponseDto {
     playedAt: Date;
     playedDate: Date;
     confirmedAt?: Date;
-    partnerResult?: 'win' | 'lose' | 'draw';
+    partnerResult: 'win' | 'lose' | 'draw';
 
     constructor(matchResult: any) {
         this.id = matchResult.id;

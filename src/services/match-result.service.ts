@@ -87,12 +87,23 @@ export class MatchResultService {
         const pairUserLo = Math.min(userEntity.id, partnerUser.id);
         const pairUserHi = Math.max(userEntity.id, partnerUser.id);
 
+        // partnerResult 자동 설정 (senderResult와 반대)
+        let partnerResult: 'win' | 'lose' | 'draw';
+        if (senderResult === 'win') {
+            partnerResult = 'lose';
+        } else if (senderResult === 'lose') {
+            partnerResult = 'win';
+        } else {
+            partnerResult = 'draw';
+        }
+
         const matchResult = this.matchResultRepository.create({
             ...rest,
             sportCategory,
             user: userEntity,
             partner: partnerUser,
             senderResult,
+            partnerResult,
             isHandicap,
             playedAt: playedAtDate,
             playedDate,
@@ -207,16 +218,7 @@ export class MatchResultService {
             matchResult.status = MatchStatus.ACCEPTED;
             matchResult.confirmedAt = new Date();
 
-            // partnerResult 설정: 파트너의 결과는 보고자의 결과와 반대
-            if (matchResult.senderResult === 'win') {
-                matchResult.partnerResult = 'lose';
-            } else if (matchResult.senderResult === 'lose') {
-                matchResult.partnerResult = 'win';
-            } else if (matchResult.senderResult === 'draw') {
-                matchResult.partnerResult = 'draw'; // draw는 그대로
-            }
-
-            console.log('Setting partnerResult:', {
+            console.log('Accepting match result:', {
                 senderResult: matchResult.senderResult,
                 partnerResult: matchResult.partnerResult,
                 action: action

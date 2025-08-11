@@ -52,8 +52,8 @@ export class MatchResult {
     @Column({ type: 'timestamp', name: 'confirmed_at', nullable: true })
     confirmedAt?: Date;
 
-    @Column({ type: 'enum', enum: ['win', 'lose', 'draw'], nullable: true, name: 'partner_result' })
-    partnerResult?: 'win' | 'lose' | 'draw';
+    @Column({ type: 'enum', enum: ['win', 'lose', 'draw'], nullable: false, name: 'partner_result' })
+    partnerResult!: 'win' | 'lose' | 'draw';
 
     @Column({ type: 'int', name: 'pair_user_lo', nullable: false })
     pairUserLo!: number;
