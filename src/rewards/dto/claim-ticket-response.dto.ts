@@ -1,4 +1,4 @@
-import { SignedClaimTicket } from '../../../shared/eip712';
+import { SignedClaimTicket } from '../../shared/eip712';
 
 export class ClaimTicketResponseDto implements SignedClaimTicket {
     domain: SignedClaimTicket['domain'];

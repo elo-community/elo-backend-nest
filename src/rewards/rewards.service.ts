@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ethers } from 'ethers';
-import { claimTypes, domainFor } from '../../shared/eip712';
 import { BlockchainService, ChainType } from '../blockchain/blockchain.service';
+import { claimTypes, domainFor } from '../shared/eip712';
 import { ClaimTicketQueryDto } from './dto/claim-ticket-query.dto';
 import { ClaimTicketResponseDto } from './dto/claim-ticket-response.dto';
 import { CreateDistributionDto } from './dto/create-distribution.dto';
