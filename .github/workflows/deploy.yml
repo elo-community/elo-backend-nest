@@ -28,8 +28,8 @@ jobs:
         run: |
           echo "Checking build output..."
           ls -la dist/
-          if [ ! -f "dist/src/main.js" ]; then
-            echo "❌ Error: dist/src/main.js not found!"
+          if [ ! -f "dist/main.js" ]; then
+            echo "❌ Error: dist/main.js not found!"
             exit 1
           fi
           echo "✅ Build verification passed"
@@ -58,10 +58,10 @@ jobs:
           echo "Testing Docker image locally..."
           docker run --rm ${{ secrets.DOCKER_USERNAME }}/elo-community-backend-nest:latest node -e "
             try {
-              require('./dist/src/main.js');
+              require('./dist/main.js');
               console.log('✅ Docker image test passed');
             } catch (e) {
-              console.error('❌ Docker image test failed:', e.message);
+              console.log('❌ Docker image test failed:', e.message);
               process.exit(1);
             }
           "

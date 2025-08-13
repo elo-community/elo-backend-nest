@@ -14,8 +14,7 @@ COPY . .
 # 4. 빌드 실행 및 결과 확인
 RUN npm run build && \
     ls -la dist/ && \
-    ls -la dist/src/ && \
-    ls -la dist/src/main.js
+    ls -la dist/main.js
 
 # 5. 프로덕션 의존성만 유지 (선택사항)
 RUN npm prune --production
@@ -23,4 +22,4 @@ RUN npm prune --production
 EXPOSE 3000
 
 # 6. 빌드된 애플리케이션 실행 (올바른 경로)
-CMD ["node", "dist/src/main.js"]
+CMD ["node", "dist/main.js"]
