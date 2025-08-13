@@ -21,10 +21,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build application
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          echo "Checking build output..."
+          ls -la dist/
+          if [ ! -f "dist/main.js" ]; then
+            echo "❌ Error: dist/main.js not found!"
+            exit 1
+          fi
+          echo "✅ Build verification passed"
+
       - name: Create .env file
         run: |
           echo "${{ secrets.ENV }}" | base64 -d > .env
-          
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -41,6 +53,19 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/elo-community-backend-nest:latest
             ${{ secrets.DOCKER_USERNAME }}/elo-community-backend-nest:${{ github.sha }}
 
+      - name: Test Docker Image
+        run: |
+          echo "Testing Docker image locally..."
+          docker run --rm ${{ secrets.DOCKER_USERNAME }}/elo-community-backend-nest:latest node -e "
+            try {
+              require('./dist/main.js');
+              console.log('✅ Docker image test passed');
+            } catch (e) {
+              console.error('❌ Docker image test failed:', e.message);
+              process.exit(1);
+            }
+          "
+
       # EC2 SSH 키 설정
       - name: Add SSH key
         uses: webfactory/ssh-agent@v0.9.0
@@ -53,7 +78,6 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << EOF
             echo "${{ secrets.ENV }}" | base64 -d > /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest/.env
           EOF
-
 
       # EC2로 파일 복사
       - name: Upload docker-compose and nginx config to EC2
@@ -68,4 +92,24 @@ jobs:
             cd /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest
             sudo docker compose pull
             sudo docker compose up -d
+          EOF
+
+      # 배포 후 검증
+      - name: Verify deployment
+        run: |
+          echo "Waiting for deployment to stabilize..."
+          sleep 30
+          
+          echo "Checking container status..."
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
+            cd /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest
+            sudo docker compose ps
+            sudo docker compose logs --tail=20
+          EOF
+          
+          echo "Testing API endpoint..."
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
+            cd /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest
+            # API 헬스 체크 (선택사항)
+            # curl -f http://localhost:3000/api/v1/health || echo "API health check failed"
           EOF

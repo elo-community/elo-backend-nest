@@ -1,18 +1,26 @@
-FROM node:20-alpine 
-# 노드 기반 base image 생성
+FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
-COPY . .
-# 현재 디렉토리의 모든 파일을 컨테이너의 /usr/src/app 디렉토리에 복사
-
+# 1. package.json과 package-lock.json 먼저 복사
 COPY package*.json ./
+
+# 2. 의존성 설치 (개발 의존성 포함)
 RUN npm ci
 
+# 3. 소스 코드 복사
 COPY . .
-RUN npm run build
+
+# 4. 빌드 실행 및 결과 확인
+RUN npm run build && \
+    ls -la dist/ && \
+    ls -la dist/src/ && \
+    ls -la dist/src/main.js
+
+# 5. 프로덕션 의존성만 유지 (선택사항)
+RUN npm prune --production
 
 EXPOSE 3000
 
-CMD ["node", "dist/main.js"]
-# 빌드된 애플리케이션 실행
+# 6. 빌드된 애플리케이션 실행 (올바른 경로)
+CMD ["node", "dist/src/main.js"]
