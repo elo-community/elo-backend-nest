@@ -6,7 +6,6 @@
     "deleteOutDir": true,
     "outDir": "dist",
     "exclude": [
-      "contracts/**/*",
       "**/*.test.ts",
       "**/*.spec.ts"
     ]
