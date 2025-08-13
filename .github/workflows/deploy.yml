@@ -28,8 +28,8 @@ jobs:
         run: |
           echo "Checking build output..."
           ls -la dist/
-          if [ ! -f "dist/main.js" ]; then
-            echo "❌ Error: dist/main.js not found!"
+          if [ ! -f "dist/src/main.js" ]; then
+            echo "❌ Error: dist/src/main.js not found!"
             exit 1
           fi
           echo "✅ Build verification passed"
@@ -58,7 +58,7 @@ jobs:
           echo "Testing Docker image locally..."
           docker run --rm ${{ secrets.DOCKER_USERNAME }}/elo-community-backend-nest:latest node -e "
             try {
-              require('./dist/main.js');
+              require('./dist/src/main.js');
               console.log('✅ Docker image test passed');
             } catch (e) {
               console.error('❌ Docker image test failed:', e.message);
@@ -110,6 +110,4 @@ jobs:
           echo "Testing API endpoint..."
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
             cd /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest
-            # API 헬스 체크 (선택사항)
-            # curl -f http://localhost:3000/api/v1/health || echo "API health check failed"
           EOF
