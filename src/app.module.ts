@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
+import blockchainConfig from './config/blockchain.config';
 import s3Config from './config/s3.config';
 import { AuthController } from './controllers/auth.controller';
 import { CommentLikesController } from './controllers/comment-likes.controller';
@@ -57,7 +58,8 @@ import { UserService } from './services/user.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [s3Config],
+      envFilePath: '.env',
+      load: [s3Config, blockchainConfig],
     }),
     ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({

@@ -9,30 +9,29 @@ import { BlockchainService } from './blockchain.service';
         {
             provide: 'AMOY_PROVIDER',
             useFactory: (configService: ConfigService) => {
-                const rpcUrl = configService.get<string>('RPC_AMOY');
-                if (!rpcUrl) {
+                const config = configService.get('blockchain.amoy');
+                if (!config?.rpcUrl) {
                     throw new Error('RPC_AMOY not configured');
                 }
-                return { rpcUrl, chainId: 80002 };
+                return { rpcUrl: config.rpcUrl, chainId: config.chainId };
             },
             inject: [ConfigService],
         },
-        {
-            provide: 'VERY_PROVIDER',
-            useFactory: (configService: ConfigService) => {
-                const rpcUrl = configService.get<string>('RPC_VERY');
-                const chainId = configService.get<number>('CHAIN_VERY_ID');
-                if (!rpcUrl || !chainId) {
-                    throw new Error('RPC_VERY or CHAIN_VERY_ID not configured');
-                }
-                return { rpcUrl, chainId };
-            },
-            inject: [ConfigService],
-        },
+        // {
+        //     provide: 'VERY_PROVIDER',
+        //     useFactory: (configService: ConfigService) => {
+        //         const config = configService.get('blockchain.very');
+        //         if (!config?.rpcUrl || !config?.chainId) {
+        //             throw new Error('RPC_VERY or CHAIN_VERY_ID not configured');
+        //         }
+        //         return { rpcUrl: config.rpcUrl, chainId: config.chainId };
+        //     },
+        //     inject: [ConfigService],
+        // },
         {
             provide: 'ADMIN_WALLET',
             useFactory: (configService: ConfigService) => {
-                const privateKey = configService.get<string>('ADMIN_PRIV_KEY');
+                const privateKey = configService.get('blockchain.admin.privateKey');
                 if (!privateKey) {
                     throw new Error('ADMIN_PRIV_KEY not configured');
                 }
@@ -43,7 +42,7 @@ import { BlockchainService } from './blockchain.service';
         {
             provide: 'SIGNER_WALLET',
             useFactory: (configService: ConfigService) => {
-                const privateKey = configService.get<string>('SIGNER_PRIV_KEY');
+                const privateKey = configService.get('blockchain.signer.privateKey');
                 if (!privateKey) {
                     throw new Error('SIGNER_PRIV_KEY not configured');
                 }

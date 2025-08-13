@@ -2,7 +2,7 @@ import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 
-export type ChainType = 'amoy' | 'very';
+export type ChainType = 'amoy';
 
 interface ChainConfig {
     rpcUrl: string;
@@ -19,28 +19,28 @@ export class BlockchainService implements OnModuleInit {
 
     constructor(
         @Inject('AMOY_PROVIDER') private amoyProvider: ChainConfig,
-        @Inject('VERY_PROVIDER') private veryProvider: ChainConfig,
+        // @Inject('VERY_PROVIDER') private veryProvider: ChainConfig,
         @Inject('ADMIN_WALLET') private adminWalletConfig: { privateKey: string },
         @Inject('SIGNER_WALLET') private signerWalletConfig: { privateKey: string },
         private configService: ConfigService,
     ) {
         // Initialize providers
         this.providers.set('amoy', new ethers.JsonRpcProvider(this.amoyProvider.rpcUrl));
-        this.providers.set('very', new ethers.JsonRpcProvider(this.veryProvider.rpcUrl));
+        // this.providers.set('very', new ethers.JsonRpcProvider(this.veryProvider.rpcUrl));
 
         // Initialize wallets
         this.adminWallets.set('amoy', new ethers.Wallet(this.adminWalletConfig.privateKey, this.providers.get('amoy')!));
-        this.adminWallets.set('very', new ethers.Wallet(this.adminWalletConfig.privateKey, this.providers.get('very')!));
+        // this.adminWallets.set('very', new ethers.Wallet(this.adminWalletConfig.privateKey, this.providers.get('very')!));
 
         this.signerWallet = new ethers.Wallet(this.signerWalletConfig.privateKey);
     }
 
     async onModuleInit() {
         // Load contract addresses from config
-        this.distributors.set('amoy', this.configService.get<string>('DISTRIBUTOR_AMOY') || '');
-        this.distributors.set('very', this.configService.get<string>('DISTRIBUTOR_VERY') || '');
-        this.pools.set('amoy', this.configService.get<string>('REWARD_POOL_AMOY') || '');
-        this.pools.set('very', this.configService.get<string>('REWARD_POOL_VERY') || '');
+        this.distributors.set('amoy', this.configService.get<string>('blockchain.contracts.distributor.amoy') || '');
+        // this.distributors.set('very', this.configService.get<string>('blockchain.contracts.distributor.very') || '');
+        this.pools.set('amoy', this.configService.get<string>('blockchain.contracts.rewardPool.amoy') || '');
+        // this.pools.set('very', this.configService.get<string>('blockchain.contracts.rewardPool.very') || '');
     }
 
     /**
@@ -101,8 +101,8 @@ export class BlockchainService implements OnModuleInit {
         switch (chain) {
             case 'amoy':
                 return this.amoyProvider.chainId;
-            case 'very':
-                return this.veryProvider.chainId;
+            // case 'very':
+            //     return this.veryProvider.chainId;
             default:
                 throw new Error(`Unknown chain: ${chain}`);
         }
@@ -112,6 +112,6 @@ export class BlockchainService implements OnModuleInit {
      * Validate chain type
      */
     isValidChain(chain: string): chain is ChainType {
-        return chain === 'amoy' || chain === 'very';
+        return chain === 'amoy';
     }
 } 
