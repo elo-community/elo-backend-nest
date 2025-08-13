@@ -8,7 +8,7 @@ import { Public } from '../auth/public.decorator';
 import { CurrentUser } from '../auth/user.decorator';
 import { PostDetailResponseDto } from '../dtos/post-detail-response.dto';
 import { PostResponseDto } from '../dtos/post-response.dto';
-import { CreatePostDto, HotPostsByCategoryDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
+import { CreatePostDto, HotPostResponseDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
 import { CommentService } from '../services/comment.service';
 import { PostService } from '../services/post.service';
 
@@ -43,18 +43,78 @@ export class PostsController {
         };
     }
 
+    /**
+     * 전체 인기글 조회 (최근 24시간 반응 기준, 전체에서 상위 3개)
+     * - 실시간 계산으로 항상 최신 반응 반영
+     * - 보상 시스템과는 별개로 운영
+     */
     @Public()
     @Get('hot')
     async findHot() {
         const hotPosts = await this.postService.getHotPosts();
-        const formattedHotPosts = hotPosts.map(category =>
-            new HotPostsByCategoryDto(category.categoryId, category.categoryName, category.posts)
-        );
+        const formattedHotPosts = hotPosts.map(post => new HotPostResponseDto(post));
 
         return {
             success: true,
             data: formattedHotPosts,
             message: 'Hot posts retrieved successfully'
+        };
+    }
+
+    /**
+     * 카테고리별 실시간 인기글 조회 (최근 1시간 반응 기준, 카테고리별 3개씩)
+     * - 1시간마다 자동 업데이트
+     * - 사용자들이 최신 트렌드를 볼 수 있음
+     * - 카테고리별로 그룹화된 형태로 반환
+     */
+    @Public()
+    @Get('hot/realtime')
+    async findRealTimeHot() {
+        const hotPosts = await this.postService.getRealTimeHotPosts();
+
+        // 카테고리별로 그룹화된 형태로 반환
+        const formattedHotPosts = hotPosts.map(category => ({
+            categoryId: category.categoryId,
+            categoryName: category.categoryName,
+            posts: category.posts.map(post => new HotPostResponseDto(post))
+        }));
+
+        return {
+            success: true,
+            data: formattedHotPosts,
+            message: 'Real-time hot posts retrieved successfully'
+        };
+    }
+
+    /**
+     * 저장된 인기글 조회 (24시간마다 선정된 것, 보상용)
+     * - 매일 새벽 0시에 자동 선정
+     - 전체에서 상위 3개 선정
+     * - 보상 지급 기준으로 활용
+     * - 하루 동안 고정된 목록
+     * - ?date=2024-01-15 쿼리로 특정 날짜 조회 가능
+     */
+    @Public()
+    @Get('hot/stored')
+    async findStoredHot(@Query('date') dateStr?: string) {
+        let targetDate: Date | undefined;
+        if (dateStr) {
+            targetDate = new Date(dateStr);
+            if (isNaN(targetDate.getTime())) {
+                return {
+                    success: false,
+                    message: 'Invalid date format. Use YYYY-MM-DD'
+                };
+            }
+        }
+
+        const hotPosts = await this.postService.getStoredHotPosts(targetDate);
+        const formattedHotPosts = hotPosts.map(post => new HotPostResponseDto(post));
+
+        return {
+            success: true,
+            data: formattedHotPosts,
+            message: 'Stored hot posts retrieved successfully'
         };
     }
 

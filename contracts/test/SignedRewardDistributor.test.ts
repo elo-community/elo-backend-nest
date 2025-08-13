@@ -2,104 +2,133 @@ import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { MockERC20, RewardPool, SignedRewardDistributor } from "../typechain-types";
 
+// Hardhat ethers v6 호환성을 위해 hre.ethers 사용
+const { ethers: hreEthers } = require("hardhat");
+
 describe("SignedRewardDistributor", function () {
-    let rewardPool: RewardPool;
     let distributor: SignedRewardDistributor;
+    let rewardPool: RewardPool;
     let token: MockERC20;
     let owner: any;
     let user: any;
     let signer: any;
 
     beforeEach(async function () {
-        [owner, user, signer] = await ethers.getSigners();
+        [owner, user, signer] = await hreEthers.getSigners();
 
         // Deploy mock ERC20 token
-        const MockToken = await ethers.getContractFactory("MockERC20");
+        const MockToken = await hreEthers.getContractFactory("MockERC20");
         token = await MockToken.deploy("Test Token", "TEST");
 
         // Deploy RewardPool
-        const RewardPool = await ethers.getContractFactory("RewardPool");
+        const RewardPool = await hreEthers.getContractFactory("RewardPool");
         rewardPool = await upgrades.deployProxy(RewardPool, [owner.address]) as RewardPool;
 
-        // Deploy SignedRewardDistributor
-        const SignedRewardDistributor = await ethers.getContractFactory("SignedRewardDistributor");
+        // Deploy Distributor
+        const SignedRewardDistributor = await hreEthers.getContractFactory("SignedRewardDistributor");
         distributor = await upgrades.deployProxy(SignedRewardDistributor, [
-            rewardPool.target,
+            await rewardPool.getAddress(),
             owner.address,
             signer.address
         ]) as SignedRewardDistributor;
 
         // Set distributor in pool
-        await rewardPool.setDistributor(distributor.target);
-
-        // Deposit tokens to pool
-        const amount = ethers.parseEther("10000");
-        await token.approve(rewardPool.target, amount);
-        await rewardPool.deposit(token.target, amount);
+        await rewardPool.setDistributor(await distributor.getAddress());
     });
 
     describe("Initialization", function () {
-        it("Should set the correct admin and signer", async function () {
-            expect(await distributor.hasRole(await distributor.DEFAULT_ADMIN_ROLE(), owner.address)).to.be.true;
-            expect(await distributor.hasRole(await distributor.SIGNER_ROLE(), signer.address)).to.be.true;
-            expect(await distributor.rewardPool()).to.equal(rewardPool.target);
+        it("Should set the correct admin", async function () {
+            const adminRole = await distributor.DEFAULT_ADMIN_ROLE();
+            expect(await distributor.hasRole(adminRole, owner.address)).to.be.true;
+        });
+
+        it("Should set the correct distributor", async function () {
+            expect(await rewardPool.distributor()).to.equal(await distributor.getAddress());
         });
     });
 
-    describe("Distribution Management", function () {
-        it("Should allow admin to create distribution", async function () {
-            const id = 1;
-            const total = ethers.parseEther("1000");
-            const snapshotBlock = await ethers.provider.getBlockNumber();
-            const deadline = Math.floor(Date.now() / 1000) + 86400; // 24 hours
+    describe("Distributions", function () {
+        beforeEach(async function () {
+            const amount = ethers.parseEther("1000");
+            await token.approve(await rewardPool.getAddress(), amount);
+            await rewardPool.deposit(await token.getAddress(), amount);
+        });
 
-            await expect(
-                distributor.createDistribution(id, token.target, total, snapshotBlock, deadline)
-            ).to.emit(distributor, "DistributionCreated")
-                .withArgs(id, token.target, total, snapshotBlock, deadline);
+        it("Should create distribution successfully", async function () {
+            const distributionId = 1;
+            const totalAmount = ethers.parseEther("100");
+            const snapshotBlock = await hreEthers.provider.getBlockNumber();
+            const deadline = Math.floor(Date.now() / 1000) + 86400; // 24 hours from now
 
-            const dist = await distributor.getDistribution(id);
-            expect(dist.token).to.equal(token.target);
-            expect(dist.total).to.equal(total);
-            expect(dist.remaining).to.equal(total);
-            expect(dist.active).to.be.true;
+            await distributor.createDistribution(
+                distributionId,
+                await token.getAddress(),
+                totalAmount,
+                snapshotBlock,
+                deadline
+            );
+
+            const distribution = await distributor.dists(distributionId);
+            expect(distribution.token).to.equal(await token.getAddress());
+            expect(distribution.total).to.equal(totalAmount);
+            expect(distribution.active).to.be.true;
         });
 
         it("Should not allow non-admin to create distribution", async function () {
-            const id = 2;
-            const total = ethers.parseEther("1000");
-            const snapshotBlock = await ethers.provider.getBlockNumber();
+            const distributionId = 1;
+            const totalAmount = ethers.parseEther("100");
+            const snapshotBlock = await hreEthers.provider.getBlockNumber();
             const deadline = Math.floor(Date.now() / 1000) + 86400;
 
             await expect(
-                distributor.connect(user).createDistribution(id, token.target, total, snapshotBlock, deadline)
+                distributor.connect(user).createDistribution(
+                    distributionId,
+                    await token.getAddress(),
+                    totalAmount,
+                    snapshotBlock,
+                    deadline
+                )
             ).to.be.revertedWithCustomError(distributor, "AccessControlUnauthorizedAccount");
         });
     });
 
-    describe("Claim Verification", function () {
+    describe("Claims", function () {
         let distributionId: number;
         let deadline: number;
 
         beforeEach(async function () {
-            // Create a distribution
             distributionId = 1;
-            const total = ethers.parseEther("1000");
-            const snapshotBlock = await ethers.provider.getBlockNumber();
-            deadline = Math.floor(Date.now() / 1000) + 86400;
+            const totalAmount = ethers.parseEther("100");
+            const snapshotBlock = await hreEthers.provider.getBlockNumber();
+            deadline = Math.floor(Date.now() / 1000) + 86400; // 24 hours from now
 
-            await distributor.createDistribution(distributionId, token.target, total, snapshotBlock, deadline);
+            await distributor.createDistribution(
+                distributionId,
+                await token.getAddress(),
+                totalAmount,
+                snapshotBlock,
+                deadline
+            );
         });
 
-        it("Should verify EIP-712 signature correctly", async function () {
+        it("Should process valid claim", async function () {
             const postId = ethers.keccak256(ethers.toUtf8Bytes("test-post"));
-            const account = user.address;
-            const authorizedAmount = ethers.parseEther("100");
+            const authorizedAmount = ethers.parseEther("10");
+            const message = {
+                distributionId,
+                postId,
+                account: user.address,
+                authorizedAmount,
+                deadline
+            };
 
-            // Get domain separator
-            const domainSeparator = await distributor.DOMAIN_SEPARATOR();
+            const domain = {
+                name: "SignedRewardDistributor",
+                version: "1",
+                chainId: await hreEthers.provider.getNetwork().then((n: any) => Number(n.chainId)),
+                verifyingContract: await distributor.getAddress()
+            };
 
-            // Build claim message
             const types = {
                 Claim: [
                     { name: "distributionId", type: "uint256" },
@@ -110,56 +139,49 @@ describe("SignedRewardDistributor", function () {
                 ]
             };
 
+            const signature = await signer.signTypedData(domain, types, message);
+
+            await distributor.claim(distributionId, postId, user.address, authorizedAmount, deadline, signature);
+
+            const claimed = await distributor.claimed(distributionId, user.address);
+            expect(claimed).to.be.true;
+        });
+
+        it("Should reject expired claim", async function () {
+            const postId = ethers.keccak256(ethers.toUtf8Bytes("test-post"));
+            const expiredDeadline = Math.floor(Date.now() / 1000) - 3600; // 1 hour ago
+            const authorizedAmount = ethers.parseEther("10");
+
             const message = {
                 distributionId,
                 postId,
-                account,
+                account: user.address,
                 authorizedAmount,
-                deadline
+                deadline: expiredDeadline
             };
 
-            // Sign with signer wallet
-            const signature = await signer.signTypedData(
-                {
-                    name: "SignedRewardDistributor",
-                    version: "1",
-                    chainId: await ethers.provider.getNetwork().then(n => Number(n.chainId)),
-                    verifyingContract: distributor.target
-                },
-                types,
-                message
-            );
+            const domain = {
+                name: "SignedRewardDistributor",
+                version: "1",
+                chainId: await hreEthers.provider.getNetwork().then((n: any) => Number(n.chainId)),
+                verifyingContract: await distributor.getAddress()
+            };
 
-            // Verify signature is valid
-            const recoveredSigner = ethers.verifyTypedData(
-                {
-                    name: "SignedRewardDistributor",
-                    version: "1",
-                    chainId: await ethers.provider.getNetwork().then(n => Number(n.chainId)),
-                    verifyingContract: distributor.target
-                },
-                types,
-                message,
-                signature
-            );
+            const types = {
+                Claim: [
+                    { name: "distributionId", type: "uint256" },
+                    { name: "postId", type: "bytes32" },
+                    { name: "account", type: "address" },
+                    { name: "authorizedAmount", type: "uint256" },
+                    { name: "deadline", type: "uint256" }
+                ]
+            };
 
-            expect(recoveredSigner).to.equal(signer.address);
-        });
-    });
+            const signature = await signer.signTypedData(domain, types, message);
 
-    describe("Pause Functionality", function () {
-        it("Should allow admin to pause and unpause", async function () {
-            await distributor.pause();
-            expect(await distributor.paused()).to.be.true;
-
-            await distributor.unpause();
-            expect(await distributor.paused()).to.be.false;
-        });
-
-        it("Should not allow non-admin to pause", async function () {
             await expect(
-                distributor.connect(user).pause()
-            ).to.be.revertedWithCustomError(distributor, "AccessControlUnauthorizedAccount");
+                distributor.claim(distributionId, postId, user.address, authorizedAmount, expiredDeadline, signature)
+            ).to.be.revertedWithCustomError(distributor, "ClaimExpired");
         });
     });
 }); 

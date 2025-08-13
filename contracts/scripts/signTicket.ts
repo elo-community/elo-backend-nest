@@ -1,57 +1,35 @@
+import { TypedDataDomain, TypedDataField } from "ethers";
 import { ethers } from "hardhat";
 
+interface Claim {
+    distributionId: number;
+    postId: string;
+    account: string;
+    authorizedAmount: number;
+    deadline: number;
+}
+
 async function main() {
-    // Get command line arguments
-    const args = process.argv.slice(2);
+    // Hardhat ethers v6 호환성을 위해 hre.ethers 사용
+    const { ethers: hreEthers } = require("hardhat");
+    const [signer] = await hreEthers.getSigners();
 
-    if (args.length < 5) {
-        console.log("Usage: npx hardhat run scripts/signTicket.ts -- <distributionId> <postId> <account> <amount> <deadline> [chainId]");
-        console.log("Example: npx hardhat run scripts/signTicket.ts -- 1 0x1234... 0xabcd... 1000000000000000000 1704067200 80002");
-        process.exit(1);
-    }
-
-    const [distributionId, postId, account, amount, deadline, chainId] = args;
-
-    // Validate inputs
-    if (!ethers.isHexString(postId, 32)) {
-        throw new Error("Invalid postId: must be 32-byte hex string");
-    }
-
-    if (!ethers.isAddress(account)) {
-        throw new Error("Invalid account address");
-    }
-
-    if (isNaN(Number(amount)) || Number(amount) <= 0) {
-        throw new Error("Invalid amount: must be positive number");
-    }
-
-    if (isNaN(Number(deadline)) || Number(deadline) <= Math.floor(Date.now() / 1000)) {
-        throw new Error("Invalid deadline: must be future timestamp");
-    }
-
-    // Get signer wallet
-    const [signer] = await ethers.getSigners();
     if (!signer) {
         throw new Error("No signer account found");
     }
 
     console.log("Signing ticket with account:", signer.address);
-    console.log("Distribution ID:", distributionId);
-    console.log("Post ID:", postId);
-    console.log("Account:", account);
-    console.log("Amount:", amount);
-    console.log("Deadline:", deadline);
 
-    // Build EIP-712 domain
-    const domain = {
+    // EIP-712 도메인 정의
+    const domain: TypedDataDomain = {
         name: "SignedRewardDistributor",
         version: "1",
-        chainId: chainId ? parseInt(chainId) : (await ethers.provider.getNetwork()).chainId,
-        verifyingContract: "0x0000000000000000000000000000000000000000" // Placeholder, will be filled by client
+        chainId: process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID) : (await hreEthers.provider.getNetwork()).chainId,
+        verifyingContract: process.env.DISTRIBUTOR_ADDRESS || "0x0000000000000000000000000000000000000000"
     };
 
-    // Build claim message
-    const types = {
+    // EIP-712 타입 정의
+    const types: Record<string, TypedDataField[]> = {
         Claim: [
             { name: "distributionId", type: "uint256" },
             { name: "postId", type: "bytes32" },
@@ -61,30 +39,37 @@ async function main() {
         ]
     };
 
-    const message = {
-        distributionId: parseInt(distributionId),
-        postId: postId as `0x${string}`,
-        account: account as `0x${string}`,
-        authorizedAmount: amount,
-        deadline: parseInt(deadline)
+    // 클레임 메시지
+    const message: Claim = {
+        distributionId: parseInt(process.env.DISTRIBUTION_ID || "1"),
+        postId: process.env.POST_ID || "0x0000000000000000000000000000000000000000000000000000000000000000",
+        account: process.env.ACCOUNT_ADDRESS || signer.address,
+        authorizedAmount: parseInt(process.env.AUTHORIZED_AMOUNT || "1000000000000000000"), // 1 token
+        deadline: Math.floor(Date.now() / 1000) + 86400 // 24 hours from now
     };
 
-    // Sign the message
-    const signature = await signer.signTypedData(domain, types, message);
+    try {
+        // EIP-712 서명 생성
+        const signature = await signer.signTypedData(domain, types, message);
 
-    // Output the signed ticket
-    console.log("\n=== Signed Claim Ticket ===");
-    console.log(JSON.stringify({
-        domain,
-        types,
-        message,
-        signature,
-        signer: signer.address
-    }, null, 2));
+        console.log("✅ Ticket signed successfully!");
+        console.log("Signature:", signature);
+        console.log("Message:", message);
 
-    console.log("\n=== For Client Use ===");
-    console.log("Replace 'verifyingContract' in domain with actual distributor address");
-    console.log("Submit claim with: distributor.claim(distributionId, postId, account, authorizedAmount, deadline, signature)");
+        // 서명 검증
+        const recoveredAddress = ethers.verifyTypedData(domain, types, message, signature);
+        console.log("Recovered address:", recoveredAddress);
+        console.log("Signer address:", signer.address);
+
+        if (recoveredAddress.toLowerCase() === signer.address.toLowerCase()) {
+            console.log("✅ Signature verification successful!");
+        } else {
+            console.log("❌ Signature verification failed!");
+        }
+
+    } catch (error) {
+        console.error("❌ Error signing ticket:", error);
+    }
 }
 
 main()

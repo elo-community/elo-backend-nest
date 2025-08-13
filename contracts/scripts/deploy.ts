@@ -1,18 +1,23 @@
-import { ethers, upgrades } from "hardhat";
+import { upgrades } from "hardhat";
 
 async function main() {
-    const [deployer] = await ethers.getSigners();
+    // Hardhat ethers v6 호환성을 위해 hre.ethers 사용
+    const { ethers: hreEthers } = require("hardhat");
+    const [deployer] = await hreEthers.getSigners();
 
     if (!deployer) {
         throw new Error("No deployer account found");
     }
 
     console.log("Deploying contracts with account:", deployer.address);
-    console.log("Account balance:", (await ethers.provider.getBalance(deployer.address)).toString());
+
+    // ethers v6에서는 provider를 직접 사용할 수 없으므로 hardhat runtime environment 사용
+    const balance = await hreEthers.provider.getBalance(deployer.address);
+    console.log("Account balance:", balance.toString());
 
     // Deploy RewardPool
     console.log("\n1. Deploying RewardPool...");
-    const RewardPool = await ethers.getContractFactory("RewardPool");
+    const RewardPool = await hreEthers.getContractFactory("RewardPool");
     const rewardPool = await upgrades.deployProxy(RewardPool, [deployer.address]);
     await rewardPool.waitForDeployment();
 
@@ -21,7 +26,7 @@ async function main() {
 
     // Deploy SignedRewardDistributor
     console.log("\n2. Deploying SignedRewardDistributor...");
-    const SignedRewardDistributor = await ethers.getContractFactory("SignedRewardDistributor");
+    const SignedRewardDistributor = await hreEthers.getContractFactory("SignedRewardDistributor");
     const distributor = await upgrades.deployProxy(SignedRewardDistributor, [
         rewardPoolAddress,
         deployer.address,
@@ -53,7 +58,8 @@ async function main() {
     }
 
     console.log("\n=== Deployment Summary ===");
-    console.log("Network:", (await ethers.provider.getNetwork()).name);
+    const network = await hreEthers.provider.getNetwork();
+    console.log("Network:", network.name);
     console.log("RewardPool:", rewardPoolAddress);
     console.log("SignedRewardDistributor:", distributorAddress);
     console.log("Admin/Signer:", deployer.address);

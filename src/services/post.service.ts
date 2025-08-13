@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { PaginationResponseDto } from '../dtos/pagination-response.dto';
 import { CreatePostDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
+import { HotPost } from '../entities/hot-post.entity';
 import { Post } from '../entities/post.entity';
 import { SportCategory } from '../entities/sport-category.entity';
 import { User } from '../entities/user.entity';
@@ -23,6 +24,8 @@ export class PostService {
         private readonly sportCategoryRepository: Repository<SportCategory>,
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        @InjectRepository(HotPost)
+        private readonly hotPostRepository: Repository<HotPost>,
         private readonly postLikeService: PostLikeService,
         private readonly postHateService: PostHateService,
         private readonly tempImageService: TempImageService,
@@ -254,7 +257,7 @@ export class PostService {
     }
 
     /**
-     * 카테고리별 인기글 조회 (최근 24시간 반응 기준)
+     * 전체 인기글 조회 (최근 24시간 반응 기준)
      */
     async getHotPosts(): Promise<any[]> {
         const oneDayAgo = new Date();
@@ -297,6 +300,96 @@ export class PostService {
                     .where('post.id = :postId', { postId: post.id })
                     .andWhere('hate.isHated = :isHated', { isHated: true })
                     .andWhere('hate.created_at >= :oneDayAgo', { oneDayAgo })
+                    .getCount();
+
+                // 인기점수 계산
+                const popularityScore = (likeCount * 2) + (commentCount * 1) - (hateCount * 0.5);
+
+                postsWithScore.push({
+                    ...post,
+                    popularityScore
+                });
+            }
+
+            // 3. 전체 게시글을 인기점수 순으로 정렬하고 상위 3개만 유지
+            postsWithScore.sort((a, b) => b.popularityScore - a.popularityScore);
+            const topPosts = postsWithScore.slice(0, 3);
+
+            // 4. 결과를 배열로 변환
+            const result: any[] = [];
+            for (const post of topPosts) {
+                const category = post.sportCategory;
+                if (category) {
+                    result.push({
+                        id: post.id,
+                        title: post.title,
+                        content: post.content,
+                        author: {
+                            id: post.author.id,
+                            nickname: post.author.nickname
+                        },
+                        sportCategory: {
+                            id: category.id,
+                            name: category.name
+                        },
+                        popularityScore: post.popularityScore,
+                        createdAt: post.createdAt,
+                        viewCount: post.viewCount
+                    });
+                }
+            }
+
+            return result;
+        } catch (error) {
+            console.error('Error in getHotPosts:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 카테고리별 실시간 인기글 조회 (최근 1시간 반응 기준)
+     */
+    async getRealTimeHotPosts(): Promise<any[]> {
+        const oneHourAgo = new Date();
+        oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+
+        try {
+            // 1. 모든 게시글을 기본 정보와 함께 조회 (숨겨지지 않은 것만)
+            const allPosts = await this.postRepository.find({
+                where: { isHidden: false },
+                relations: ['author', 'sportCategory']
+            });
+
+            // 2. 각 게시글에 대해 인기점수 계산
+            const postsWithScore: any[] = [];
+
+            for (const post of allPosts) {
+                if (!post.sportCategory) continue;
+
+                // 좋아요 수 조회 (최근 1시간)
+                const likeCount = await this.postRepository
+                    .createQueryBuilder('post')
+                    .leftJoin('post.likes', 'like')
+                    .where('post.id = :postId', { postId: post.id })
+                    .andWhere('like.isLiked = :isLiked', { isLiked: true })
+                    .andWhere('like.created_at >= :oneHourAgo', { oneHourAgo })
+                    .getCount();
+
+                // 댓글 수 조회 (최근 1시간)
+                const commentCount = await this.postRepository
+                    .createQueryBuilder('post')
+                    .leftJoin('post.comments', 'comment')
+                    .where('post.id = :postId', { postId: post.id })
+                    .andWhere('comment.created_at >= :oneHourAgo', { oneHourAgo })
+                    .getCount();
+
+                // 싫어요 수 조회 (최근 1시간)
+                const hateCount = await this.postRepository
+                    .createQueryBuilder('post')
+                    .leftJoin('post.hates', 'hate')
+                    .where('post.id = :postId', { postId: post.id })
+                    .andWhere('hate.isHated = :isHated', { isHated: true })
+                    .andWhere('hate.created_at >= :oneHourAgo', { oneHourAgo })
                     .getCount();
 
                 // 인기점수 계산
@@ -355,7 +448,46 @@ export class PostService {
 
             return result;
         } catch (error) {
-            console.error('Error in getHotPosts:', error);
+            console.error('Error in getRealTimeHotPosts:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 저장된 인기글 조회 (24시간마다 선정된 것)
+     */
+    async getStoredHotPosts(date?: Date): Promise<any[]> {
+        try {
+            const targetDate = date || new Date();
+            targetDate.setHours(0, 0, 0, 0);
+
+            const hotPosts = await this.hotPostRepository.find({
+                where: { selectionDate: targetDate },
+                relations: ['post', 'post.author', 'post.sportCategory'],
+                order: { rank: 'ASC' }
+            });
+
+            return hotPosts.map(hotPost => ({
+                id: hotPost.post.id,
+                title: hotPost.post.title,
+                content: hotPost.post.content,
+                author: {
+                    id: hotPost.post.author.id,
+                    nickname: hotPost.post.author.nickname
+                },
+                sportCategory: hotPost.post.sportCategory ? {
+                    id: hotPost.post.sportCategory.id,
+                    name: hotPost.post.sportCategory.name
+                } : null,
+                popularityScore: hotPost.popularityScore,
+                rank: hotPost.rank,
+                selectionDate: hotPost.selectionDate,
+                createdAt: hotPost.post.createdAt,
+                viewCount: hotPost.post.viewCount,
+                isRewarded: hotPost.isRewarded
+            }));
+        } catch (error) {
+            console.error('Error in getStoredHotPosts:', error);
             return [];
         }
     }
