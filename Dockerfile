@@ -6,9 +6,8 @@ WORKDIR /app
 
 # Copy root package files
 COPY package*.json ./
-COPY packages/*/package*.json ./
 
-# Install dependencies for all packages
+# Install root dependencies
 RUN npm ci
 
 # Copy source code
@@ -17,11 +16,21 @@ COPY . .
 # Build stage for contracts
 FROM base AS contracts-builder
 WORKDIR /app/packages/contracts
+# Copy contracts package.json and install dependencies
+COPY packages/contracts/package*.json ./
+RUN npm ci
+# Copy contracts source code
+COPY packages/contracts/ ./
 RUN npm run compile
 
 # Build stage for backend
 FROM base AS backend-builder
 WORKDIR /app/packages/nest-backend
+# Copy backend package.json and install dependencies
+COPY packages/nest-backend/package*.json ./
+RUN npm ci
+# Copy backend source code
+COPY packages/nest-backend/ ./
 RUN npm run build
 
 # Production stage
