@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
+import { BlockchainModule } from './blockchain/blockchain.module';
 import s3Config from './config/s3.config';
 import { AuthController } from './controllers/auth.controller';
 import { CommentLikesController } from './controllers/comment-likes.controller';
@@ -20,6 +21,7 @@ import { EloModule } from './elo/elo.module';
 import { EloService } from './elo/elo.service';
 import { CommentLike } from './entities/comment-like.entity';
 import { Comment } from './entities/comment.entity';
+import { HotPost } from './entities/hot-post.entity';
 import { MatchResultHistory } from './entities/match-result-history.entity';
 import { MatchResult } from './entities/match-result.entity';
 import { PostHate } from './entities/post-hate.entity';
@@ -30,7 +32,12 @@ import { SportCategory } from './entities/sport-category.entity';
 import { TempImage } from './entities/temp-image.entity';
 import { UserElo } from './entities/user-elo.entity';
 import { User } from './entities/user.entity';
+import { RewardsController } from './rewards/rewards.controller';
+import { RewardsModule } from './rewards/rewards.module';
+import { SseController as RewardsSseController } from './rewards/sse.controller';
+import { HotPostsScheduler } from './schedulers/hot-posts.scheduler';
 import { MatchResultScheduler } from './schedulers/match-result.scheduler';
+import { RealTimeHotPostsScheduler } from './schedulers/real-time-hot-posts.scheduler';
 import { TempImageCleanupScheduler } from './schedulers/temp-image-cleanup.scheduler';
 import { CommentLikeService } from './services/comment-like.service';
 import { CommentService } from './services/comment.service';
@@ -66,16 +73,18 @@ import { UserService } from './services/user.service';
       logging: true,
     }),
     TypeOrmModule.forFeature([
-      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage
+      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost
     ]),
     AuthModule,
     EloModule,
+    BlockchainModule,
+    RewardsModule,
   ],
   controllers: [
-    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController
+    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController
   ],
   providers: [
-    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService
+    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler
   ],
 })
 export class AppModule implements OnModuleInit {

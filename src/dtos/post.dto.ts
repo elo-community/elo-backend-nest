@@ -36,6 +36,9 @@ export class HotPostResponseDto {
     popularityScore: number;
     createdAt: Date;
     viewCount: number;
+    rank?: number;
+    selectionDate?: Date;
+    isRewarded?: boolean;
 
     constructor(post: any) {
         this.id = post.id;
@@ -46,6 +49,9 @@ export class HotPostResponseDto {
         this.popularityScore = post.popularityScore;
         this.createdAt = post.createdAt;
         this.viewCount = post.viewCount;
+        this.rank = post.rank;
+        this.selectionDate = post.selectionDate;
+        this.isRewarded = post.isRewarded;
     }
 }
 
