@@ -1,2 +1,52 @@
-node_modules
+# Dependencies
+node_modules/
+packages/*/node_modules/
+
+# Build outputs
+dist/
+packages/*/dist/
+build/
+packages/*/build/
+
+# Environment files
 .env
+.env.*
+packages/*/.env
+packages/*/.env.*
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test files
+**/*.test.ts
+**/*.spec.ts
+**/test/
+**/coverage/
+
+# Documentation
+README.md
+*.md
+
+# Hardhat specific (contracts)
+packages/contracts/cache/
+packages/contracts/artifacts/
+packages/contracts/typechain-types/
+
+# Temporary files
+.tmp/
+.temp/

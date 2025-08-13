@@ -26,7 +26,7 @@ services:
       -d api.trivus.net"
 
   backend:
-    image: haeeun/elo-community-backend-nest:latest
+    image: haeeun/elo-community:latest
     container_name: backend
     restart: always
     expose:
@@ -35,3 +35,7 @@ services:
       - NODE_ENV=production
     env_file:
       - .env
+    volumes:
+      # Contracts artifacts (if needed at runtime)
+      - ./packages/contracts/artifacts:/usr/src/app/artifacts:ro
+      - ./packages/contracts/typechain-types:/usr/src/app/typechain-types:ro
