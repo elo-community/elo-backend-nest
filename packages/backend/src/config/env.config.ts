@@ -5,7 +5,7 @@ export const databaseConfig = registerAs('database', () => ({
     port: parseInt(process.env.DB_PORT || '5432', 10),
     username: process.env.DB_USERNAME || 'postgres',
     password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_DATABASE || 'elo-community',
+    database: process.env.DB_DATABASE || 'elo_community',
 }));
 
 export const jwtConfig = registerAs('jwt', () => ({

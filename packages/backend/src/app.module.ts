@@ -63,7 +63,7 @@ import { UserService } from './services/user.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '../../../.env',
+      envFilePath: '../../.env',
       load: [databaseConfig, jwtConfig, awsConfig, blockchainConfig, appConfig],
     }),
     ScheduleModule.forRoot(),
