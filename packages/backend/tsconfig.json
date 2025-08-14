@@ -3,7 +3,23 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": "./"
+    "baseUrl": "./",
+    "module": "commonjs",
+    "target": "ES2023",
+    "declaration": false,
+    "sourceMap": false,
+    "incremental": false,
+    "tsBuildInfoFile": null,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "removeComments": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false
   },
   "include": [
     "src/**/*"
@@ -11,6 +27,9 @@
   "exclude": [
     "node_modules",
     "dist",
-    "test"
+    "test",
+    "**/*.js",
+    "**/*.d.ts",
+    "**/*.js.map"
   ]
 }
