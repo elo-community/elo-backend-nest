@@ -11,6 +11,8 @@
         "deploy:very": "hardhat run scripts/deploy.ts --network very",
         "deploy:pool": "hardhat run scripts/deployPool.ts --network amoy",
         "deploy:distributor": "hardhat run scripts/deployDistributor.ts --network amoy",
+        "deploy:trivus-exp": "hardhat run scripts/deployTrivusEXP.ts --network amoy",
+        "update:trusted-signer": "hardhat run scripts/updateTrustedSigner.ts --network amoy",
         "set:distributor": "hardhat run scripts/setDistributor.ts --network amoy",
         "deposit": "hardhat run scripts/deposit.ts --network amoy",
         "create:dist": "hardhat run scripts/createDistribution.ts --network amoy",

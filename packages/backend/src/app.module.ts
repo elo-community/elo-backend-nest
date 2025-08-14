@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
+import { TrivusExpService } from './blockchain/trivus-exp.service';
 import {
   appConfig,
   awsConfig,
@@ -22,6 +23,7 @@ import { PostsController } from './controllers/posts.controller';
 import { RepliesController } from './controllers/replies.controller';
 import { SportCategoriesController } from './controllers/sport-categories.controller';
 import { SseController } from './controllers/sse.controller';
+import { TrivusExpController } from './controllers/trivus-exp.controller';
 import { UsersController } from './controllers/users.controller';
 import { EloModule } from './elo/elo.module';
 import { EloService } from './elo/elo.service';
@@ -92,10 +94,10 @@ import { UserService } from './services/user.service';
     RewardsModule,
   ],
   controllers: [
-    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController
+    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController
   ],
   providers: [
-    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler
+    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TrivusExpService
   ],
 })
 export class AppModule implements OnModuleInit {

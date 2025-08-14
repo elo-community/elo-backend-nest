@@ -35,6 +35,9 @@ export const blockchainConfig = registerAs('blockchain', () => ({
     signer: {
         privateKey: process.env.SIGNER_PRIV_KEY,
     },
+    trustedSigner: {
+        privateKey: process.env.TRUSTED_SIGNER_PRIV_KEY,
+    },
     contracts: {
         distributor: {
             amoy: process.env.DISTRIBUTOR_AMOY,
@@ -43,6 +46,10 @@ export const blockchainConfig = registerAs('blockchain', () => ({
         rewardPool: {
             amoy: process.env.REWARD_POOL_AMOY,
             very: process.env.REWARD_POOL_VERY,
+        },
+        trivusExp: {
+            amoy: process.env.TRIVUS_EXP_AMOY,
+            very: process.env.TRIVUS_EXP_VERY,
         },
     },
 }));

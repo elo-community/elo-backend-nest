@@ -1,0 +1,42 @@
+{
+  "contractAddress": "0xE8d53f6973a6340111B46bb1aF50fB5Bc885727C",
+  "functionName": "claimWithSignature",
+  "parameters": {
+    "to": "0x46AAb404E4B7C8335Be7BF111dcc11Df2eD4d348",
+    "amount": "100000000000000000000",
+    "deadline": 1755189792,
+    "signature": "0x58f611b780b26c9dfd351270905ef81f87f049c63784c235cb9d592c1cf2b45c1cac5ee113f3abcb2049c41d885e6758b912da8b208737e4756d4f88ea3baa951b"
+  },
+  "eip712Data": {
+    "domain": {
+      "name": "Trivus EXP Token",
+      "version": "1",
+      "chainId": 80002,
+      "verifyingContract": "0xE8d53f6973a6340111B46bb1aF50fB5Bc885727C"
+    },
+    "types": {
+      "Claim": [
+        {
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "name": "deadline",
+          "type": "uint256"
+        }
+      ]
+    },
+    "value": {
+      "to": "0x46AAb404E4B7C8335Be7BF111dcc11Df2eD4d348",
+      "amount": "100000000000000000000",
+      "deadline": 1755189792
+    }
+  },
+  "trustedSigner": "0x2D242E1E9b021D5a6E1134692DC9299eB3D5D519",
+  "testRecipient": "0x46AAb404E4B7C8335Be7BF111dcc11Df2eD4d348",
+  "testAmount": "100"
+}
