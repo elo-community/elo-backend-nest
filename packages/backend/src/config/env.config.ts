@@ -30,10 +30,10 @@ export const blockchainConfig = registerAs('blockchain', () => ({
         chainId: parseInt(process.env.CHAIN_VERY_ID || '80002', 10),
     },
     admin: {
-        privateKey: process.env.ADMIN_PRIV_KEY || '0x0000000000000000000000000000000000000000000000000000000000000000',
+        privateKey: process.env.ADMIN_PRIV_KEY || '0x1234567890123456789012345678901234567890123456789012345678901234',
     },
     signer: {
-        privateKey: process.env.SIGNER_PRIV_KEY || '0x0000000000000000000000000000000000000000000000000000000000000000',
+        privateKey: process.env.SIGNER_PRIV_KEY || '0x1234567890123456789012345678901234567890123456789012345678901234',
     },
     contracts: {
         distributor: {

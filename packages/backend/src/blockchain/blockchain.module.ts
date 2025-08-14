@@ -27,21 +27,21 @@ import { BlockchainService } from './blockchain.service';
         //             throw new Error('RPC_VERY or CHAIN_VERY_ID not configured');
         //         }
         //         return { rpcUrl: config.rpcUrl, chainId: config.chainId };
-        //     },
+        //         },
         //     inject: [ConfigService],
         // },
         {
             provide: 'ADMIN_WALLET',
             useFactory: (configService: ConfigService) => {
                 const privateKey = configService.get('blockchain.admin.privateKey');
-                // 환경변수가 설정되지 않은 경우 기본값 사용 (개발/테스트 환경)
-                const adminKey = privateKey || '0x0000000000000000000000000000000000000000000000000000000000000000';
 
-                if (adminKey === '0x0000000000000000000000000000000000000000000000000000000000000000') {
-                    console.warn('[BlockchainModule] Using dummy admin private key - not suitable for production');
+                // 환경변수가 설정되지 않은 경우 null 반환 (기능 비활성화)
+                if (!privateKey || privateKey === '0x1234567890123456789012345678901234567890123456789012345678901234') {
+                    console.warn('[BlockchainModule] Admin wallet not configured - blockchain features will be limited');
+                    return { privateKey: null };
                 }
 
-                return { privateKey: adminKey };
+                return { privateKey };
             },
             inject: [ConfigService],
         },
@@ -49,14 +49,14 @@ import { BlockchainService } from './blockchain.service';
             provide: 'SIGNER_WALLET',
             useFactory: (configService: ConfigService) => {
                 const privateKey = configService.get('blockchain.signer.privateKey');
-                // 환경변수가 설정되지 않은 경우 기본값 사용 (개발/테스트 환경)
-                const signerKey = privateKey || '0x0000000000000000000000000000000000000000000000000000000000000000';
 
-                if (signerKey === '0x0000000000000000000000000000000000000000000000000000000000000000') {
-                    console.warn('[BlockchainModule] Using dummy signer private key - not suitable for production');
+                // 환경변수가 설정되지 않은 경우 null 반환 (기능 비활성화)
+                if (!privateKey || privateKey === '0x1234567890123456789012345678901234567890123456789012345678901234') {
+                    console.warn('[BlockchainModule] Signer wallet not configured - signing features will be limited');
+                    return { privateKey: null };
                 }
 
-                return { privateKey: signerKey };
+                return { privateKey };
             },
             inject: [ConfigService],
         },

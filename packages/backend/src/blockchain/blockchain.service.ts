@@ -20,19 +20,23 @@ export class BlockchainService implements OnModuleInit {
     constructor(
         @Inject('AMOY_PROVIDER') private amoyProvider: ChainConfig,
         // @Inject('VERY_PROVIDER') private veryProvider: ChainConfig,
-        @Inject('ADMIN_WALLET') private adminWalletConfig: { privateKey: string },
-        @Inject('SIGNER_WALLET') private signerWalletConfig: { privateKey: string },
+        @Inject('ADMIN_WALLET') private adminWalletConfig: { privateKey: string | null },
+        @Inject('SIGNER_WALLET') private signerWalletConfig: { privateKey: string | null },
         private configService: ConfigService,
     ) {
         // Initialize providers
         this.providers.set('amoy', new ethers.JsonRpcProvider(this.amoyProvider.rpcUrl));
         // this.providers.set('very', new ethers.JsonRpcProvider(this.veryProvider.rpcUrl));
 
-        // Initialize wallets
-        this.adminWallets.set('amoy', new ethers.Wallet(this.adminWalletConfig.privateKey, this.providers.get('amoy')!));
+        // Initialize wallets only if private keys are provided
+        if (this.adminWalletConfig.privateKey) {
+            this.adminWallets.set('amoy', new ethers.Wallet(this.adminWalletConfig.privateKey, this.providers.get('amoy')!));
+        }
         // this.adminWallets.set('very', new ethers.Wallet(this.adminWalletConfig.privateKey, this.providers.get('very')!));
 
-        this.signerWallet = new ethers.Wallet(this.signerWalletConfig.privateKey);
+        if (this.signerWalletConfig.privateKey) {
+            this.signerWallet = new ethers.Wallet(this.signerWalletConfig.privateKey);
+        }
     }
 
     async onModuleInit() {
