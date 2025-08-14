@@ -107,7 +107,7 @@ jobs:
       # EC2로 파일 복사
       - name: Upload docker-compose and nginx config to EC2
         run: |
-          scp -o StrictHostKeyChecking=no -r ./docker-compose.yml ./nginx \
+          scp -o StrictHostKeyChecking=no -r ./infra/docker-compose.yml ./nginx \
             ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USERNAME }}/elo-backend-nest/
 
       # EC2에서 Docker Compose 실행
