@@ -26,7 +26,7 @@ jobs:
           echo "Installing contracts dependencies..."
           npm install --workspace=contracts
           echo "Installing backend dependencies..."
-          npm install --workspace=nest-backend
+          npm install --workspace=backend
 
       - name: Build contracts
         run: |
@@ -45,9 +45,9 @@ jobs:
           ls -la packages/contracts/typechain-types/
           
           echo "Checking backend build output..."
-          ls -la packages/nest-backend/dist/
-          if [ ! -f "packages/nest-backend/dist/main.js" ]; then
-            echo "❌ Error: packages/nest-backend/dist/main.js not found!"
+          ls -la packages/backend/dist/
+          if [ ! -f "packages/backend/dist/main.js" ]; then
+            echo "❌ Error: packages/backend/dist/main.js not found!"
             exit 1
           fi
           echo "✅ All build verifications passed"

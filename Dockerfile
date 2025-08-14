@@ -25,12 +25,12 @@ RUN npm run compile
 
 # Build stage for backend
 FROM base AS backend-builder
-WORKDIR /app/packages/nest-backend
+WORKDIR /app/packages/backend
 # Copy backend package.json and install dependencies
-COPY packages/nest-backend/package*.json ./
+COPY packages/backend/package*.json ./
 RUN npm ci
 # Copy backend source code
-COPY packages/nest-backend/ ./
+COPY packages/backend/ ./
 RUN npm run build
 
 # Production stage
@@ -40,20 +40,20 @@ WORKDIR /usr/src/app
 
 # Copy package files
 COPY package*.json ./
-COPY packages/nest-backend/package*.json ./
+COPY packages/backend/package*.json ./
 
 # Install only production dependencies
 RUN npm ci --only=production
 
 # Copy built backend from builder stage
-COPY --from=backend-builder /app/packages/nest-backend/dist ./dist
+COPY --from=backend-builder /app/packages/backend/dist ./dist
 
 # Copy built contracts from builder stage (if needed)
 COPY --from=contracts-builder /app/packages/contracts/artifacts ./artifacts
 COPY --from=contracts-builder /app/packages/contracts/typechain-types ./typechain-types
 
 # Copy shared files
-COPY --from=backend-builder /app/packages/nest-backend/src/shared ./src/shared
+COPY --from=backend-builder /app/packages/backend/src/shared ./src/shared
 
 # Verify build output
 RUN ls -la dist/ && \

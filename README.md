@@ -203,7 +203,7 @@ elo-community/
 │   │   ├── scripts/           # 배포 스크립트
 │   │   ├── test/              # 컨트랙트 테스트
 │   │   └── hardhat.config.ts  # Hardhat 설정
-│   └── 📁 nest-backend/       # 🪺 NestJS 백엔드
+│   └── 📁 backend/             # 🪺 NestJS 백엔드
 │       ├── src/               # 소스 코드
 │       ├── nest-cli.json      # NestJS 설정
 │       └── tsconfig.json      # TypeScript 설정
@@ -245,7 +245,7 @@ npm run dev
 
 ### 백엔드 패키지
 ```bash
-cd packages/nest-backend
+cd packages/backend
 npm run start:dev      # 개발 서버
 npm run build          # 빌드
 npm run test           # 테스트
