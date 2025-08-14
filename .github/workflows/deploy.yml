@@ -50,7 +50,7 @@ jobs:
         run: |
           echo "Checking contracts build output..."
           ls -la packages/contracts/artifacts/
-          ls -la packages/typechain-types/
+          ls -la packages/contracts/typechain-types/
           
           echo "Checking backend build output..."
           ls -la packages/backend/dist/
