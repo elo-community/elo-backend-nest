@@ -42,6 +42,10 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 COPY packages/backend/package*.json ./
 
+# Set environment variables from build args
+ARG ENV_CONTENT
+ENV ENV_CONTENT=$ENV_CONTENT
+
 # Install only production dependencies
 RUN npm ci --only=production
 

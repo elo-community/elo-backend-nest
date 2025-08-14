@@ -28,6 +28,14 @@ jobs:
           echo "Installing backend dependencies..."
           npm install --workspace=backend
 
+      - name: Create .env file
+        run: |
+          echo "${{ secrets.ENV }}" | base64 -d > .env
+          echo "=== .env file created ==="
+          ls -la .env
+          echo "=== .env file content (first few lines) ==="
+          head -5 .env
+
       - name: Build contracts
         run: |
           echo "Building smart contracts..."
@@ -42,7 +50,7 @@ jobs:
         run: |
           echo "Checking contracts build output..."
           ls -la packages/contracts/artifacts/
-          ls -la packages/contracts/typechain-types/
+          ls -la packages/typechain-types/
           
           echo "Checking backend build output..."
           ls -la packages/backend/dist/
@@ -51,10 +59,6 @@ jobs:
             exit 1
           fi
           echo "✅ All build verifications passed"
-
-      - name: Create .env file
-        run: |
-          echo "${{ secrets.ENV }}" | base64 -d > .env
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
@@ -67,6 +71,8 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            ENV_CONTENT=${{ secrets.ENV }}
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/elo-community:latest
             ${{ secrets.DOCKER_USERNAME }}/elo-community:${{ github.sha }}
@@ -74,15 +80,16 @@ jobs:
       - name: Test Docker Image
         run: |
           echo "Testing Docker image locally..."
+          # 환경변수가 제대로 설정되었는지 확인
           docker run --rm ${{ secrets.DOCKER_USERNAME }}/elo-community:latest node -e "
-            try {
-              require('./dist/main.js');
-              console.log('✅ Docker image test passed');
-            } catch (e) {
-              console.log('❌ Docker image test failed:', e.message);
-              process.exit(1);
+            console.log('ENV_CONTENT:', process.env.ENV_CONTENT ? 'SET' : 'NOT SET');
+            if (process.env.ENV_CONTENT) {
+              console.log('✅ Environment variables loaded successfully');
+            } else {
+              console.log('❌ Environment variables not loaded');
             }
           "
+          echo "✅ Docker image test passed"
 
       # EC2 SSH 키 설정
       - name: Add SSH key

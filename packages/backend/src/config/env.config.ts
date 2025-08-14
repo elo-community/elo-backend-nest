@@ -15,34 +15,34 @@ export const jwtConfig = registerAs('jwt', () => ({
 
 export const awsConfig = registerAs('aws', () => ({
     region: process.env.AWS_REGION || 'ap-northeast-2',
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'dummy-access-key',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'dummy-secret-key',
-    s3BucketName: process.env.AWS_S3_BUCKET_NAME || 'dummy-bucket',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    s3BucketName: process.env.AWS_S3_BUCKET_NAME,
 }));
 
 export const blockchainConfig = registerAs('blockchain', () => ({
     amoy: {
-        rpcUrl: process.env.RPC_AMOY || 'https://rpc-amoy.polygon.technology',
+        rpcUrl: process.env.RPC_AMOY,
         chainId: parseInt(process.env.CHAIN_AMOY_ID || '80002', 10),
     },
     very: {
-        rpcUrl: process.env.RPC_VERY || 'https://rpc-very.polygon.technology',
+        rpcUrl: process.env.RPC_VERY,
         chainId: parseInt(process.env.CHAIN_VERY_ID || '80002', 10),
     },
     admin: {
-        privateKey: process.env.ADMIN_PRIV_KEY || '0x1234567890123456789012345678901234567890123456789012345678901234',
+        privateKey: process.env.ADMIN_PRIV_KEY,
     },
     signer: {
-        privateKey: process.env.SIGNER_PRIV_KEY || '0x1234567890123456789012345678901234567890123456789012345678901234',
+        privateKey: process.env.SIGNER_PRIV_KEY,
     },
     contracts: {
         distributor: {
-            amoy: process.env.DISTRIBUTOR_AMOY || '0x0000000000000000000000000000000000000000',
-            very: process.env.DISTRIBUTOR_VERY || '0x0000000000000000000000000000000000000000',
+            amoy: process.env.DISTRIBUTOR_AMOY,
+            very: process.env.DISTRIBUTOR_VERY,
         },
         rewardPool: {
-            amoy: process.env.REWARD_POOL_AMOY || '0x0000000000000000000000000000000000000000',
-            very: process.env.REWARD_POOL_VERY || '0x0000000000000000000000000000000000000000',
+            amoy: process.env.REWARD_POOL_AMOY,
+            very: process.env.REWARD_POOL_VERY,
         },
     },
 }));
