@@ -10,10 +10,12 @@ import { BlockchainService } from './blockchain.service';
             provide: 'AMOY_PROVIDER',
             useFactory: (configService: ConfigService) => {
                 const config = configService.get('blockchain.amoy');
-                if (!config?.rpcUrl) {
-                    throw new Error('RPC_AMOY not configured');
-                }
-                return { rpcUrl: config.rpcUrl, chainId: config.chainId };
+                // 환경변수가 설정되지 않은 경우 기본값 사용 (개발/테스트 환경)
+                const rpcUrl = config?.rpcUrl || 'https://rpc-amoy.polygon.technology';
+                const chainId = config?.chainId || 80002;
+
+                console.log(`[BlockchainModule] Using RPC URL: ${rpcUrl}`);
+                return { rpcUrl, chainId };
             },
             inject: [ConfigService],
         },
@@ -32,10 +34,14 @@ import { BlockchainService } from './blockchain.service';
             provide: 'ADMIN_WALLET',
             useFactory: (configService: ConfigService) => {
                 const privateKey = configService.get('blockchain.admin.privateKey');
-                if (!privateKey) {
-                    throw new Error('ADMIN_PRIV_KEY not configured');
+                // 환경변수가 설정되지 않은 경우 기본값 사용 (개발/테스트 환경)
+                const adminKey = privateKey || '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+                if (adminKey === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+                    console.warn('[BlockchainModule] Using dummy admin private key - not suitable for production');
                 }
-                return { privateKey };
+
+                return { privateKey: adminKey };
             },
             inject: [ConfigService],
         },
@@ -43,10 +49,14 @@ import { BlockchainService } from './blockchain.service';
             provide: 'SIGNER_WALLET',
             useFactory: (configService: ConfigService) => {
                 const privateKey = configService.get('blockchain.signer.privateKey');
-                if (!privateKey) {
-                    throw new Error('SIGNER_PRIV_KEY not configured');
+                // 환경변수가 설정되지 않은 경우 기본값 사용 (개발/테스트 환경)
+                const signerKey = privateKey || '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+                if (signerKey === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+                    console.warn('[BlockchainModule] Using dummy signer private key - not suitable for production');
                 }
-                return { privateKey };
+
+                return { privateKey: signerKey };
             },
             inject: [ConfigService],
         },

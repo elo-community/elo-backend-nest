@@ -1,11 +1,16 @@
 import { Module, OnModuleInit } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
-import blockchainConfig from './config/blockchain.config';
-import s3Config from './config/s3.config';
+import {
+  appConfig,
+  awsConfig,
+  blockchainConfig,
+  databaseConfig,
+  jwtConfig
+} from './config/env.config';
 import { AuthController } from './controllers/auth.controller';
 import { CommentLikesController } from './controllers/comment-likes.controller';
 import { CommentsController } from './controllers/comments.controller';
@@ -59,20 +64,24 @@ import { UserService } from './services/user.service';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '../../.env',
-      load: [s3Config, blockchainConfig],
+      load: [databaseConfig, jwtConfig, awsConfig, blockchainConfig, appConfig],
     }),
     ScheduleModule.forRoot(),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 5432,
-      username: process.env.DB_USERNAME || 'postgres',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_DATABASE || 'elo-community',
-      autoLoadEntities: true,
-      synchronize: true,
-      dropSchema: true,
-      logging: true,
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        type: 'postgres',
+        host: configService.get('database.host'),
+        port: configService.get('database.port'),
+        username: configService.get('database.username'),
+        password: configService.get('database.password'),
+        database: configService.get('database.database'),
+        autoLoadEntities: true,
+        synchronize: true,
+        dropSchema: true,
+        logging: true,
+      }),
+      inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([
       User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost

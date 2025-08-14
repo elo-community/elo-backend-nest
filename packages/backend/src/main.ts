@@ -1,20 +1,13 @@
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
 import { AppModule } from './app.module';
-
-// Load environment variables from root .env file
-dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
 
   app.enableCors({
-    origin: [
-      'https://www.trivus.net',
-      'https://trivus.net',
-      'http://localhost:3009'
-    ],
+    origin: configService.get('app.corsOrigins'),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
     allowedHeaders: [
@@ -38,6 +31,9 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
 
-  await app.listen(3000);
+  const port = configService.get('app.port');
+  await app.listen(port);
+
+  console.log(`🚀 Application is running on: http://localhost:${port}`);
 }
 bootstrap();

@@ -10,9 +10,9 @@ export class S3Service {
     private readonly logger = new Logger(S3Service.name);
 
     constructor(private configService: ConfigService) {
-        const region = this.configService.get<string>('s3.region');
-        const accessKeyId = this.configService.get<string>('s3.accessKeyId');
-        const secretAccessKey = this.configService.get<string>('s3.secretAccessKey');
+        const region = this.configService.get<string>('aws.region');
+        const accessKeyId = this.configService.get<string>('aws.accessKeyId');
+        const secretAccessKey = this.configService.get<string>('aws.secretAccessKey');
 
         // 개발 환경에서는 S3 클라이언트를 생성하지 않음
         this.logger.log('=== S3 Configuration Debug ===');
@@ -30,7 +30,7 @@ export class S3Service {
                     secretAccessKey,
                 },
             });
-            this.bucketName = this.configService.get<string>('s3.bucketName') || 'dummy-bucket';
+            this.bucketName = this.configService.get<string>('aws.s3BucketName') || 'dummy-bucket';
         } else {
             this.logger.warn('S3 client not initialized - using dummy mode');
             this.s3Client = null as any;
@@ -91,7 +91,7 @@ export class S3Service {
 
     private extractKeyFromUrl(url: string): string {
         const bucketName = this.bucketName;
-        const region = this.configService.get('s3.region');
+        const region = this.configService.get('aws.region');
         const prefix = `https://${bucketName}.s3.${region}.amazonaws.com/`;
 
         if (url.startsWith(prefix)) {
