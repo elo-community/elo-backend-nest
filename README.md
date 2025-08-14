@@ -98,6 +98,99 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 # ELO Community
 
+## Project Structure
+
+This is a NestJS monorepo project with the following structure:
+
+```
+elo-community-backend-nest/
+├── packages/
+│   ├── backend/          # NestJS Backend Application
+│   │   ├── src/
+│   │   │   ├── controllers/    # API Controllers
+│   │   │   ├── services/       # Business Logic
+│   │   │   ├── entities/       # TypeORM Entities
+│   │   │   ├── dtos/          # Data Transfer Objects
+│   │   │   ├── auth/          # Authentication Module
+│   │   │   ├── blockchain/    # Blockchain Integration
+│   │   │   └── ...
+│   │   └── package.json
+│   └── contracts/        # Smart Contracts (Hardhat)
+│       ├── contracts/    # Solidity Contracts
+│       ├── scripts/      # Deployment Scripts
+│       └── package.json
+├── nest-cli.json         # NestJS Monorepo Configuration
+├── tsconfig.json         # Root TypeScript Configuration
+└── package.json          # Root Package Configuration
+```
+
+## Quick Start
+
+### Prerequisites
+- Node.js 18+
+- PostgreSQL
+- Hardhat (for smart contracts)
+
+### Installation
+```bash
+# Install all dependencies
+npm run install:all
+
+# Or install individually
+npm install
+npm install --workspace=backend
+npm install --workspace=contracts
+```
+
+### Development
+```bash
+# Start backend in development mode
+npm run dev
+
+# Compile smart contracts
+npm run contracts:compile
+
+# Run all tests
+npm run test
+```
+
+### Building
+```bash
+# Build all packages
+npm run build
+
+# Build specific packages
+npm run build:backend
+npm run build:contracts
+```
+
+## API Endpoints
+
+All API endpoints are prefixed with `/api/v1` and follow RESTful conventions:
+
+- `POST /api/v1/auth/login` - User authentication
+- `GET /api/v1/users` - Get users
+- `GET /api/v1/posts` - Get posts
+- `POST /api/v1/posts` - Create post
+- And more...
+
+## Smart Contracts
+
+The project includes smart contracts for the reward system:
+
+- `MockERC20.sol` - Mock ERC-20 token
+- `RewardPool.sol` - Reward pool contract
+- `SignedRewardDistributor.sol` - Signed reward distributor
+
+## Architecture
+
+- **Backend**: NestJS with TypeORM, PostgreSQL, JWT authentication
+- **Blockchain**: Ethereum integration with ethers.js
+- **Database**: PostgreSQL with TypeORM entities
+- **Authentication**: JWT-based with Google OAuth support
+- **File Storage**: AWS S3 integration
+- **Real-time**: Server-Sent Events (SSE) for live updates
+
 스포츠 레이팅 및 리워드 시스템을 위한 모노레포 프로젝트입니다.
 
 ## 📁 프로젝트 구조

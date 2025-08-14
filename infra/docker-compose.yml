@@ -24,7 +24,6 @@ services:
       sh -c "certbot certonly --webroot -w /var/lib/letsencrypt
       --email dhrgodms123@gmail.com --agree-tos --no-eff-email
       -d api.trivus.net"
-
   backend:
     image: haeeun/elo-community:latest
     container_name: backend

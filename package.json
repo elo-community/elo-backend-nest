@@ -9,15 +9,15 @@
   "scripts": {
     "build": "npm run build:contracts && npm run build:backend",
     "build:contracts": "npm run compile --workspace=contracts",
-    "build:backend": "npm run build --workspace=nest-backend",
-    "dev": "npm run start:dev --workspace=nest-backend",
+    "build:backend": "npm run build --workspace=backend",
+    "dev": "npm run start:dev --workspace=backend",
     "dev:contracts": "npm run compile --workspace=contracts",
     "contracts:compile": "npm run compile --workspace=contracts",
     "contracts:test": "npm run test --workspace=contracts",
     "contracts:deploy": "npm run deploy:amoy --workspace=contracts",
     "contracts:deploy:amoy": "npm run deploy:amoy --workspace=contracts",
     "contracts:deploy:very": "npm run deploy:very --workspace=contracts",
-    "install:all": "npm install && npm install --workspace=contracts && npm install --workspace=nest-backend",
+    "install:all": "npm install && npm install --workspace=contracts && npm install --workspace=backend",
     "clean": "npm run clean --workspaces",
     "lint": "npm run lint --workspaces",
     "test": "npm run test --workspaces"
