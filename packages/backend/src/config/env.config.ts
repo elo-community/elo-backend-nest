@@ -51,6 +51,10 @@ export const blockchainConfig = registerAs('blockchain', () => ({
             amoy: process.env.TRIVUS_EXP_AMOY,
             very: process.env.TRIVUS_EXP_VERY,
         },
+        postLikeSystem: {
+            amoy: process.env.POST_LIKE_SYSTEM_AMOY,
+            very: process.env.POST_LIKE_SYSTEM_VERY,
+        },
     },
 }));
 

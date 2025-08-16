@@ -18,6 +18,15 @@ export class PostLike {
     @Column({ type: 'boolean', name: 'is_liked', nullable: true })
     isLiked?: boolean;
 
+    @Column({ type: 'varchar', length: 255, name: 'transaction_hash', nullable: true })
+    transactionHash?: string;
+
+    @Column({ type: 'boolean', name: 'token_deducted', nullable: true, default: false })
+    tokenDeducted?: boolean;
+
+    @Column({ type: 'timestamp', name: 'token_deducted_at', nullable: true })
+    tokenDeductedAt?: Date;
+
     @CreateDateColumn({ type: 'timestamp', name: 'created_at', nullable: false })
     createdAt!: Date;
 } 

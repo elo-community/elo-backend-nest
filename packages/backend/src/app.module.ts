@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
+import { LikeEventService } from './blockchain/like-event.service';
 import { TrivusExpService } from './blockchain/trivus-exp.service';
 import {
   appConfig,
@@ -23,6 +24,7 @@ import { PostsController } from './controllers/posts.controller';
 import { RepliesController } from './controllers/replies.controller';
 import { SportCategoriesController } from './controllers/sport-categories.controller';
 import { SseController } from './controllers/sse.controller';
+import { TokenTransactionsController } from './controllers/token-transactions.controller';
 import { TrivusExpController } from './controllers/trivus-exp.controller';
 import { UsersController } from './controllers/users.controller';
 import { EloModule } from './elo/elo.module';
@@ -38,6 +40,7 @@ import { Post } from './entities/post.entity';
 import { Reply } from './entities/reply.entity';
 import { SportCategory } from './entities/sport-category.entity';
 import { TempImage } from './entities/temp-image.entity';
+import { TokenTransaction } from './entities/token-transaction.entity';
 import { UserElo } from './entities/user-elo.entity';
 import { User } from './entities/user.entity';
 import { RewardsController } from './rewards/rewards.controller';
@@ -58,6 +61,7 @@ import { S3Service } from './services/s3.service';
 import { SportCategoryService } from './services/sport-category.service';
 import { SseService } from './services/sse.service';
 import { TempImageService } from './services/temp-image.service';
+import { TokenTransactionService } from './services/token-transaction.service';
 import { UserService } from './services/user.service';
 
 // NOTE: 앞으로 생성할 컨트롤러/라우트는 모두 복수형으로 작성 (예: users, posts, comments, auths)
@@ -86,7 +90,7 @@ import { UserService } from './services/user.service';
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([
-      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost
+      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost, TokenTransaction
     ]),
     AuthModule,
     EloModule,
@@ -94,10 +98,10 @@ import { UserService } from './services/user.service';
     RewardsModule,
   ],
   controllers: [
-    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController
+    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController
   ],
   providers: [
-    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TrivusExpService
+    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TrivusExpService, TokenTransactionService, LikeEventService
   ],
 })
 export class AppModule implements OnModuleInit {
