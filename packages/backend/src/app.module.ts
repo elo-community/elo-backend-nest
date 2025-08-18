@@ -4,8 +4,6 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
-import { LikeEventService } from './blockchain/like-event.service';
-import { TrivusExpService } from './blockchain/trivus-exp.service';
 import {
   appConfig,
   awsConfig,
@@ -29,6 +27,8 @@ import { TrivusExpController } from './controllers/trivus-exp.controller';
 import { UsersController } from './controllers/users.controller';
 import { EloModule } from './elo/elo.module';
 import { EloService } from './elo/elo.service';
+import { ClaimNonce } from './entities/claim-nonce.entity';
+import { ClaimRequest } from './entities/claim-request.entity';
 import { CommentLike } from './entities/comment-like.entity';
 import { Comment } from './entities/comment.entity';
 import { HotPost } from './entities/hot-post.entity';
@@ -54,14 +54,12 @@ import { CommentLikeService } from './services/comment-like.service';
 import { CommentService } from './services/comment.service';
 import { MatchResultService } from './services/match-result.service';
 import { PostHateService } from './services/post-hate.service';
-import { PostLikeService } from './services/post-like.service';
 import { PostService } from './services/post.service';
 import { ReplyService } from './services/reply.service';
 import { S3Service } from './services/s3.service';
 import { SportCategoryService } from './services/sport-category.service';
 import { SseService } from './services/sse.service';
 import { TempImageService } from './services/temp-image.service';
-import { TokenTransactionService } from './services/token-transaction.service';
 import { UserService } from './services/user.service';
 
 // NOTE: 앞으로 생성할 컨트롤러/라우트는 모두 복수형으로 작성 (예: users, posts, comments, auths)
@@ -90,7 +88,7 @@ import { UserService } from './services/user.service';
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([
-      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost, TokenTransaction
+      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost, TokenTransaction, ClaimNonce, ClaimRequest
     ]),
     AuthModule,
     EloModule,
@@ -101,7 +99,7 @@ import { UserService } from './services/user.service';
     AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController
   ],
   providers: [
-    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostLikeService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TrivusExpService, TokenTransactionService, LikeEventService
+    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler
   ],
 })
 export class AppModule implements OnModuleInit {
@@ -131,16 +129,20 @@ export class AppModule implements OnModuleInit {
   }
 
   private async createSampleUsers() {
+    // 환경변수에서 지갑 주소 가져오기
+    const sampleUserWallet = process.env.SAMPLE_USER_ADDRESS || 'sample-user-wallet';
+    const takkuKingWallet = process.env.TABLE_TENNIS_USER_ADDRESS || '0x8313F74e78a2E1D7D6Bb27176100d88EE4028516';
+
     // 기존 샘플 사용자가 있는지 확인
-    let mainUser = await this.userService.findByWalletAddress('sample-user-wallet');
-    let tableTennisUser = await this.userService.findByWalletAddress('table-tennis-user-wallet');
+    let mainUser = await this.userService.findByWalletAddress(sampleUserWallet);
+    let tableTennisUser = await this.userService.findByWalletAddress(takkuKingWallet);
 
     const categories = await this.sportCategoryService.findAll();
 
     if (!mainUser) {
       mainUser = await this.userService.createWithDefaultElos({
         walletUserId: 'sample-user',
-        walletAddress: 'sample-user-wallet',
+        walletAddress: sampleUserWallet,
         nickname: '샘플유저',
         email: 'sample@example.com',
       }, categories);
@@ -149,7 +151,7 @@ export class AppModule implements OnModuleInit {
     if (!tableTennisUser) {
       tableTennisUser = await this.userService.createWithDefaultElos({
         walletUserId: 'table-tennis-user',
-        walletAddress: 'table-tennis-user-wallet',
+        walletAddress: takkuKingWallet,
         nickname: '탁구왕민수',
         email: 'tabletennis@example.com',
       }, categories);

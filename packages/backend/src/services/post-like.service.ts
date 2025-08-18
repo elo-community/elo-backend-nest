@@ -43,7 +43,7 @@ export class PostLikeService {
 
         // 토큰 거래 내역 기록
         const transactionDto: CreateTransactionDto = {
-            userId: user.id,
+            userId: user.id, // 명시적으로 userId 설정
             transactionType: TransactionType.LIKE_DEDUCT,
             amount: -amount, // 차감이므로 음수
             balanceBefore,
@@ -58,6 +58,8 @@ export class PostLikeService {
             referenceId: postId.toString(),
             referenceType: 'post_like',
         };
+
+        console.log('DEBUG: CreateTransactionDto:', JSON.stringify(transactionDto, null, 2));
 
         await this.tokenTransactionService.createTransaction(transactionDto);
 

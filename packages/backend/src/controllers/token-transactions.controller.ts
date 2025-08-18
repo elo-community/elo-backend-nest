@@ -1,6 +1,7 @@
 import { Controller, DefaultValuePipe, Get, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
+import { Public } from '../auth/public.decorator';
 import { CurrentUser } from '../auth/user.decorator';
 import { TransactionType } from '../entities/token-transaction.entity';
 import { TokenTransactionService } from '../services/token-transaction.service';
@@ -9,6 +10,26 @@ import { TokenTransactionService } from '../services/token-transaction.service';
 @UseGuards(JwtAuthGuard)
 export class TokenTransactionsController {
     constructor(private readonly tokenTransactionService: TokenTransactionService) { }
+
+    /**
+     * 테스트용: 인증 없이 토큰 거래 내역 조회
+     */
+    @Get('test/public')
+    @Public()
+    async getPublicTransactions() {
+        try {
+            const result = await this.tokenTransactionService.getAllTransactions();
+            return {
+                message: 'Public token transactions retrieved successfully',
+                data: result,
+            };
+        } catch (error) {
+            return {
+                message: 'Failed to retrieve token transactions',
+                error: (error as Error).message,
+            };
+        }
+    }
 
     /**
      * 사용자의 전체 토큰 거래 내역 조회

@@ -31,8 +31,15 @@ export class TokenTransactionService {
      * 새로운 토큰 거래 내역 생성
      */
     async createTransaction(createDto: CreateTransactionDto): Promise<TokenTransaction> {
+        // userId로 사용자 조회
+        const user = await this.userRepository.findOne({ where: { id: createDto.userId } });
+        if (!user) {
+            throw new NotFoundException(`User with ID ${createDto.userId} not found`);
+        }
+
         const transaction = this.tokenTransactionRepository.create({
             ...createDto,
+            user: user, // user 관계 설정
             status: TransactionStatus.COMPLETED,
             processedAt: new Date(),
         });
@@ -71,6 +78,17 @@ export class TokenTransactionService {
             limit,
             totalPages,
         };
+    }
+
+    /**
+     * 테스트용: 모든 토큰 거래 내역 조회
+     */
+    async getAllTransactions(): Promise<TokenTransaction[]> {
+        return await this.tokenTransactionRepository.find({
+            order: { createdAt: 'DESC' },
+            relations: ['user'],
+            take: 50, // 최근 50개만 조회
+        });
     }
 
     /**

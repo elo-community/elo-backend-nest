@@ -15,6 +15,33 @@ export class TrivusExpController {
         return await this.trivusExpService.getServiceStatus();
     }
 
+    @Get('debug-env')
+    @Public()
+    async debugEnvironmentVariables() {
+        const configService = this.trivusExpService['configService'];
+        return {
+            rpcUrl: configService.get<string>('blockchain.amoy.rpcUrl'),
+            chainId: configService.get<string>('blockchain.amoy.chainId'),
+            trustedSignerKey: configService.get<string>('blockchain.trustedSigner.privateKey') ? 'SET' : 'NOT SET',
+            contractAddress: configService.get<string>('blockchain.contracts.trivusExp.amoy'),
+            envFilePath: process.env.NODE_ENV === 'development' ? '../../.env' : '.env'
+        };
+    }
+
+    @Get('debug-service')
+    @Public()
+    async debugServiceStatus() {
+        const service = this.trivusExpService as any;
+        return {
+            isInitialized: service.isInitialized,
+            provider: service.provider ? 'SET' : 'NOT SET',
+            trustedSigner: service.trustedSigner ? 'SET' : 'NOT SET',
+            contract: service.contract ? 'SET' : 'NOT SET',
+            contractAddress: service.contractAddress || 'NOT SET',
+            claimEventService: service.claimEventService?.getStatus() || null
+        };
+    }
+
     @Get('balance/:address')
     @Public()
     async getBalance(@Param('address') address: string) {
@@ -87,7 +114,7 @@ export class TrivusExpController {
 
             // 서명 생성
             const signature = await this.trivusExpService.createTokenClaimSignature({
-                to: request.address,
+                address: request.address,
                 amount: request.amount,
                 reason: request.reason
             });
@@ -100,6 +127,7 @@ export class TrivusExpController {
                     claimData: {
                         to: signature.to,
                         amount: signature.amount,
+                        nonce: signature.nonce,
                         deadline: signature.deadline,
                         signature: signature.signature
                     },
@@ -125,7 +153,7 @@ export class TrivusExpController {
     @Public()
     async testCreateTokenClaimSignature(@Body() request: TokenClaimRequest) {
         try {
-            this.logger.log(`[TEST] Creating signature for ${request.to}: ${request.amount} EXP`);
+            this.logger.log(`[TEST] Creating signature for ${request.address}: ${request.amount} EXP`);
             const signature = await this.trivusExpService.createTokenClaimSignature(request);
             return {
                 success: true,
@@ -148,7 +176,7 @@ export class TrivusExpController {
 
     @Post('test/simple-verify')
     @Public()
-    async testSimpleVerify(@Body() data: { to: string; amount: string; deadline: number; signature: string }) {
+    async testSimpleVerify(@Body() data: { to: string; amount: string; nonce: string; deadline: number; signature: string }) {
         try {
             this.logger.log(`[TEST] Simple verification test for ${data.to}`);
             const isValid = await this.trivusExpService.verifySignature(data);
@@ -174,7 +202,7 @@ export class TrivusExpController {
 
             // Step 1: Create signature
             const signature = await this.trivusExpService.createTokenClaimSignature({
-                to: request.address,
+                address: request.address,
                 amount: request.amount,
                 reason: request.reason
             });
@@ -185,6 +213,7 @@ export class TrivusExpController {
             const isValidBackend = await this.trivusExpService.verifySignature({
                 to: signature.to,
                 amount: signature.amount,
+                nonce: signature.nonce,
                 deadline: signature.deadline,
                 signature: signature.signature
             });
@@ -242,7 +271,7 @@ export class TrivusExpController {
             // Step 2: Create signature
             this.logger.log(`[TEST] 🔐 Step 2: Creating EIP-712 signature...`);
             const signature = await this.trivusExpService.createTokenClaimSignature({
-                to: request.address,
+                address: request.address,
                 amount: request.amount,
                 reason: request.reason
             });
@@ -260,6 +289,7 @@ export class TrivusExpController {
             const isValidBackend = await this.trivusExpService.verifySignature({
                 to: signature.to,
                 amount: signature.amount,
+                nonce: signature.nonce,
                 deadline: signature.deadline,
                 signature: signature.signature
             });
@@ -354,7 +384,7 @@ export class TrivusExpController {
      */
     @Post('test/verify-signature')
     @Public()
-    async testVerifySignature(@Body() data: { to: string; amount: string; deadline: number; signature: string }) {
+    async testVerifySignature(@Body() data: { to: string; amount: string; nonce: string; deadline: number; signature: string }) {
         try {
             this.logger.log(`[TEST] Verifying signature for ${data.to}`);
 
@@ -418,7 +448,7 @@ export class TrivusExpController {
             // Step 1: Create signature
             this.logger.log(`[TEST] Step 1: Creating signature...`);
             const signature = await this.trivusExpService.createTokenClaimSignature({
-                to: request.address,
+                address: request.address,
                 amount: request.amount,
                 reason: request.reason
             });
@@ -430,6 +460,7 @@ export class TrivusExpController {
             const isValid = await this.trivusExpService.verifySignature({
                 to: signature.to,
                 amount: signature.amount,
+                nonce: signature.nonce,
                 deadline: signature.deadline,
                 signature: signature.signature
             });
@@ -496,7 +527,7 @@ export class TrivusExpController {
                 try {
                     // 서명 생성
                     const signature = await this.trivusExpService.createTokenClaimSignature({
-                        to: claim.address,
+                        address: claim.address,
                         amount: claim.amount,
                         reason: claim.reason
                     });
