@@ -12,6 +12,7 @@ packages/*/build/
 .env
 .env.local
 .env.*.local
+.env.*
 
 # Logs
 logs

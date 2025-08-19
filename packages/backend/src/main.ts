@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { initializeNetwork } from './config/network-loader';
 
 // BigInt 직렬화 문제 해결
 (BigInt.prototype as any).toJSON = function () {
@@ -8,6 +9,9 @@ import { AppModule } from './app.module';
 };
 
 async function bootstrap() {
+  // 네트워크별 환경변수 로드
+  initializeNetwork();
+
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 

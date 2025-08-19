@@ -30,11 +30,10 @@ jobs:
 
       - name: Create .env file
         run: |
+          echo "Creating .env file from GitHub Secrets..."
           echo "${{ secrets.ENV }}" | base64 -d > .env
           echo "=== .env file created ==="
           ls -la .env
-          echo "=== .env file content (first few lines) ==="
-          head -5 .env
 
       - name: Build contracts
         run: |
@@ -72,7 +71,8 @@ jobs:
           context: .
           push: true
           build-args: |
-            ENV_CONTENT=${{ secrets.ENV }}
+            NODE_ENV=deploy
+            ACTIVE_NETWORK=amoy
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/elo-community:latest
             ${{ secrets.DOCKER_USERNAME }}/elo-community:${{ github.sha }}
@@ -82,8 +82,9 @@ jobs:
           echo "Testing Docker image locally..."
           # 환경변수가 제대로 설정되었는지 확인
           docker run --rm ${{ secrets.DOCKER_USERNAME }}/elo-community:latest node -e "
-            console.log('ENV_CONTENT:', process.env.ENV_CONTENT ? 'SET' : 'NOT SET');
-            if (process.env.ENV_CONTENT) {
+            console.log('NODE_ENV:', process.env.NODE_ENV);
+            console.log('ACTIVE_NETWORK:', process.env.ACTIVE_NETWORK);
+            if (process.env.NODE_ENV && process.env.ACTIVE_NETWORK) {
               console.log('✅ Environment variables loaded successfully');
             } else {
               console.log('❌ Environment variables not loaded');
