@@ -492,6 +492,39 @@ export class PostService {
         }
     }
 
+    /**
+     * 게시글 작성자 업데이트
+     */
+    async updateAuthor(postId: number, newAuthorId: number): Promise<Post | null> {
+        try {
+            const post = await this.postRepository.findOne({
+                where: { id: postId },
+                relations: ['author']
+            });
+
+            if (!post) {
+                throw new Error(`Post with ID ${postId} not found`);
+            }
+
+            const newAuthor = await this.userRepository.findOne({
+                where: { id: newAuthorId }
+            });
+
+            if (!newAuthor) {
+                throw new Error(`User with ID ${newAuthorId} not found`);
+            }
+
+            post.author = newAuthor;
+            const updatedPost = await this.postRepository.save(post);
+
+            console.log(`Post ${postId} author updated from ${post.author.id} to ${newAuthorId}`);
+            return updatedPost;
+        } catch (error) {
+            console.error(`Failed to update post author: ${error.message}`);
+            throw error;
+        }
+    }
+
     // content에서 이미지 URL 추출
     private extractImageUrlsFromContent(content: string): string[] {
         const imageUrlRegex = /https:\/\/[^\s<>"']+\.(jpg|jpeg|png|gif|webp)/gi;

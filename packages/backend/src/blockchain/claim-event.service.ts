@@ -45,7 +45,7 @@ export class ClaimEventService implements OnModuleInit {
 
             this.provider = new ethers.JsonRpcProvider(rpcUrl);
 
-            // TrivusEXP 컨트랙트 ABI (ClaimExecuted 이벤트 포함)
+            // TrivusEXP 컨트랙트 ABI (ClaimExecuted 이벤트 + Transfer 이벤트 포함)
             const trivusExpContractABI = [
                 // ClaimExecuted 이벤트
                 {
@@ -77,6 +77,32 @@ export class ClaimEventService implements OnModuleInit {
                         }
                     ],
                     "name": "ClaimExecuted",
+                    "type": "event"
+                },
+                // Transfer 이벤트 (mint, claim 등에서 emit)
+                {
+                    "anonymous": false,
+                    "inputs": [
+                        {
+                            "indexed": true,
+                            "internalType": "address",
+                            "name": "from",
+                            "type": "address"
+                        },
+                        {
+                            "indexed": true,
+                            "internalType": "address",
+                            "name": "to",
+                            "type": "address"
+                        },
+                        {
+                            "indexed": false,
+                            "internalType": "uint256",
+                            "name": "value",
+                            "type": "uint256"
+                        }
+                    ],
+                    "name": "Transfer",
                     "type": "event"
                 }
             ];
@@ -147,11 +173,30 @@ export class ClaimEventService implements OnModuleInit {
 
                 // 디버깅: 폴링 결과 로그
                 if (claimEvents.length > 0) {
-                    this.logger.log(`Found ${claimEvents.length} ClaimExecuted events in blocks ${fromBlock}-${toBlock}`);
+                    this.logger.log(`Found ${claimEvents.length} ClaimExecuted events`);
                 }
             } catch (error) {
                 this.logger.error(`Failed to get logs for ClaimExecuted: ${error.message}`);
                 return;
+            }
+
+            // Transfer 이벤트 폴링 (mint, claim 등에서 emit)
+            let transferEvents: any[] = [];
+            try {
+                transferEvents = await this.provider.getLogs({
+                    address: this.trivusExpContract.target,
+                    topics: [
+                        ethers.id('Transfer(address,address,uint256)')
+                    ],
+                    fromBlock: fromBlock,
+                    toBlock: toBlock
+                });
+
+                if (transferEvents.length > 0) {
+                    this.logger.log(`Found ${transferEvents.length} Transfer events`);
+                }
+            } catch (error) {
+                this.logger.error(`Failed to get logs for Transfer: ${error.message}`);
             }
 
             // 파싱 및 처리
@@ -218,9 +263,145 @@ export class ClaimEventService implements OnModuleInit {
                 }
             }
 
+            // Transfer 이벤트 처리 (mint, claim 등에서 emit)
+            for (const log of transferEvents) {
+                try {
+                    const parsed = this.trivusExpContract.interface.parseLog(log);
+                    if (!parsed || !parsed.args) continue;
+
+                    const from: string = parsed.args[0] as string;
+                    const to: string = parsed.args[1] as string;
+                    const value: bigint = parsed.args[2] as bigint;
+
+                    // mint 이벤트 (from이 zero address인 경우)
+                    if (from === '0x0000000000000000000000000000000000000000') {
+                        await this.handleMintEvent(to, value, log.transactionHash);
+                    }
+                    // claim 이벤트 (from이 zero address가 아닌 경우)
+                    else {
+                        await this.handleTransferEvent(from, to, value, log.transactionHash);
+                    }
+                } catch (parseError) {
+                    this.logger.warn(`Failed to parse Transfer: ${parseError.message}`);
+                }
+            }
+
             this.lastProcessedBlock = toBlock;
         } catch (error) {
             this.logger.error(`Failed to get current block number for polling: ${(error as Error).message}`);
+        }
+    }
+
+    /**
+     * Mint 이벤트 처리 (from이 zero address인 경우)
+     */
+    private async handleMintEvent(to: string, value: bigint, transactionHash: string): Promise<void> {
+        try {
+            const user = await this.userService.findByWalletAddress(to);
+            if (!user) {
+                this.logger.warn(`User not found for wallet address: ${to}`);
+                return;
+            }
+
+            const amountDecimal = parseFloat(ethers.formatEther(value));
+
+            // 중복 mint 기록 방지: 같은 transactionHash로 이미 기록되었는지 확인
+            const existingTransaction = await this.tokenTransactionService.getTransactionByHash(transactionHash);
+            if (existingTransaction) {
+                this.logger.log(`Mint transaction already recorded for hash ${transactionHash}, skipping duplicate`);
+                return;
+            }
+
+            // user.token_amount 업데이트
+            this.logger.log(`Updating user token_amount: ${to} +${amountDecimal} EXP`);
+            try {
+                const updatedUser = await this.userService.addTokens(to, amountDecimal);
+                this.logger.log(`User token_amount updated successfully: ${updatedUser.tokenAmount} EXP (was: ${user.tokenAmount} EXP)`);
+            } catch (addTokensError) {
+                this.logger.error(`Failed to update user token_amount: ${addTokensError.message}`);
+                throw addTokensError; // 에러 발생 시 전체 처리 중단
+            }
+
+            // token_tx 테이블에 mint 기록
+            await this.tokenTransactionService.createTransaction({
+                userId: user.id,
+                transactionType: TransactionType.TRANSFER_IN,
+                amount: amountDecimal,
+                balanceBefore: (user.tokenAmount || 0) - amountDecimal,
+                balanceAfter: (user.tokenAmount || 0) + amountDecimal, // 업데이트된 tokenAmount 반영
+                transactionHash,
+                blockchainAddress: to,
+                description: `Token minted: ${amountDecimal} EXP`,
+                metadata: {
+                    event_source: 'Transfer',
+                    action: 'mint',
+                    from: '0x0000000000000000000000000000000000000000'
+                },
+                referenceType: 'mint'
+            });
+
+            this.logger.log(`Mint transaction recorded for user ${user.id}: ${amountDecimal} EXP minted, token_amount updated`);
+        } catch (error) {
+            this.logger.error(`Failed to handle mint event: ${(error as Error).message}`);
+        }
+    }
+
+    /**
+     * 일반 Transfer 이벤트 처리
+     */
+    private async handleTransferEvent(from: string, to: string, value: bigint, transactionHash: string): Promise<void> {
+        try {
+            const amountDecimal = parseFloat(ethers.formatEther(value));
+
+            // from 주소의 사용자 조회
+            const fromUser = await this.userService.findByWalletAddress(from);
+            if (fromUser) {
+                // from 사용자의 토큰 차감 기록
+                await this.tokenTransactionService.createTransaction({
+                    userId: fromUser.id,
+                    transactionType: TransactionType.TRANSFER_OUT,
+                    amount: -amountDecimal,
+                    balanceBefore: (fromUser.tokenAmount || 0) + amountDecimal,
+                    balanceAfter: fromUser.tokenAmount || 0,
+                    transactionHash,
+                    blockchainAddress: from,
+                    description: `Token transferred: ${amountDecimal} EXP to ${to}`,
+                    metadata: {
+                        event_source: 'Transfer',
+                        action: 'transfer_out',
+                        to: to
+                    },
+                    referenceType: 'transfer'
+                });
+
+                this.logger.log(`Transfer out recorded for user ${fromUser.id}: ${amountDecimal} EXP sent`);
+            }
+
+            // to 주소의 사용자 조회
+            const toUser = await this.userService.findByWalletAddress(to);
+            if (toUser) {
+                // to 사용자의 토큰 증가 기록
+                await this.tokenTransactionService.createTransaction({
+                    userId: toUser.id,
+                    transactionType: TransactionType.TRANSFER_IN,
+                    amount: amountDecimal,
+                    balanceBefore: (toUser.tokenAmount || 0) - amountDecimal,
+                    balanceAfter: toUser.tokenAmount || 0,
+                    transactionHash,
+                    blockchainAddress: to,
+                    description: `Token received: ${amountDecimal} EXP from ${from}`,
+                    metadata: {
+                        event_source: 'Transfer',
+                        action: 'transfer_in',
+                        from: from
+                    },
+                    referenceType: 'transfer'
+                });
+
+                this.logger.log(`Transfer in recorded for user ${toUser.id}: ${amountDecimal} EXP received`);
+            }
+        } catch (error) {
+            this.logger.error(`Failed to handle transfer event: ${(error as Error).message}`);
         }
     }
 

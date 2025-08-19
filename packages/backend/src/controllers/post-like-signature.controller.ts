@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpException, HttpStatus, Post, Query } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 import { PostLikeSystemService } from '../blockchain/post-like-system.service';
 import { TrivusExpService } from '../blockchain/trivus-exp.service';
@@ -9,7 +10,8 @@ export class PostLikeSignatureController {
     constructor(
         private readonly postLikeSystemService: PostLikeSystemService,
         private readonly trivusExpService: TrivusExpService,
-        private readonly userService: UserService
+        private readonly userService: UserService,
+        private readonly configService: ConfigService
     ) { }
 
     /**
@@ -24,11 +26,16 @@ export class PostLikeSignatureController {
                 throw new HttpException('Invalid postId', HttpStatus.BAD_REQUEST);
             }
             const encodedData = ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [body.postId]);
+
+            // PostLikeSystem1363 컨트랙트 주소 가져오기
+            const postLikeSystemAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
+
             return {
                 success: true,
                 data: {
                     postId: body.postId,
-                    encodedData: encodedData
+                    encodedData: encodedData,
+                    contractAddress: postLikeSystemAddress
                 },
                 message: 'Like data created successfully'
             };
@@ -69,6 +76,9 @@ export class PostLikeSignatureController {
                 deadline
             );
 
+            // PostLikeSystem1363 컨트랙트 주소 가져오기
+            const postLikeSystemAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
+
             return {
                 success: true,
                 data: {
@@ -77,7 +87,8 @@ export class PostLikeSignatureController {
                     amount: signatureData.amount,
                     deadline: signatureData.deadline,
                     nonce: signatureData.nonce,
-                    signature: signatureData.signature
+                    signature: signatureData.signature,
+                    contractAddress: postLikeSystemAddress
                 },
                 message: 'Like signature created successfully'
             };
@@ -111,6 +122,9 @@ export class PostLikeSignatureController {
                 reason
             });
 
+            // TrivusEXP1363 컨트랙트 주소 가져오기
+            const trivusExpAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
+
             return {
                 success: true,
                 data: {
@@ -118,7 +132,8 @@ export class PostLikeSignatureController {
                     amount: signatureData.amount,
                     deadline: signatureData.deadline,
                     nonce: signatureData.nonce,
-                    signature: signatureData.signature
+                    signature: signatureData.signature,
+                    contractAddress: trivusExpAddress
                 },
                 message: 'Token claim signature created successfully'
             };

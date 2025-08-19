@@ -30,30 +30,28 @@ export class PostLikeService {
         transactionHash: string,
         amount: number
     ): Promise<void> {
-        // PostLike 엔티티 생성 또는 업데이트
-        let postLike = await this.postLikeRepository.findOne({
+        // 기존 좋아요 레코드 확인
+        const existingPostLike = await this.postLikeRepository.findOne({
             where: { post: { id: postId }, user: { id: userId } },
         });
 
-        if (!postLike) {
-            // 새로운 좋아요 생성
-            postLike = this.postLikeRepository.create({
-                post: { id: postId },
-                user: { id: userId },
-                isLiked: true,
-                transactionHash,
-                tokenDeducted: true,
-                tokenDeductedAt: new Date(),
-            });
-        } else {
-            // 기존 좋아요 업데이트
-            postLike.isLiked = true;
-            postLike.transactionHash = transactionHash;
-            postLike.tokenDeducted = true;
-            postLike.tokenDeductedAt = new Date();
+        if (existingPostLike) {
+            // 이미 좋아요를 누른 경우 에러 발생 (중복 좋아요 방지)
+            throw new Error(`User ${userId} has already liked post ${postId}. Duplicate likes are not allowed.`);
         }
 
+        // 새로운 좋아요 레코드 생성 (항상 insert)
+        const postLike = this.postLikeRepository.create({
+            post: { id: postId },
+            user: { id: userId },
+            isLiked: true,
+            transactionHash,
+            tokenDeducted: true,
+            tokenDeductedAt: new Date(),
+        });
+
         await this.postLikeRepository.save(postLike);
+        console.log(`New like record created: user ${userId} -> post ${postId}`);
     }
 
     /**

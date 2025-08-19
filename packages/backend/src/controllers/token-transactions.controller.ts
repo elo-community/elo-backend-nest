@@ -1,4 +1,5 @@
 import { Controller, DefaultValuePipe, Get, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { Public } from '../auth/public.decorator';
@@ -13,6 +14,7 @@ export class TokenTransactionsController {
     constructor(
         private readonly tokenTransactionService: TokenTransactionService,
         private readonly trivusExpService: TrivusExpService,
+        private readonly configService: ConfigService,
     ) { }
 
     /**
@@ -152,6 +154,9 @@ export class TokenTransactionsController {
                 address: user.walletAddress,
             });
 
+            // TrivusEXP1363 컨트랙트 주소 가져오기
+            const trivusExpAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
+
             // 서명만 반환하고 DB 기록은 ClaimExecuted 이벤트 감지 시 처리
             return {
                 message: 'Token claim signature generated successfully',
@@ -160,6 +165,7 @@ export class TokenTransactionsController {
                     nonce: result.nonce,
                     deadline: result.deadline,
                     amount: result.amount,
+                    contractAddress: trivusExpAddress,
                     message: 'Use this signature to execute the claim on the blockchain. The transaction will be recorded automatically when the claim is executed.',
                 },
             };

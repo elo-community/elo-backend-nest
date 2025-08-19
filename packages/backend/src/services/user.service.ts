@@ -196,21 +196,38 @@ export class UserService {
      * 토큰 추가 (좋아요 취소, 보상 등에서 토큰 반환)
      */
     async addTokens(walletAddress: string, amount: number): Promise<User> {
+        console.log(`[UserService] addTokens called: ${walletAddress} +${amount} EXP`);
+        console.log(`[UserService] Amount type: ${typeof amount}, value: ${amount}`);
+
         const user = await this.findByWalletAddress(walletAddress);
         if (!user) {
+            console.error(`[UserService] User not found for wallet: ${walletAddress}`);
             throw new NotFoundException('User not found');
         }
 
-        const newTokenAmount = (user.tokenAmount || 0) + amount;
+        console.log(`[UserService] Current user.tokenAmount: ${user.tokenAmount || 0}`);
+        console.log(`[UserService] Current user.tokenAmount type: ${typeof (user.tokenAmount || 0)}`);
 
+        // 문자열을 숫자로 명시적 변환
+        const currentTokenAmount = parseFloat(user.tokenAmount?.toString() || '0');
+        console.log(`[UserService] Parsed current tokenAmount: ${currentTokenAmount}`);
+
+        const newTokenAmount = currentTokenAmount + amount;
+        console.log(`[UserService] New tokenAmount will be: ${newTokenAmount}`);
+        console.log(`[UserService] New tokenAmount type: ${typeof newTokenAmount}`);
+
+        console.log(`[UserService] Updating user ${user.id} with new tokenAmount: ${newTokenAmount}`);
         await this.userRepository.update(user.id, {
             tokenAmount: newTokenAmount
         });
 
         const updatedUser = await this.findByWalletAddress(walletAddress);
         if (!updatedUser) {
+            console.error(`[UserService] User not found after update for wallet: ${walletAddress}`);
             throw new NotFoundException('User not found after update');
         }
+
+        console.log(`[UserService] User updated successfully. New tokenAmount: ${updatedUser.tokenAmount}`);
         return updatedUser;
     }
 } 

@@ -275,7 +275,7 @@ export class LikeEventService implements OnModuleInit {
             return;
         }
 
-        // 30초마다 최근 블록에서 이벤트 확인 (로그 부담 줄이기)
+        // 10초마다 최근 블록에서 이벤트 확인 (빠른 감지를 위해)
         this.pollingInterval = setInterval(async () => {
             if (!this.isListening) {
                 if (this.pollingInterval) {
@@ -290,9 +290,9 @@ export class LikeEventService implements OnModuleInit {
             } catch (error) {
                 this.logger.error(`Error polling events: ${(error as Error).message}`);
             }
-        }, 30000); // 30초마다 (로그 부담 줄이기)
+        }, 10000); // 10초마다 (빠른 감지를 위해)
 
-        this.logger.log(`Event polling started (30 second intervals) - Instance ID: ${this.instanceId}`);
+        this.logger.log(`Event polling started (10 second intervals) - Instance ID: ${this.instanceId}`);
     }
 
     private async pollRecentEvents() {
@@ -312,13 +312,15 @@ export class LikeEventService implements OnModuleInit {
                 return; // 로그 제거
             }
 
-            const fromBlock = Math.max(this.lastProcessedBlock + 1, currentBlock - 1); // 마지막 처리 블록 + 1부터
+            const fromBlock = Math.max(this.lastProcessedBlock + 1, currentBlock - 5); // 마지막 처리 블록 + 1부터, 최대 5블록 전까지
             const toBlock = currentBlock;
 
             // 블록 범위가 유효하지 않으면 건너뛰기
             if (fromBlock > toBlock) {
                 return; // 로그 제거
             }
+
+
 
             // PostLikeEvent 이벤트 폴링 (getLogs 사용으로 필터 오류 방지)
             let postLikeEvents: any[] = [];
@@ -331,6 +333,10 @@ export class LikeEventService implements OnModuleInit {
                     fromBlock: fromBlock,
                     toBlock: toBlock
                 });
+
+                if (postLikeEvents.length > 0) {
+                    this.logger.log(`Found ${postLikeEvents.length} PostLikeEvent(s)`);
+                }
             } catch (error) {
                 if (error.message && error.message.includes('network does not support ENS')) {
                     this.logger.warn('ENS not supported, skipping PostLikeEvent query');
@@ -731,31 +737,35 @@ export class LikeEventService implements OnModuleInit {
                 return;
             }
 
-            // PostLikeSystem으로의 전송이 아닌 경우에만 여기서 처리
-            this.logger.log(`Non-PostLikeSystem transfer, processing as regular transfer...`);
+            // PostLikeSystem으로의 전송인 경우에는 이미 PostLikeEvent에서 처리했으므로 중복 기록하지 않음
+            if (to === postLikeSystemAddress || to === postLikeReceiverAddress) {
+                this.logger.log(`PostLikeSystem transfer detected, skipping duplicate LIKE_DEDUCT record (already handled by PostLikeEvent)`);
+            } else {
+                // PostLikeSystem으로의 전송이 아닌 경우 일반 전송으로 처리
+                this.logger.log(`Non-PostLikeSystem transfer, processing as regular transfer...`);
 
-            // 블록체인 이벤트를 토큰 거래 내역에 기록
-            const transactionDto: CreateTransactionDto = {
-                userId: user.id, // 명시적으로 userId 설정
-                transactionType: TransactionType.LIKE_DEDUCT,
-                amount: -parseFloat(amount), // 차감이므로 음수
-                balanceBefore: user.availableToken + parseFloat(amount), // 차감 전 잔액
-                balanceAfter: user.availableToken, // 현재 잔액
-                transactionHash,
-                description: `Blockchain like token transfer: ${amount} tokens deducted`,
-                metadata: {
-                    blockchainEvent: 'Transfer',
-                    from,
-                    to,
-                    amount,
-                    action: 'blockchain_like_deduct',
-                },
-                referenceType: 'blockchain_event',
-            };
+                // 블록체인 이벤트를 토큰 거래 내역에 기록
+                const transactionDto: CreateTransactionDto = {
+                    userId: user.id,
+                    transactionType: TransactionType.TRANSFER_OUT,
+                    amount: -parseFloat(amount), // 차감이므로 음수
+                    balanceBefore: user.tokenAmount + parseFloat(amount), // 차감 전 잔액
+                    balanceAfter: user.tokenAmount, // 현재 잔액
+                    transactionHash,
+                    description: `Blockchain token transfer: ${amount} tokens sent`,
+                    metadata: {
+                        blockchainEvent: 'Transfer',
+                        from,
+                        to,
+                        amount,
+                        action: 'general_transfer',
+                    },
+                    referenceType: 'blockchain_event',
+                };
 
-            await this.tokenTransactionService.createTransaction(transactionDto);
-
-            this.logger.log(`Like token transfer processed and recorded for user: ${user.id}`);
+                await this.tokenTransactionService.createTransaction(transactionDto);
+                this.logger.log(`General token transfer recorded for user: ${user.id}`);
+            }
         } catch (error) {
             this.logger.error(`Failed to process like token transfer: ${(error as Error).message}`);
         }
