@@ -16,6 +16,7 @@ import { UserService } from '../services/user.service';
 import { BlockchainService } from './blockchain.service';
 import { ClaimEventService } from './claim-event.service';
 import { LikeEventService } from './like-event.service';
+import { PostLikeSystemService } from './post-like-system.service';
 import { TrivusExpService } from './trivus-exp.service';
 
 @Module({
@@ -33,6 +34,7 @@ import { TrivusExpService } from './trivus-exp.service';
         UserService,
         ClaimEventService,
         LikeEventService,
+        PostLikeSystemService,
         {
             provide: 'AMOY_PROVIDER',
             useFactory: (configService: ConfigService) => {
@@ -94,6 +96,7 @@ import { TrivusExpService } from './trivus-exp.service';
         ClaimEventService,
         LikeEventService,
         PostLikeService,
+        PostLikeSystemService,
         TokenTransactionService,
         UserService,
     ],

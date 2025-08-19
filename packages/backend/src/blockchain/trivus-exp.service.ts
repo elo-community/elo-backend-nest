@@ -175,14 +175,13 @@ export class TrivusExpService {
             const deadline = Math.floor(Date.now() / 1000) + 3600; // 1시간 후 만료
             const amountWei = ethers.parseEther(amount);
 
-            // DB에서 다음 nonce 조회
-            const currentNonce = await this.claimNonceService.getNextNonce(address);
-            const nonce = currentNonce.toString();
+            // 예측 불가능한 nonce 생성
+            const nonce = await this.claimNonceService.getNextNonce(address);
 
             const value = {
                 to: address,
                 amount: amountWei,
-                nonce: currentNonce,
+                nonce: nonce,
                 deadline,
                 chainId: 80002, // Polygon Amoy
                 contractAddr: this.contractAddress
@@ -208,7 +207,7 @@ export class TrivusExpService {
             // claim 요청을 DB에 저장
             await this.claimRequestService.createClaimRequest(
                 address,
-                currentNonce,
+                nonce,
                 amount,
                 BigInt(deadline),
                 signature,
@@ -415,14 +414,7 @@ export class TrivusExpService {
 
         // 최대한 관대한 상태 리포트: 컨트랙트의 trustedSigner() 호출 실패 시 백엔드 서명자 주소로 대체
         let signerAddress = this.trustedSigner?.address || 'Not configured';
-        let networkName = 'unknown';
-        try {
-            const net = await this.provider.getNetwork();
-            // ethers v6: net.name can be 'unknown'; 그래도 그대로 반환
-            networkName = net.name;
-        } catch (e) {
-            this.logger.warn(`Network check failed: ${(e as Error).message}`);
-        }
+        let networkName = 'matic-amoy'; // Polygon Amoy Testnet
 
         try {
             const onchainSigner = await this.getTrustedSigner();

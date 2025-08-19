@@ -17,6 +17,7 @@ import { CommentsController } from './controllers/comments.controller';
 import { ImageController } from './controllers/image.controller';
 import { MatchResultsController, UserMatchesController } from './controllers/match-results.controller';
 import { PostHatesController } from './controllers/post-hates.controller';
+import { PostLikeSignatureController } from './controllers/post-like-signature.controller';
 import { PostLikesController } from './controllers/post-likes.controller';
 import { PostsController } from './controllers/posts.controller';
 import { RepliesController } from './controllers/replies.controller';
@@ -96,7 +97,7 @@ import { UserService } from './services/user.service';
     RewardsModule,
   ],
   controllers: [
-    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController
+    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController
   ],
   providers: [
     UserService, PostService, CommentService, ReplyService, SportCategoryService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler

@@ -159,7 +159,7 @@ export class ClaimEventService implements OnModuleInit {
 
                     const to: string = parsed.args[0] as string;
                     const amount: bigint = parsed.args[1] as bigint;
-                    const nonce: bigint = parsed.args[2] as bigint;
+                    const nonce: string = parsed.args[2] as string; // nonce는 이제 string 타입
                     // const signature: string = parsed.args[3] as string; // 필요 시 사용
 
                     this.logger.log(`ClaimExecuted event detected: to=${to}, amount=${ethers.formatEther(amount)} EXP, nonce=${nonce}`);

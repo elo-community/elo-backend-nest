@@ -16,8 +16,8 @@ export class ClaimRequest {
     @Column({ type: 'varchar', length: 42 })
     walletAddress: string;
 
-    @Column({ type: 'bigint' })
-    nonce: bigint;
+    @Column({ type: 'varchar', length: 66 }) // 0x + 32바이트 hex = 66자
+    nonce: string;
 
     @Column({ type: 'varchar', length: 100 })
     amount: string; // "10" (EXP 단위)

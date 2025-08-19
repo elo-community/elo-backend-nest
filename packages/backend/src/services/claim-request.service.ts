@@ -17,7 +17,7 @@ export class ClaimRequestService {
      */
     async createClaimRequest(
         walletAddress: string,
-        nonce: bigint,
+        nonce: string,
         amount: string,
         deadline: bigint,
         signature: string,
@@ -48,7 +48,7 @@ export class ClaimRequestService {
      */
     async updateClaimStatus(
         walletAddress: string,
-        nonce: bigint,
+        nonce: string,
         status: ClaimStatus,
         transactionHash?: string
     ): Promise<void> {
@@ -105,7 +105,7 @@ export class ClaimRequestService {
     /**
      * 특정 nonce의 claim 요청 조회
      */
-    async getClaimRequestByNonce(walletAddress: string, nonce: bigint): Promise<ClaimRequest | null> {
+    async getClaimRequestByNonce(walletAddress: string, nonce: string): Promise<ClaimRequest | null> {
         try {
             return await this.claimRequestRepository.findOne({
                 where: { walletAddress, nonce }
