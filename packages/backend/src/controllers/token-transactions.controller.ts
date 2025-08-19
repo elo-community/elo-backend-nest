@@ -8,6 +8,89 @@ import { TrivusExpService } from '../blockchain/trivus-exp.service';
 import { TransactionType } from '../entities/token-transaction.entity';
 import { TokenTransactionService } from '../services/token-transaction.service';
 
+// TrivusEXP1363 컨트랙트 ABI 상수 정의
+const TRIVUS_EXP_ABI = [
+    // claimWithSignature 함수
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "to",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "deadline",
+                "type": "uint256"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "nonce",
+                "type": "bytes32"
+            },
+            {
+                "internalType": "bytes",
+                "name": "signature",
+                "type": "bytes"
+            }
+        ],
+        "name": "claimWithSignature",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    // balanceOf 조회
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            }
+        ],
+        "name": "balanceOf",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    // transfer 함수
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "to",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+            }
+        ],
+        "name": "transfer",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+];
+
 @Controller('token-transactions')
 @UseGuards(JwtAuthGuard)
 export class TokenTransactionsController {
@@ -166,6 +249,7 @@ export class TokenTransactionsController {
                     deadline: result.deadline,
                     amount: result.amount,
                     contractAddress: trivusExpAddress,
+                    contractABI: TRIVUS_EXP_ABI,
                     message: 'Use this signature to execute the claim on the blockchain. The transaction will be recorded automatically when the claim is executed.',
                 },
             };
