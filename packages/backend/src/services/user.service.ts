@@ -4,6 +4,7 @@ import { DeleteResult, Repository } from 'typeorm';
 import { SportCategory } from '../entities/sport-category.entity';
 import { UserElo } from '../entities/user-elo.entity';
 import { User } from '../entities/user.entity';
+import { TokenAccumulationService } from './token-accumulation.service';
 
 @Injectable()
 export class UserService {
@@ -12,6 +13,7 @@ export class UserService {
         private readonly userRepository: Repository<User>,
         @InjectRepository(UserElo)
         private readonly userEloRepository: Repository<UserElo>,
+        private readonly tokenAccumulationService: TokenAccumulationService,
     ) { }
 
     async findByEmail(email: string): Promise<User | null> {
@@ -86,5 +88,107 @@ export class UserService {
             user,
             userElos: user.userElos || []
         };
+    }
+
+    /**
+     * 사용자의 수확 가능한 토큰 업데이트 (DB accumulation에서 자동 계산)
+     */
+    async updateAvailableTokens(walletAddress: string): Promise<User> {
+        const user = await this.findByWalletAddress(walletAddress);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        // TokenAccumulation에서 수확 가능한 토큰 양 조회
+        const availableAmount = await this.tokenAccumulationService.getTotalAccumulatedAmount(walletAddress);
+        const availableTokens = parseFloat(availableAmount) / Math.pow(10, 18); // wei를 EXP로 변환
+
+        // availableToken 업데이트
+        await this.userRepository.update(user.id, {
+            availableToken: availableTokens
+        });
+
+        const updatedUser = await this.findByWalletAddress(walletAddress);
+        if (!updatedUser) {
+            throw new NotFoundException('User not found after update');
+        }
+        return updatedUser;
+    }
+
+    /**
+     * 사용자의 전체 토큰 동기화 (수확한 토큰을 tokenAmount에 반영)
+     */
+    async syncTokenAmount(walletAddress: string, claimedAmount: number): Promise<User> {
+        const user = await this.findByWalletAddress(walletAddress);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        // tokenAmount에 수확한 토큰 추가
+        const newTokenAmount = (user.tokenAmount || 0) + claimedAmount;
+
+        // availableToken에서 수확한 토큰 차감
+        const newAvailableToken = Math.max(0, (user.availableToken || 0) - claimedAmount);
+
+        await this.userRepository.update(user.id, {
+            tokenAmount: newTokenAmount,
+            availableToken: newAvailableToken
+        });
+
+        const updatedUser = await this.findByWalletAddress(walletAddress);
+        if (!updatedUser) {
+            throw new NotFoundException('User not found after update');
+        }
+        return updatedUser;
+    }
+
+    /**
+     * 사용자의 토큰 정보 조회
+     */
+    async getUserTokenInfo(walletAddress: string): Promise<{
+        totalTokens: number;      // 전체 보유 토큰 (tokenAmount)
+        availableTokens: number;  // 수확 가능한 토큰 (availableToken)
+        pendingTokens: number;    // 대기 중인 토큰 (accumulation에서 계산)
+    }> {
+        const user = await this.findByWalletAddress(walletAddress);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        // DB에서 실시간으로 대기 중인 토큰 조회
+        const pendingAmount = await this.tokenAccumulationService.getTotalAccumulatedAmount(walletAddress);
+        const pendingTokens = parseFloat(pendingAmount) / Math.pow(10, 18); // wei를 EXP로 변환
+
+        return {
+            totalTokens: user.tokenAmount || 0,
+            availableTokens: user.availableToken || 0,
+            pendingTokens: pendingTokens
+        };
+    }
+
+    /**
+     * 토큰 사용 (게임 참여, 좋아요 등에서 토큰 차감)
+     */
+    async deductTokens(walletAddress: string, amount: number): Promise<User> {
+        const user = await this.findByWalletAddress(walletAddress);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        if ((user.tokenAmount || 0) < amount) {
+            throw new Error('Insufficient tokens');
+        }
+
+        const newTokenAmount = (user.tokenAmount || 0) - amount;
+
+        await this.userRepository.update(user.id, {
+            tokenAmount: newTokenAmount
+        });
+
+        const updatedUser = await this.findByWalletAddress(walletAddress);
+        if (!updatedUser) {
+            throw new NotFoundException('User not found after update');
+        }
+        return updatedUser;
     }
 } 

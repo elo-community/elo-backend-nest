@@ -108,14 +108,13 @@ export class TrivusExpController {
      */
     @Post('request-claim')
     @Public()
-    async requestTokenClaim(@Body() request: { address: string; amount: string; reason?: string }) {
+    async requestTokenClaim(@Body() request: { address: string; reason?: string }) {
         try {
-            this.logger.log(`Token claim request from ${request.address}: ${request.amount} EXP`);
+            this.logger.log(`Token claim request from ${request.address}`);
 
             // 서명 생성
             const signature = await this.trivusExpService.createTokenClaimSignature({
                 address: request.address,
-                amount: request.amount,
                 reason: request.reason
             });
 
@@ -153,7 +152,7 @@ export class TrivusExpController {
     @Public()
     async testCreateTokenClaimSignature(@Body() request: TokenClaimRequest) {
         try {
-            this.logger.log(`[TEST] Creating signature for ${request.address}: ${request.amount} EXP`);
+            this.logger.log(`[TEST] Creating signature for ${request.address}`);
             const signature = await this.trivusExpService.createTokenClaimSignature(request);
             return {
                 success: true,
@@ -196,14 +195,13 @@ export class TrivusExpController {
 
     @Post('test/signature-verification')
     @Public()
-    async testSignatureVerification(@Body() request: { address: string; amount: string; reason?: string }) {
+    async testSignatureVerification(@Body() request: { address: string; reason?: string }) {
         try {
-            this.logger.log(`[TEST] Testing signature verification for ${request.address}: ${request.amount} EXP`);
+            this.logger.log(`[TEST] Testing signature verification for ${request.address}`);
 
             // Step 1: Create signature
             const signature = await this.trivusExpService.createTokenClaimSignature({
                 address: request.address,
-                amount: request.amount,
                 reason: request.reason
             });
 
@@ -242,7 +240,6 @@ export class TrivusExpController {
                     },
                     testData: {
                         recipient: request.address,
-                        amount: request.amount,
                         reason: request.reason
                     }
                 }
@@ -255,9 +252,9 @@ export class TrivusExpController {
 
     @Post('test/full-process-new')
     @Public()
-    async testFullProcessNew(@Body() request: { address: string; amount: string; reason?: string }) {
+    async testFullProcessNew(@Body() request: { address: string; reason?: string }) {
         try {
-            this.logger.log(`[TEST] 🚀 Starting NEW full token claim process for ${request.address}: ${request.amount} EXP`);
+            this.logger.log(`[TEST] 🚀 Starting NEW full token claim process for ${request.address}`);
 
             // Step 1: Check initial balances
             this.logger.log(`[TEST] 📊 Step 1: Checking initial balances...`);
@@ -272,14 +269,13 @@ export class TrivusExpController {
             this.logger.log(`[TEST] 🔐 Step 2: Creating EIP-712 signature...`);
             const signature = await this.trivusExpService.createTokenClaimSignature({
                 address: request.address,
-                amount: request.amount,
                 reason: request.reason
             });
 
             this.logger.log(`[TEST] ✅ Signature created successfully`);
             this.logger.log(`[TEST] 📝 Signature details:`);
             this.logger.log(`   - To: ${signature.to}`);
-            this.logger.log(`   - Amount: ${signature.amount} EXP`);
+            this.logger.log(`   - Amount: ${signature.amount} EXP (auto-calculated)`);
             this.logger.log(`   - Deadline: ${signature.deadline} (${new Date(signature.deadline * 1000).toISOString()})`);
             this.logger.log(`   - Nonce: ${signature.nonce}`);
             this.logger.log(`   - Signature: ${signature.signature.substring(0, 66)}...`);
@@ -312,12 +308,12 @@ export class TrivusExpController {
             this.logger.log(`[TEST] 📊 Balance Summary:`);
             this.logger.log(`   - Initial: ${initialBalance} EXP`);
             this.logger.log(`   - Final: ${finalBalance} EXP`);
-            this.logger.log(`   - Change: +${balanceChange} EXP`);
+            this.logger.log(`   - Change: +${balanceChange} EXP (auto-calculated amount)`);
 
-            if (balanceChange === parseFloat(request.amount)) {
-                this.logger.log(`[TEST] ✅ Token claim successful! Balance increased by ${request.amount} EXP`);
+            if (balanceChange > 0) {
+                this.logger.log(`[TEST] ✅ Token claim successful! Balance increased by ${balanceChange} EXP`);
             } else {
-                this.logger.log(`[TEST] ⚠️  Balance change mismatch. Expected: +${request.amount}, Got: +${balanceChange}`);
+                this.logger.log(`[TEST] ⚠️  Balance change mismatch. Expected: positive change, Got: +${balanceChange}`);
             }
 
             // Step 6: Get contract balance
@@ -344,7 +340,6 @@ export class TrivusExpController {
                     transaction: {
                         hash: txHash,
                         recipient: request.address,
-                        amount: request.amount,
                         reason: request.reason
                     },
                     signature: {
@@ -358,7 +353,7 @@ export class TrivusExpController {
                         initial: initialBalance,
                         final: finalBalance,
                         change: balanceChange,
-                        expected: parseFloat(request.amount)
+                        expected: 'auto-calculated'
                     },
                     contract: {
                         address: contractStatus.contractAddress,
@@ -441,15 +436,14 @@ export class TrivusExpController {
      */
     @Post('test/full-process')
     @Public()
-    async testFullTokenClaimProcess(@Body() request: { address: string; amount: string; reason?: string }) {
+    async testFullTokenClaimProcess(@Body() request: { address: string; reason?: string }) {
         try {
-            this.logger.log(`[TEST] Starting full token claim process for ${request.address}: ${request.amount} EXP`);
+            this.logger.log(`[TEST] Starting full token claim process for ${request.address}`);
 
             // Step 1: Create signature
             this.logger.log(`[TEST] Step 1: Creating signature...`);
             const signature = await this.trivusExpService.createTokenClaimSignature({
                 address: request.address,
-                amount: request.amount,
                 reason: request.reason
             });
             this.logger.log(`[TEST] ✅ Signature created: ${signature.signature.substring(0, 66)}...`);
@@ -487,7 +481,6 @@ export class TrivusExpController {
                     processSteps: ['✅ Signature created', '✅ Signature verified', '✅ Token claim executed', '✅ Result verified'],
                     transactionHash: txHash,
                     recipient: request.address,
-                    amount: request.amount,
                     finalBalance: balanceAfter,
                     signature: {
                         to: signature.to,
@@ -508,13 +501,12 @@ export class TrivusExpController {
      */
     @Post('test/bulk-claim')
     @Public()
-    async testBulkTokenClaim(@Body() request: { claims: Array<{ address: string; amount: string; reason?: string }> }) {
+    async testBulkTokenClaim(@Body() request: { claims: Array<{ address: string; reason?: string }> }) {
         try {
             this.logger.log(`[TEST] Starting bulk token claim for ${request.claims.length} addresses`);
 
             const results: Array<{
                 address: string;
-                amount: string;
                 status: string;
                 transactionHash?: string;
                 error?: string;
@@ -522,13 +514,12 @@ export class TrivusExpController {
 
             for (let i = 0; i < request.claims.length; i++) {
                 const claim = request.claims[i];
-                this.logger.log(`[TEST] Processing claim ${i + 1}/${request.claims.length}: ${claim.address} -> ${claim.amount} EXP`);
+                this.logger.log(`[TEST] Processing claim ${i + 1}/${request.claims.length}: ${claim.address}`);
 
                 try {
                     // 서명 생성
                     const signature = await this.trivusExpService.createTokenClaimSignature({
                         address: claim.address,
-                        amount: claim.amount,
                         reason: claim.reason
                     });
 
@@ -537,7 +528,6 @@ export class TrivusExpController {
 
                     results.push({
                         address: claim.address,
-                        amount: claim.amount,
                         status: 'success',
                         transactionHash: txHash
                     });
@@ -546,7 +536,6 @@ export class TrivusExpController {
                 } catch (error) {
                     results.push({
                         address: claim.address,
-                        amount: claim.amount,
                         status: 'failed',
                         error: (error as Error).message
                     });

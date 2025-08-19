@@ -3,11 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 import { ClaimNonceService } from '../services/claim-nonce.service';
 import { ClaimRequestService } from '../services/claim-request.service';
+import { UserService } from '../services/user.service';
 import { ClaimEventService } from './claim-event.service';
 
 export interface TokenClaimRequest {
     address: string;
-    amount: string; // "100" (EXP 단위)
     reason?: string; // 지급 이유 (로그용)
 }
 
@@ -32,7 +32,8 @@ export class TrivusExpService {
         private configService: ConfigService,
         private claimNonceService: ClaimNonceService,
         private claimRequestService: ClaimRequestService,
-        private claimEventService: ClaimEventService
+        private claimEventService: ClaimEventService,
+        private userService: UserService
     ) {
         // Polygon Amoy 네트워크 설정
         const rpcUrl = this.configService.get<string>('blockchain.amoy.rpcUrl');
@@ -149,7 +150,18 @@ export class TrivusExpService {
      */
     async createTokenClaimSignature(request: TokenClaimRequest): Promise<TokenClaimSignature> {
         try {
-            const { address, amount, reason } = request;
+            const { address, reason } = request;
+
+            // 1. 사용자의 availableToken 업데이트 (accumulation에서 최신 데이터로)
+            await this.userService.updateAvailableTokens(address);
+
+            // 2. DB에서 사용자의 사용 가능한 토큰 양 조회
+            const tokenInfo = await this.userService.getUserTokenInfo(address);
+            const availableAmount = tokenInfo.availableTokens;
+
+            if (availableAmount <= 0) {
+                throw new Error('No available tokens to claim');
+            }
 
             // EIP-712 도메인 설정
             const chainId = this.configService.get<number>('blockchain.amoy.chainId');
@@ -172,7 +184,7 @@ export class TrivusExpService {
 
             // 서명할 값
             const deadline = Math.floor(Date.now() / 1000) + 3600; // 1시간 후 만료
-            const amountWei = ethers.parseEther(amount);
+            const amountWei = ethers.parseEther(availableAmount.toString());
 
             // 예측 불가능한 nonce 생성 (32바이트 hex)
             const nonce = await this.claimNonceService.getNextNonce(address);
@@ -187,13 +199,13 @@ export class TrivusExpService {
             // EIP-712 서명 생성
             const signature = await this.trustedSigner.signTypedData(domain, types, value);
 
-            this.logger.log(`Token claim signature created for ${address}: ${amount} EXP`);
+            this.logger.log(`Token claim signature created for ${address}: ${availableAmount} EXP`);
 
             // claim 요청을 DB에 저장
             await this.claimRequestService.createClaimRequest(
                 address,
                 nonce,
-                amount,
+                availableAmount.toString(),
                 BigInt(deadline),
                 signature,
                 reason
@@ -201,7 +213,7 @@ export class TrivusExpService {
 
             return {
                 to: address,
-                amount,
+                amount: availableAmount.toString(),
                 deadline,
                 signature,
                 nonce: nonce.toString() // BigInt를 string으로 변환

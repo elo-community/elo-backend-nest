@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { ethers } from 'ethers';
+import { UserService } from '../services/user.service';
 
 @Injectable()
 export class PostLikeSystemService {
@@ -10,7 +11,10 @@ export class PostLikeSystemService {
     private postLikeContract: ethers.Contract;
     private trustedSigner: ethers.Wallet;
 
-    constructor(private configService: ConfigService) {
+    constructor(
+        private configService: ConfigService,
+        private userService: UserService
+    ) {
         this.initializeBlockchainConnection();
     }
 
@@ -63,14 +67,12 @@ export class PostLikeSystemService {
      * 좋아요 서명 생성
      * @param postId 게시글 ID
      * @param userAddress 사용자 주소
-     * @param amount 토큰 양 (wei)
      * @param deadline 만료 시간 (Unix timestamp)
      * @returns 서명 데이터
      */
     async createLikeSignature(
         postId: number,
         userAddress: string,
-        amount: string,
         deadline: number
     ): Promise<{
         postId: number;
@@ -83,11 +85,22 @@ export class PostLikeSystemService {
         types: any;
     }> {
         try {
-            // 1. 예측 불가능한 nonce 생성 (32바이트)
+            // 1. 사용자의 availableToken 업데이트 (accumulation에서 최신 데이터로)
+            await this.userService.updateAvailableTokens(userAddress);
+
+            // 2. DB에서 사용자의 사용 가능한 토큰 양 조회
+            const tokenInfo = await this.userService.getUserTokenInfo(userAddress);
+            const amountInWei = ethers.parseEther(tokenInfo.availableTokens.toString());
+
+            if (amountInWei === 0n) {
+                throw new Error('No available tokens to claim');
+            }
+
+            // 2. 예측 불가능한 nonce 생성 (32바이트)
             const randomNonce = randomBytes(32);
             const nonce = '0x' + randomNonce.toString('hex');
 
-            // 2. EIP-712 도메인 설정
+            // 3. EIP-712 도메인 설정
             const chainId = this.configService.get<number>('blockchain.amoy.chainId');
             const postLikeContractAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
             const domain = {
@@ -97,7 +110,7 @@ export class PostLikeSystemService {
                 verifyingContract: postLikeContractAddress
             };
 
-            // 3. EIP-712 타입 정의
+            // 4. EIP-712 타입 정의
             const types = {
                 Claim: [
                     { name: 'postId', type: 'uint256' },
@@ -108,8 +121,7 @@ export class PostLikeSystemService {
                 ]
             };
 
-            // 4. 서명할 데이터 (amount를 wei 단위로 변환)
-            const amountInWei = ethers.parseUnits(amount, 18);
+            // 5. 서명할 데이터 (amount는 wei 단위)
             const value = {
                 postId: postId,
                 to: userAddress,
@@ -118,7 +130,7 @@ export class PostLikeSystemService {
                 nonce: nonce
             };
 
-            // 5. EIP-712 서명 생성
+            // 6. EIP-712 서명 생성
             if (!this.trustedSigner) {
                 throw new Error('TrustedSigner is not initialized');
             }
@@ -128,12 +140,12 @@ export class PostLikeSystemService {
             this.logger.log(`Full private key: ${this.trustedSigner.privateKey}`);
             const signature = await this.trustedSigner.signTypedData(domain, types, value);
 
-            this.logger.log(`Created like signature for post ${postId}, user ${userAddress}, nonce ${nonce}`);
+            this.logger.log(`Created like signature for post ${postId}, user ${userAddress}, nonce ${nonce}, amount: ${ethers.formatEther(amountInWei)} EXP`);
 
             return {
                 postId,
                 to: userAddress,
-                amount,
+                amount: ethers.formatEther(amountInWei), // wei를 EXP 단위로 변환해서 반환
                 deadline,
                 nonce: nonce.toString(), // string으로 변환
                 signature,

@@ -5,12 +5,14 @@ import { ClaimNonce } from '../entities/claim-nonce.entity';
 import { ClaimRequest } from '../entities/claim-request.entity';
 import { PostLike } from '../entities/post-like.entity';
 import { Post } from '../entities/post.entity';
+import { TokenAccumulation } from '../entities/token-accumulation.entity';
 import { TokenTransaction } from '../entities/token-transaction.entity';
 import { UserElo } from '../entities/user-elo.entity';
 import { User } from '../entities/user.entity';
 import { ClaimNonceService } from '../services/claim-nonce.service';
 import { ClaimRequestService } from '../services/claim-request.service';
 import { PostLikeService } from '../services/post-like.service';
+import { TokenAccumulationService } from '../services/token-accumulation.service';
 import { TokenTransactionService } from '../services/token-transaction.service';
 import { UserService } from '../services/user.service';
 import { BlockchainService } from './blockchain.service';
@@ -22,7 +24,7 @@ import { TrivusExpService } from './trivus-exp.service';
 @Module({
     imports: [
         ConfigModule,
-        TypeOrmModule.forFeature([ClaimNonce, ClaimRequest, Post, PostLike, TokenTransaction, User, UserElo])
+        TypeOrmModule.forFeature([ClaimNonce, ClaimRequest, Post, PostLike, TokenAccumulation, TokenTransaction, User, UserElo])
     ],
     providers: [
         BlockchainService,
@@ -30,6 +32,7 @@ import { TrivusExpService } from './trivus-exp.service';
         ClaimNonceService,
         ClaimRequestService,
         PostLikeService,
+        TokenAccumulationService,
         TokenTransactionService,
         UserService,
         ClaimEventService,
@@ -97,6 +100,7 @@ import { TrivusExpService } from './trivus-exp.service';
         LikeEventService,
         PostLikeService,
         PostLikeSystemService,
+        TokenAccumulationService,
         TokenTransactionService,
         UserService,
     ],

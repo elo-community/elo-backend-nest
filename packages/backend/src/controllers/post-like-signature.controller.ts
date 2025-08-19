@@ -1,13 +1,15 @@
-import { Body, Controller, HttpException, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpException, HttpStatus, Post, Query } from '@nestjs/common';
 import { ethers } from 'ethers';
 import { PostLikeSystemService } from '../blockchain/post-like-system.service';
 import { TrivusExpService } from '../blockchain/trivus-exp.service';
+import { UserService } from '../services/user.service';
 
 @Controller('post-like-signature')
 export class PostLikeSignatureController {
     constructor(
         private readonly postLikeSystemService: PostLikeSystemService,
-        private readonly trivusExpService: TrivusExpService
+        private readonly trivusExpService: TrivusExpService,
+        private readonly userService: UserService
     ) { }
 
     /**
@@ -39,7 +41,7 @@ export class PostLikeSignatureController {
     }
 
     /**
-     * 좋아요 서명 생성 (EIP-712용, 클레임용)
+     * 좋아요 서명 생성 (EIP-712용)
      * @param createLikeSignatureDto 좋아요 서명 생성 요청 데이터
      * @returns EIP-712 서명 데이터
      */
@@ -47,10 +49,9 @@ export class PostLikeSignatureController {
     async createLikeSignature(@Body() createLikeSignatureDto: {
         postId: number;
         userAddress: string;
-        amount: string;
     }) {
         try {
-            const { postId, userAddress, amount } = createLikeSignatureDto;
+            const { postId, userAddress } = createLikeSignatureDto;
 
             if (!postId || postId <= 0) {
                 throw new HttpException('Invalid postId', HttpStatus.BAD_REQUEST);
@@ -60,22 +61,12 @@ export class PostLikeSignatureController {
                 throw new HttpException('Invalid userAddress', HttpStatus.BAD_REQUEST);
             }
 
-            if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-                throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
-            }
-
             const deadline = Math.floor(Date.now() / 1000) + 300; // 5분 후 만료
 
             const signatureData = await this.postLikeSystemService.createLikeSignature(
                 postId,
                 userAddress,
-                amount,
                 deadline
-            );
-
-            const encodedData = ethers.AbiCoder.defaultAbiCoder().encode(
-                ['uint256', 'address', 'uint256', 'uint256', 'bytes32'],
-                [signatureData.postId, signatureData.to, ethers.parseUnits(signatureData.amount, 18), signatureData.deadline, signatureData.nonce]
             );
 
             return {
@@ -86,19 +77,7 @@ export class PostLikeSignatureController {
                     amount: signatureData.amount,
                     deadline: signatureData.deadline,
                     nonce: signatureData.nonce,
-                    signature: signatureData.signature,
-                    encodedData: encodedData,
-                    eip712Data: {
-                        domain: signatureData.domain,
-                        types: signatureData.types,
-                        value: {
-                            postId: signatureData.postId,
-                            to: signatureData.to,
-                            amount: signatureData.amount,
-                            deadline: signatureData.deadline,
-                            nonce: signatureData.nonce
-                        }
-                    }
+                    signature: signatureData.signature
                 },
                 message: 'Like signature created successfully'
             };
@@ -118,23 +97,17 @@ export class PostLikeSignatureController {
     @Post('token-claim/create')
     async createTokenClaimSignature(@Body() createTokenClaimDto: {
         address: string;
-        amount: string;
         reason?: string;
     }) {
         try {
-            const { address, amount, reason } = createTokenClaimDto;
+            const { address, reason } = createTokenClaimDto;
 
             if (!address || !ethers.isAddress(address)) {
                 throw new HttpException('Invalid address', HttpStatus.BAD_REQUEST);
             }
 
-            if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-                throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
-            }
-
             const signatureData = await this.trivusExpService.createTokenClaimSignature({
                 address,
-                amount,
                 reason
             });
 
@@ -145,29 +118,7 @@ export class PostLikeSignatureController {
                     amount: signatureData.amount,
                     deadline: signatureData.deadline,
                     nonce: signatureData.nonce,
-                    signature: signatureData.signature,
-                    eip712Data: {
-                        domain: {
-                            name: 'TrivusEXP1363',
-                            version: '1',
-                            chainId: 80002, // Polygon Amoy
-                            verifyingContract: await this.trivusExpService.getContractAddress()
-                        },
-                        types: {
-                            Claim: [
-                                { name: 'to', type: 'address' },
-                                { name: 'amount', type: 'uint256' },
-                                { name: 'deadline', type: 'uint256' },
-                                { name: 'nonce', type: 'bytes32' }
-                            ]
-                        },
-                        value: {
-                            to: signatureData.to,
-                            amount: ethers.parseUnits(signatureData.amount, 18),
-                            deadline: signatureData.deadline,
-                            nonce: signatureData.nonce
-                        }
-                    }
+                    signature: signatureData.signature
                 },
                 message: 'Token claim signature created successfully'
             };
@@ -197,6 +148,36 @@ export class PostLikeSignatureController {
         } catch (error) {
             throw new HttpException(
                 `Failed to get service status: ${error.message}`,
+                HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    /**
+     * 사용자 토큰 정보 조회
+     */
+    @Get('user/tokens')
+    async getUserTokenInfo(@Query('walletAddress') walletAddress: string) {
+        try {
+            if (!walletAddress || !ethers.isAddress(walletAddress)) {
+                throw new HttpException('Invalid wallet address', HttpStatus.BAD_REQUEST);
+            }
+
+            const tokenInfo = await this.userService.getUserTokenInfo(walletAddress);
+
+            return {
+                success: true,
+                data: {
+                    walletAddress,
+                    totalTokens: tokenInfo.totalTokens,
+                    availableTokens: tokenInfo.availableTokens,
+                    pendingTokens: tokenInfo.pendingTokens
+                },
+                message: 'User token info retrieved successfully'
+            };
+        } catch (error) {
+            throw new HttpException(
+                `Failed to get user token info: ${error.message}`,
                 HttpStatus.INTERNAL_SERVER_ERROR
             );
         }
