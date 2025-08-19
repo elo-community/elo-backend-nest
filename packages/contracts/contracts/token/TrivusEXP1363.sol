@@ -1,187 +1,183 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {IERC1363} from "@openzeppelin/contracts/interfaces/IERC1363.sol";
+import {IERC1363Receiver} from "@openzeppelin/contracts/interfaces/IERC1363Receiver.sol";
+import {IERC1363Spender} from "@openzeppelin/contracts/interfaces/IERC1363Spender.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {IERC1363Receiver} from "@openzeppelin/contracts/interfaces/IERC1363Receiver.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/**
- * @title TrivusEXP1363
- * @dev ERC-1363을 지원하는 TrivusEXP 토큰 + EIP-712 클레임 기능
- * transferAndCall을 통해 콜백 기반 좋아요 시스템 지원
- * EIP-712 서명을 통한 토큰 클레임 시스템 지원
- */
-contract TrivusEXP1363 is ERC20, AccessControl, EIP712, IERC1363Receiver {
+contract TrivusEXP1363 is ERC20, Ownable, ERC165, IERC1363, EIP712, ReentrancyGuard {
     using ECDSA for bytes32;
-
-    bytes32 public constant SIGNER_ROLE = keccak256("SIGNER_ROLE");
     
-    // EIP-712 클레임 관련
+    // Replay attack 방지를 위한 nonce 시스템
     mapping(address => uint256) public nonces;
-    bytes32 public constant CLAIM_TYPEHASH = keccak256("Claim(address to,uint256 amount,uint256 nonce,uint256 deadline,uint256 chainId,address contractAddr)");
-    // 리플레이 방지: 사용된 서명 다이제스트 기록
+    mapping(bytes32 => bool) public usedHashes;
+    
+    // EIP-712 claim을 위한 상태 변수들
     mapping(bytes32 => bool) public usedClaimDigests;
+    address public trustedSigner;
+    
+    // EIP-712 타입 해시
+    bytes32 public constant CLAIM_TYPEHASH = keccak256(
+        "Claim(address to,uint256 amount,uint256 deadline,bytes32 nonce)"
+    );
     
     // 이벤트
-    event ClaimExecuted(address indexed to, uint256 amount, uint256 nonce, bytes signature);
-    event SignerRoleGranted(address indexed signer);
-    event SignerRoleRevoked(address indexed signer);
-
-    /**
-     * @dev 생성자
-     * @param name 토큰 이름
-     * @param symbol 토큰 심볼
-     * @param signer 서명 권한을 가진 주소
-     */
-    constructor(
-        string memory name, 
-        string memory symbol, 
-        address signer
-    ) ERC20(name, symbol) EIP712(name, "1") {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(SIGNER_ROLE, signer);
+    event ClaimExecuted(address indexed to, uint256 amount, uint256 deadline, bytes32 nonce);
+    event TrustedSignerUpdated(address indexed oldSigner, address indexed newSigner);
+    
+    constructor() ERC20("TrivusEXP1363", "EXP") Ownable(msg.sender) EIP712("TrivusEXP1363", "1") {
+        _mint(msg.sender, 1_000_000 * 10**decimals());
+        trustedSigner = msg.sender;
     }
 
-    /**
-     * @dev EIP-712 클레임 함수
-     * @param to 받을 주소
-     * @param amount 클레임할 양
-     * @param nonce 리플레이 방지용 nonce
-     * @param deadline 만료 시간
-     * @param signature EIP-712 서명
-     */
-    function claim(
+    // ===== EIP-712 Claim Function =====
+    function claimWithSignature(
         address to,
         uint256 amount,
-        uint256 nonce,
         uint256 deadline,
+        bytes32 nonce,
         bytes calldata signature
-    ) external {
-        require(block.timestamp <= deadline, "Expired");
-        require(msg.sender == to, "Only receiver");
+    ) external nonReentrant returns (bool) {
+        // 1. 만료 시간 검증
+        require(block.timestamp <= deadline, "EXPIRED");
         
-        bytes32 structHash = keccak256(abi.encode(
-            CLAIM_TYPEHASH,
-            to,
-            amount,
-            nonce,
-            deadline,
-            block.chainid,
-            address(this)
-        ));
+        // 2. 주소 검증
+        require(to != address(0), "INVALID_ADDRESS");
+        require(amount > 0, "INVALID_AMOUNT");
         
+        // 3. EIP-712 서명 검증
+        bytes32 structHash = keccak256(abi.encode(CLAIM_TYPEHASH, to, amount, deadline, nonce));
         bytes32 hash = _hashTypedDataV4(structHash);
-        // 동일 서명 다이제스트 재사용 방지
-        require(!usedClaimDigests[hash], "Claim already used");
-        address signer = hash.recover(signature);
         
-        require(hasRole(SIGNER_ROLE, signer), "Invalid signer");
+        // 4. 서명자 검증
+        address signer = hash.recover(signature);
+        require(signer == trustedSigner, "INVALID_SIGNER");
+        
+        // 5. Replay attack 방지
+        require(!usedClaimDigests[hash], "SIGNATURE_ALREADY_USED");
         usedClaimDigests[hash] = true;
         
+        // 6. 토큰 전송
         _mint(to, amount);
         
-        emit ClaimExecuted(to, amount, nonce, signature);
-    }
-
-    /**
-     * @dev 서명자 역할 부여 (Admin만)
-     * @param signer 서명자 주소
-     */
-    function grantSignerRole(address signer) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _grantRole(SIGNER_ROLE, signer);
-        emit SignerRoleGranted(signer);
-    }
-
-    /**
-     * @dev 서명자 역할 해제 (Admin만)
-     * @param signer 서명자 주소
-     */
-    function revokeSignerRole(address signer) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _revokeRole(SIGNER_ROLE, signer);
-        emit SignerRoleRevoked(signer);
-    }
-
-    /**
-     * @dev 현재 nonce 조회
-     * @param user 사용자 주소
-     * @return 현재 nonce 값
-     */
-    function getNonce(address user) external view returns (uint256) {
-        return nonces[user];
-    }
-
-    /**
-     * @dev 테스트용 토큰 발행 (Admin만)
-     * @param to 받을 주소
-     * @param amount 발행할 양
-     */
-    function mint(address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _mint(to, amount);
-    }
-
-    /**
-     * @dev ERC-1363 transferAndCall 구현
-     * @param to 받을 주소
-     * @param value 전송할 양
-     * @param data 콜백에 전달할 데이터
-     * @return 성공 여부
-     */
-    function transferAndCall(address to, uint256 value, bytes calldata data) external returns (bool) {
-        _transfer(msg.sender, to, value);
-        _callOnTransferReceived(msg.sender, msg.sender, to, value, data);
+        // 7. 이벤트 발생
+        emit ClaimExecuted(to, amount, deadline, nonce);
+        
         return true;
     }
 
-    /**
-     * @dev 내부 콜백 호출 헬퍼
-     * @param operator 호출자
-     * @param from 보낸 주소
-     * @param to 받을 주소
-     * @param value 전송된 양
-     * @param data 콜백 데이터
-     */
+    // ===== Trusted Signer 관리 =====
+    function setTrustedSigner(address newSigner) external onlyOwner {
+        require(newSigner != address(0), "INVALID_SIGNER");
+        address oldSigner = trustedSigner;
+        trustedSigner = newSigner;
+        emit TrustedSignerUpdated(oldSigner, newSigner);
+    }
+
+    // ===== ERC-1363: transferAndCall =====
+    function transferAndCall(address to, uint256 value) public returns (bool) {
+        _transfer(_msgSender(), to, value);
+        _callOnTransferReceived(_msgSender(), _msgSender(), to, value, "");
+        return true;
+    }
+
+    function transferAndCall(address to, uint256 value, bytes memory data) public returns (bool) {
+        // Replay attack 방지: data에 nonce가 포함되어 있다면 검증
+        if (data.length >= 32) {
+            bytes32 dataHash = keccak256(abi.encodePacked(to, value, data, nonces[_msgSender()]));
+            require(!usedHashes[dataHash], "REPLAY_ATTACK");
+            usedHashes[dataHash] = true;
+            nonces[_msgSender()]++;
+        }
+        
+        _transfer(_msgSender(), to, value);
+        _callOnTransferReceived(_msgSender(), _msgSender(), to, value, data);
+        return true;
+    }
+
+    // ===== ERC-1363: transferFromAndCall =====
+    function transferFromAndCall(address from, address to, uint256 value) public returns (bool) {
+        _spendAllowance(from, _msgSender(), value);
+        _transfer(from, to, value);
+        _callOnTransferReceived(_msgSender(), from, to, value, "");
+        return true;
+    }
+
+    function transferFromAndCall(address from, address to, uint256 value, bytes memory data) public returns (bool) {
+        // Replay attack 방지: data에 nonce가 포함되어 있다면 검증
+        if (data.length >= 32) {
+            bytes32 dataHash = keccak256(abi.encodePacked(from, to, value, data, nonces[from]));
+            require(!usedHashes[dataHash], "REPLAY_ATTACK");
+            usedHashes[dataHash] = true;
+            nonces[from]++;
+        }
+        
+        _spendAllowance(from, _msgSender(), value);
+        _transfer(from, to, value);
+        _callOnTransferReceived(_msgSender(), from, to, value, data);
+        return true;
+    }
+
+    // ===== ERC-1363: approveAndCall =====
+    function approveAndCall(address spender, uint256 value) public returns (bool) {
+        _approve(_msgSender(), spender, value);
+        _callOnApprovalReceived(_msgSender(), spender, value, "");
+        return true;
+    }
+
+    function approveAndCall(address spender, uint256 value, bytes memory data) public returns (bool) {
+        // Replay attack 방지: data에 nonce가 포함되어 있다면 검증
+        if (data.length >= 32) {
+            bytes32 dataHash = keccak256(abi.encodePacked(spender, value, data, nonces[_msgSender()]));
+            require(!usedHashes[dataHash], "REPLAY_ATTACK");
+            usedHashes[dataHash] = true;
+            nonces[_msgSender()]++;
+        }
+        
+        _approve(_msgSender(), spender, value);
+        _callOnApprovalReceived(_msgSender(), spender, value, data);
+        return true;
+    }
+
+    // ===== internal helpers =====
     function _callOnTransferReceived(
-        address operator,
-        address from,
-        address to,
-        uint256 value,
-        bytes calldata data
+        address operator, address from, address to, uint256 value, bytes memory data
     ) internal {
+        if (to.code.length == 0) revert("1363: non-contract");
         try IERC1363Receiver(to).onTransferReceived(operator, from, value, data) returns (bytes4 retval) {
-            require(retval == IERC1363Receiver.onTransferReceived.selector, "1363: bad receiver");
-        } catch Error(string memory reason) {
-            // 에러 메시지를 그대로 전파
-            revert(reason);
-        } catch {
-            // 기타 에러 (예: custom error)
-            revert("1363: non receiver");
+            if (retval != IERC1363Receiver.onTransferReceived.selector) revert("1363: bad receiver");
+        } catch (bytes memory reason) {
+            if (reason.length == 0) revert("1363: receiver revert");
+            assembly { revert(add(32, reason), mload(reason)) }
         }
     }
 
-    /**
-     * @dev ERC-1363 Receiver 인터페이스 구현
-     * @param operator 호출자
-     * @param from 보낸 주소
-     * @param value 전송된 양
-     * @param data 콜백 데이터
-     * @return 선택자
-     */
-    function onTransferReceived(
-        address operator,
-        address from,
-        uint256 value,
-        bytes calldata data
-    ) external override returns (bytes4) {
-        return IERC1363Receiver.onTransferReceived.selector;
+    function _callOnApprovalReceived(
+        address owner_, address spender, uint256 value, bytes memory data
+    ) internal {
+        if (spender.code.length == 0) revert("1363: bad spender");
+        try IERC1363Spender(spender).onApprovalReceived(owner_, value, data) returns (bytes4 retval) {
+            if (retval != IERC1363Spender.onApprovalReceived.selector) revert("1363: bad spender");
+        } catch (bytes memory reason) {
+            if (reason.length == 0) revert("1363: spender revert");
+            assembly { revert(add(32, reason), mload(reason)) }
+        }
     }
 
-    /**
-     * @dev 컨트랙트가 ERC-1363 Receiver를 지원하는지 확인
-     * @return 지원 여부
-     */
-    function supportsInterface(bytes4 interfaceId) public view override(AccessControl) returns (bool) {
-        return interfaceId == type(IERC1363Receiver).interfaceId || super.supportsInterface(interfaceId);
+    // ===== ERC165 =====
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(IERC1363).interfaceId || super.supportsInterface(interfaceId);
+    }
+
+    // (옵션) 운영용 민팅
+    function mint(address to, uint256 amount) external onlyOwner {
+        require(to != address(0) && amount > 0, "bad");
+        _mint(to, amount);
     }
 }
