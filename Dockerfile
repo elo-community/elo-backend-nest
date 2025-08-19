@@ -32,25 +32,16 @@ RUN npm ci
 # Copy backend source code
 COPY packages/backend/ ./
 RUN npm run build
+RUN npm prune --omit=dev
 
 # Production stage
 FROM node:20-alpine AS production
 
 WORKDIR /usr/src/app
 
-# Copy backend package files for production dependencies
+# Copy runtime dependencies and built application
 COPY --from=backend-builder /app/packages/backend/package*.json ./
-
-# Set environment variables from build args
-ARG NODE_ENV=production
-ARG ACTIVE_NETWORK=amoy
-ENV NODE_ENV=$NODE_ENV
-ENV ACTIVE_NETWORK=$ACTIVE_NETWORK
-
-# Install only production dependencies for backend
-RUN npm ci --only=production --ignore-scripts
-
-# Copy built backend from builder stage
+COPY --from=backend-builder /app/packages/backend/node_modules ./node_modules
 COPY --from=backend-builder /app/packages/backend/dist ./dist
 
 # Copy built contracts from builder stage (if needed)
@@ -59,6 +50,10 @@ COPY --from=contracts-builder /app/packages/contracts/typechain-types ./typechai
 
 # Copy shared files
 COPY --from=backend-builder /app/packages/backend/src/shared ./src/shared
+
+# Set production environment
+ENV NODE_ENV=production
+ENV ACTIVE_NETWORK=amoy
 
 # Verify build output
 RUN ls -la dist/ && \

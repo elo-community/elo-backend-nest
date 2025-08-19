@@ -7,46 +7,43 @@ dist/
 packages/*/dist/
 build/
 packages/*/build/
+packages/contracts/artifacts/
+packages/contracts/typechain-types/
 
 # Environment files
-.env
-.env.*
-packages/*/.env
-packages/*/.env.*
+.env*
+packages/*/.env*
 
 # Git
 .git/
 .gitignore
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
+# Coverage
+coverage/
+*.lcov
 
 # Logs
 *.log
 npm-debug.log*
 
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
 # Test files
-**/*.test.ts
-**/*.spec.ts
-**/test/
-**/coverage/
+packages/*/test/
+packages/*/*.spec.ts
+packages/*/*.test.ts
 
 # Documentation
-README.md
 *.md
-
-# Hardhat specific (contracts)
-packages/contracts/cache/
-packages/contracts/artifacts/
-packages/contracts/typechain-types/
-
-# Temporary files
-.tmp/
-.temp/
+docs/
