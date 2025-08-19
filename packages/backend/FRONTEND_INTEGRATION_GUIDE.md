@@ -1,256 +1,313 @@
-# 🚀 프론트엔드 통합 가이드 - 좋아요 토큰 시스템
+# 프론트엔드 통합 가이드
 
-## 📋 개요
+## 개요
+이 문서는 ELO Community 백엔드와 스마트 컨트랙트를 프론트엔드에서 사용하는 방법을 설명합니다.
 
-이 시스템은 블록체인 기반의 좋아요 토큰 시스템입니다. 프론트엔드에서 직접 블록체인 컨트랙트를 호출하고, 백엔드는 이벤트를 감지하여 자동으로 DB를 업데이트합니다.
+## 스마트 컨트랙트 개요
 
-## 🔄 동작 흐름
+### 1. TrivusEXP1363 (ERC-1363 토큰)
+- **주소**: `0x5BF617D9d68868414611618336603B37f8061819` (Polygon Amoy)
+- **기능**: 
+  - `transferAndCall`: ERC-1363 표준으로 토큰 전송 + 콜백
+  - `claimWithSignature`: EIP-712 서명 기반 토큰 클레임
 
-### 1. 좋아요 누르기
+### 2. PostLikeSystem1363 (좋아요 시스템)
+- **주소**: `0xc5acB89285F9F0417A8172cd5530C5Ad15Cf41AA` (Polygon Amoy)
+- **기능**:
+  - `onTransferReceived`: ERC-1363 토큰 수신 시 자동 좋아요
+  - `claimWithSignature`: EIP-712 서명 기반 게시글 보상 클레임
+
+## 백엔드 API 엔드포인트 상세 가이드
+
+### Base URL
 ```
-프론트엔드 → 블록체인: PostLikeSystem.likePost(postId, postAuthorAddress)
-블록체인: 토큰 차감 + PostLikeEvent 발생
-백엔드: 이벤트 감지하여 자동 DB 업데이트
-```
-
-### 2. 좋아요 취소
-```
-프론트엔드 → 블록체인: PostLikeSystem.unlikePost(postId)
-블록체인: 토큰 반환 + PostLikeEvent 발생
-백엔드: 이벤트 감지하여 자동 DB 업데이트
-```
-
-### 3. 토큰 회수 (게시글 작성자만)
-```
-프론트엔드 → 블록체인: PostLikeSystem.withdrawTokens(postId)
-블록체인: 수집된 토큰을 작성자에게 전송
+https://your-backend-domain.com/api/v1
 ```
 
-## 📱 프론트엔드 구현 예시
+---
 
-### Web3.js를 사용한 예시
+## 1. 좋아요 데이터 생성 (ERC-1363용)
 
-```javascript
-import { ethers } from 'ethers';
+### 엔드포인트
+```
+POST /post-like-signature/likes/data
+```
 
-class PostLikeManager {
-    constructor(contractAddress, abi, signer) {
-        this.contract = new ethers.Contract(contractAddress, abi, signer);
-    }
-
-    // 좋아요 누르기
-    async likePost(postId, postAuthorAddress) {
-        try {
-            const tx = await this.contract.likePost(postId, postAuthorAddress);
-            await tx.wait();
-            
-            console.log('좋아요 성공! 트랜잭션 해시:', tx.hash);
-            return { success: true, txHash: tx.hash };
-        } catch (error) {
-            console.error('좋아요 실패:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    // 좋아요 취소
-    async unlikePost(postId) {
-        try {
-            const tx = await this.contract.unlikePost(postId);
-            await tx.wait();
-            
-            console.log('좋아요 취소 성공! 트랜잭션 해시:', tx.hash);
-            return { success: true, txHash: tx.hash };
-        } catch (error) {
-            console.error('좋아요 취소 실패:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    // 토큰 회수 (게시글 작성자만)
-    async withdrawTokens(postId) {
-        try {
-            const tx = await this.contract.withdrawTokens(postId);
-            await tx.wait();
-            
-            console.log('토큰 회수 성공! 트랜잭션 해시:', tx.hash);
-            return { success: true, txHash: tx.hash };
-        } catch (error) {
-            console.error('토큰 회수 실패:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    // 게시글 좋아요 정보 조회
-    async getPostLikeInfo(postId) {
-        try {
-            const [totalLikes, totalTokens] = await this.contract.getPostLikeInfo(postId);
-            return {
-                totalLikes: totalLikes.toString(),
-                totalTokens: ethers.formatEther(totalTokens)
-            };
-        } catch (error) {
-            console.error('좋아요 정보 조회 실패:', error);
-            return null;
-        }
-    }
-
-    // 사용자 좋아요 여부 확인
-    async getUserLikeInfo(postId, userAddress) {
-        try {
-            const [hasLiked, timestamp] = await this.contract.getUserLikeInfo(postId, userAddress);
-            return {
-                hasLiked,
-                timestamp: timestamp.toString()
-            };
-        } catch (error) {
-            console.error('사용자 좋아요 정보 조회 실패:', error);
-            return null;
-        }
-    }
+### 요청 데이터
+```json
+{
+  "postId": 123
 }
 ```
 
-### React Hook 예시
+### 요청 필드 설명
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `postId` | `number` | ✅ | 좋아요를 누를 게시글의 고유 ID |
 
-```javascript
-import { useState, useEffect } from 'react';
-import { useContract, useProvider, useSigner } from 'wagmi';
-
-export function usePostLike(postId, postAuthorAddress) {
-    const [isLiked, setIsLiked] = useState(false);
-    const [likeCount, setLikeCount] = useState(0);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
-
-    const { data: signer } = useSigner();
-    const provider = useProvider();
-
-    // 좋아요 상태 조회
-    const fetchLikeStatus = async () => {
-        try {
-            const response = await fetch(`/api/posts/${postId}/likes/status`);
-            const data = await response.json();
-            
-            setIsLiked(data.isLiked);
-            setLikeCount(data.likeCount);
-        } catch (err) {
-            console.error('좋아요 상태 조회 실패:', err);
-        }
-    };
-
-    // 좋아요 개수 조회
-    const fetchLikeCount = async () => {
-        try {
-            const response = await fetch(`/api/posts/${postId}/likes`);
-            const data = await response.json();
-            setLikeCount(data.likeCount);
-        } catch (err) {
-            console.error('좋아요 개수 조회 실패:', err);
-        }
-    };
-
-    // 좋아요 토글
-    const toggleLike = async () => {
-        if (!signer) {
-            setError('지갑 연결이 필요합니다');
-            return;
-        }
-
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            if (isLiked) {
-                // 좋아요 취소
-                await unlikePost(postId);
-            } else {
-                // 좋아요 누르기
-                await likePost(postId, postAuthorAddress);
-            }
-
-            // 상태 업데이트
-            await fetchLikeStatus();
-            await fetchLikeCount();
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchLikeStatus();
-        fetchLikeCount();
-    }, [postId]);
-
-    return {
-        isLiked,
-        likeCount,
-        isLoading,
-        error,
-        toggleLike,
-        refresh: () => {
-            fetchLikeStatus();
-            fetchLikeCount();
-        }
-    };
+### 응답 형식
+```json
+{
+  "success": true,
+  "data": {
+    "postId": 123,
+    "encodedData": "0x0000000000000000000000000000000000000000000000000000000000000007b"
+  },
+  "message": "Like data created successfully"
 }
 ```
 
-## 🔌 백엔드 API
+### 응답 필드 설명
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `success` | `boolean` | 요청 성공 여부 |
+| `data.postId` | `number` | 요청한 게시글 ID |
+| `data.encodedData` | `string` | ABI 인코딩된 postId (0x로 시작하는 hex 문자열) |
+| `message` | `string` | 응답 메시지 |
 
-### 1. 좋아요 개수 조회
+### 사용법
+이 `encodedData`를 `TrivusEXP1363.transferAndCall()`의 `data` 파라미터로 사용합니다.
+
+---
+
+## 2. 좋아요 서명 생성 (클레임용)
+
+### 엔드포인트
 ```
-GET /posts/:postId/likes
-Response: { postId: number, likeCount: number }
+POST /post-like-signature/create
 ```
 
-### 2. 사용자 좋아요 상태 조회
-```
-GET /posts/:postId/likes/status
-Headers: Authorization: Bearer <JWT_TOKEN>
-Response: {
-    postId: number,
-    isLiked: boolean,
-    likeCount: number,
-    tokenDeducted: boolean,
-    transactionHash?: string,
-    tokenDeductedAt?: Date,
-    message: string
+### 요청 데이터
+```json
+{
+  "postId": 123,
+  "userAddress": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
 }
 ```
 
-### 3. 게시글 토큰 정보 조회
-```
-GET /posts/:postId/likes/tokens
-Headers: Authorization: Bearer <JWT_TOKEN>
-Response: {
-    postId: number,
-    totalLikes: number,
-    totalTokensCollected: number,
-    canWithdraw: boolean,
-    message: string
+### 요청 필드 설명
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `postId` | `number` | ✅ | 보상을 받을 게시글의 고유 ID |
+| `userAddress` | `string` | ✅ | 보상을 받을 사용자의 지갑 주소 (0x로 시작) |
+
+**참고**: `amount` 필드는 더 이상 필요하지 않습니다. 백엔드에서 DB에 쌓여있는 사용자의 사용 가능한 토큰을 자동으로 조회하여 사용합니다.
+
+### 응답 형식
+```json
+{
+  "success": true,
+  "data": {
+    "postId": 123,
+    "to": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+    "amount": "1.5",
+    "deadline": 1692345678,
+    "nonce": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    "signature": "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba1b"
+  },
+  "message": "Like signature created successfully"
 }
 ```
 
-## ⚠️ 주의사항
+### 응답 필드 설명
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `data.postId` | `number` | 게시글 ID |
+| `data.to` | `string` | 보상 수신자 주소 |
+| `data.amount` | `string` | 보상 양 (EXP 단위) |
+| `data.deadline` | `number` | 서명 만료 시간 (Unix timestamp) |
+| `data.nonce` | `string` | 고유 nonce (0x로 시작하는 64자 hex) |
+| `data.signature` | `string` | EIP-712 서명 (0x로 시작하는 130자 hex) |
 
-1. **토큰 승인**: 좋아요를 누르기 전에 `approve()` 함수로 컨트랙트에 토큰 사용 권한을 부여해야 합니다.
+---
 
-2. **가스비**: 모든 블록체인 트랜잭션에는 가스비가 발생합니다.
+## 3. 토큰 클레임 서명 생성
 
-3. **네트워크 확인**: 올바른 네트워크(Polygon Amoy)에 연결되어 있는지 확인하세요.
+### 엔드포인트
+```
+POST /post-like-signature/token-claim/create
+```
 
-4. **에러 처리**: 사용자에게 적절한 에러 메시지를 표시하세요.
+### 요청 데이터
+```json
+{
+  "address": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+  "reason": "hot_post_reward"
+}
+```
 
-## 🎯 다음 단계
+### 요청 필드 설명
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `address` | `string` | ✅ | 토큰을 받을 사용자의 지갑 주소 (0x로 시작) |
+| `reason` | `string` | ❌ | 클레임 이유 (선택사항) |
 
-1. 컨트랙트 배포 및 주소 설정
-2. 프론트엔드에서 Web3 연결 설정
-3. 좋아요 UI 컴포넌트 구현
-4. 실시간 상태 업데이트 (WebSocket 또는 폴링)
-5. 에러 처리 및 사용자 피드백 구현
+**참고**: `amount` 필드는 더 이상 필요하지 않습니다. 백엔드에서 자동으로 사용자의 수확 가능한 토큰 양을 계산합니다.
 
-## 📞 지원
+### 응답 형식
+```json
+{
+  "success": true,
+  "data": {
+    "to": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+    "amount": "10.5",
+    "deadline": 1692345678,
+    "nonce": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    "signature": "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba1b"
+  },
+  "message": "Token claim signature created successfully"
+}
+```
 
-문제가 발생하면 백엔드 로그를 확인하여 이벤트 처리 상태를 점검하세요.
+### 응답 필드 설명
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `data.to` | `string` | 토큰 수신자 주소 |
+| `data.amount` | `string` | 토큰 양 (EXP 단위) |
+| `data.deadline` | `number` | 서명 만료 시간 (Unix timestamp) |
+| `data.nonce` | `string` | 고유 nonce (0x로 시작하는 64자 hex) |
+| `data.signature` | `string` | EIP-712 서명 (0x로 시작하는 130자 hex) |
+
+---
+
+## 4. 사용자 토큰 정보 조회
+
+### 엔드포인트
+```
+GET /post-like-signature/user/tokens?walletAddress=0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6
+```
+
+### 요청 파라미터
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `walletAddress` | `string` | ✅ | 사용자의 지갑 주소 (0x로 시작) |
+
+### 응답 형식
+```json
+{
+  "success": true,
+  "data": {
+    "walletAddress": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+    "totalTokens": 150.5,
+    "availableTokens": 25.0,
+    "pendingTokens": 10.5
+  },
+  "message": "User token info retrieved successfully"
+}
+```
+
+### 응답 필드 설명
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `data.walletAddress` | `string` | 사용자 지갑 주소 |
+| `data.totalTokens` | `number` | 전체 보유 토큰 (수확 완료된 토큰) |
+| `data.availableTokens` | `number` | 수확 가능한 토큰 (클레임 가능) |
+| `data.pendingTokens` | `number` | 대기 중인 토큰 (accumulation에서 실시간 계산) |
+
+---
+
+## 5. 서비스 상태 확인
+
+### 엔드포인트
+```
+POST /post-like-signature/status
+```
+
+### 요청 데이터
+```json
+{}
+```
+
+### 응답 형식
+```json
+{
+  "success": true,
+  "data": {
+    "trivusExp": {
+      "status": "healthy",
+      "contractAddress": "0x5BF617D9d68868414611618336603B37f8061819"
+    }
+  },
+  "message": "Service status retrieved successfully"
+}
+```
+
+### 응답 필드 설명
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `data.trivusExp.status` | `string` | 서비스 상태 ("healthy", "error" 등) |
+| `data.trivusExp.contractAddress` | `string` | TrivusEXP 컨트랙트 주소 |
+
+---
+
+## 프론트엔드 통합 예시
+
+### 1. 좋아요 기능 (ERC-1363)
+
+```typescript
+// 1. 좋아요 데이터 생성
+const likeDataResponse = await fetch('/api/v1/post-like-signature/likes/data', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ postId: 123 })
+});
+
+if (!likeDataResponse.ok) {
+  throw new Error('좋아요 데이터 생성 실패');
+}
+
+const { encodedData } = likeDataResponse.data;
+
+// 2. 스마트 컨트랙트 호출 (transferAndCall)
+const trivusExpContract = new ethers.Contract(TRIVUS_EXP_ADDRESS, TRIVUS_EXP_ABI, signer);
+const likePrice = ethers.parseEther('1'); // 1 EXP
+
+const tx = await trivusExpContract.transferAndCall(
+  POST_LIKE_SYSTEM_ADDRESS, // PostLikeSystem 컨트랙트 주소
+  likePrice,                 // 좋아요 가격
+  encodedData               // postId가 인코딩된 데이터
+);
+
+await tx.wait();
+console.log('좋아요 완료!');
+```
+
+### 2. 게시글 보상 클레임
+
+```typescript
+// 1. 클레임 서명 생성
+const claimResponse = await fetch('/api/v1/post-like-signature/create', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    postId: 123,
+    userAddress: userAddress
+  })
+});
+
+if (!claimResponse.ok) {
+  throw new Error('클레임 서명 생성 실패');
+}
+
+const { postId, to, amount, deadline, nonce, signature } = claimResponse.data;
+// amount는 백엔드에서 자동으로 계산된 수확 가능한 토큰 양
+
+// 2. 스마트 컨트랙트 호출 (claimWithSignature)
+const postLikeSystemContract = new ethers.Contract(
+  POST_LIKE_SYSTEM_ADDRESS, 
+  POST_LIKE_SYSTEM_ABI, 
+  signer
+);
+
+const tx = await postLikeSystemContract.claimWithSignature(
+  postId,
+  to,
+  ethers.parseEther(amount),
+  deadline,
+  nonce,
+  signature
+);
+
+await tx.wait();
+console.log('보상 클레임 완료!');
+```

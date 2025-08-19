@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserResponseDto } from 'src/dtos/user-response.dto';
-import { UserService } from 'src/services/user.service';
+import { UserService } from '../services/user.service';
 
 export interface LoginResponse {
     success: boolean;

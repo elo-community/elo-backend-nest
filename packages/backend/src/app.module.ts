@@ -14,6 +14,7 @@ import {
 import { AuthController } from './controllers/auth.controller';
 import { CommentLikesController } from './controllers/comment-likes.controller';
 import { CommentsController } from './controllers/comments.controller';
+import { HotPostRewardController } from './controllers/hot-post-reward.controller';
 import { ImageController } from './controllers/image.controller';
 import { MatchResultsController, UserMatchesController } from './controllers/match-results.controller';
 import { PostHatesController } from './controllers/post-hates.controller';
@@ -32,6 +33,7 @@ import { ClaimNonce } from './entities/claim-nonce.entity';
 import { ClaimRequest } from './entities/claim-request.entity';
 import { CommentLike } from './entities/comment-like.entity';
 import { Comment } from './entities/comment.entity';
+import { HotPostReward } from './entities/hot-post-reward.entity';
 import { HotPost } from './entities/hot-post.entity';
 import { MatchResultHistory } from './entities/match-result-history.entity';
 import { MatchResult } from './entities/match-result.entity';
@@ -61,6 +63,7 @@ import { S3Service } from './services/s3.service';
 import { SportCategoryService } from './services/sport-category.service';
 import { SseService } from './services/sse.service';
 import { TempImageService } from './services/temp-image.service';
+import { TokenTransactionService } from './services/token-transaction.service';
 import { UserService } from './services/user.service';
 
 // NOTE: 앞으로 생성할 컨트롤러/라우트는 모두 복수형으로 작성 (예: users, posts, comments, auths)
@@ -89,7 +92,7 @@ import { UserService } from './services/user.service';
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([
-      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost, TokenTransaction, ClaimNonce, ClaimRequest
+      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost, HotPostReward, TokenTransaction, ClaimNonce, ClaimRequest
     ]),
     AuthModule,
     EloModule,
@@ -97,10 +100,10 @@ import { UserService } from './services/user.service';
     RewardsModule,
   ],
   controllers: [
-    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController
+    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, HotPostRewardController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController
   ],
   providers: [
-    UserService, PostService, CommentService, ReplyService, SportCategoryService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler
+    PostService, CommentService, ReplyService, SportCategoryService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TokenTransactionService
   ],
 })
 export class AppModule implements OnModuleInit {
@@ -127,6 +130,10 @@ export class AppModule implements OnModuleInit {
     // 샘플 매치 요청 생성
     await this.createSampleMatchRequests(sampleUsers);
     console.log('✅ 샘플 매치 요청이 생성되었습니다.');
+
+    // 모든 사용자의 토큰 잔액을 블록체인에서 동기화
+    await this.userService.syncAllUsersTokenAmount();
+    console.log('✅ 모든 사용자의 토큰 잔액이 블록체인과 동기화되었습니다.');
   }
 
   private async createSampleUsers() {

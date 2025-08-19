@@ -8,6 +8,7 @@ export enum TransactionType {
     TRANSFER_IN = 'TRANSFER_IN',      // 외부에서 토큰 입금
     TRANSFER_OUT = 'TRANSFER_OUT',    // 외부로 토큰 출금
     SYSTEM_ADJUSTMENT = 'SYSTEM_ADJUSTMENT', // 시스템 조정
+    INITIAL_SYNC = 'INITIAL_SYNC',    // 서버 시작 시 초기 토큰 잔액 동기화
 }
 
 export enum TransactionStatus {

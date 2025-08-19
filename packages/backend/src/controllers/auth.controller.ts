@@ -79,15 +79,23 @@ export class AuthController {
       let nickname: string;
 
       if (loginDto.userType === 'sample-user') {
-        walletAddress = 'sample-user-wallet';
+        walletAddress = process.env.SAMPLE_USER_ADDRESS || 'sample-user-wallet';
         nickname = '샘플유저';
       } else if (loginDto.userType === 'table-tennis-user') {
-        walletAddress = 'table-tennis-user-wallet';
+        walletAddress = process.env.TABLE_TENNIS_USER_ADDRESS || '0x8313F74e78a2E1D7D6Bb27176100d88EE4028516';
         nickname = '탁구왕민수';
       } else {
         return {
           success: false,
           message: 'Invalid user type. Use "sample-user" or "table-tennis-user"',
+        };
+      }
+
+      // 환경변수 확인
+      if (!process.env.SAMPLE_USER_ADDRESS || !process.env.TABLE_TENNIS_USER_ADDRESS) {
+        return {
+          success: false,
+          message: 'Sample user addresses not configured. Please check environment variables.',
         };
       }
 
@@ -116,6 +124,8 @@ export class AuthController {
             walletAddress: user.walletAddress,
             nickname: user.nickname,
             email: user.email,
+            tokenAmount: user.tokenAmount,
+            availableToken: user.availableToken,
           },
           accessToken: loginResponse.data?.accessToken,
         },

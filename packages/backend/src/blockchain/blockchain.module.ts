@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ClaimNonce } from '../entities/claim-nonce.entity';
 import { ClaimRequest } from '../entities/claim-request.entity';
+import { HotPostReward } from '../entities/hot-post-reward.entity';
+import { HotPost } from '../entities/hot-post.entity';
 import { PostLike } from '../entities/post-like.entity';
 import { Post } from '../entities/post.entity';
 import { TokenAccumulation } from '../entities/token-accumulation.entity';
@@ -11,6 +13,7 @@ import { UserElo } from '../entities/user-elo.entity';
 import { User } from '../entities/user.entity';
 import { ClaimNonceService } from '../services/claim-nonce.service';
 import { ClaimRequestService } from '../services/claim-request.service';
+import { HotPostRewardService } from '../services/hot-post-reward.service';
 import { PostLikeService } from '../services/post-like.service';
 import { TokenAccumulationService } from '../services/token-accumulation.service';
 import { TokenTransactionService } from '../services/token-transaction.service';
@@ -24,13 +27,14 @@ import { TrivusExpService } from './trivus-exp.service';
 @Module({
     imports: [
         ConfigModule,
-        TypeOrmModule.forFeature([ClaimNonce, ClaimRequest, Post, PostLike, TokenAccumulation, TokenTransaction, User, UserElo])
+        TypeOrmModule.forFeature([ClaimNonce, ClaimRequest, HotPost, HotPostReward, Post, PostLike, TokenAccumulation, TokenTransaction, User, UserElo])
     ],
     providers: [
         BlockchainService,
         TrivusExpService,
         ClaimNonceService,
         ClaimRequestService,
+        HotPostRewardService,
         PostLikeService,
         TokenAccumulationService,
         TokenTransactionService,
@@ -100,6 +104,7 @@ import { TrivusExpService } from './trivus-exp.service';
         LikeEventService,
         PostLikeService,
         PostLikeSystemService,
+        HotPostRewardService,
         TokenAccumulationService,
         TokenTransactionService,
         UserService,

@@ -1,15 +1,106 @@
-import { Controller, DefaultValuePipe, Get, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
+import { Controller, DefaultValuePipe, Get, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { Public } from '../auth/public.decorator';
 import { CurrentUser } from '../auth/user.decorator';
+import { TrivusExpService } from '../blockchain/trivus-exp.service';
 import { TransactionType } from '../entities/token-transaction.entity';
 import { TokenTransactionService } from '../services/token-transaction.service';
+import { UserService } from '../services/user.service';
+
+// TrivusEXP1363 컨트랙트 ABI 상수 정의
+const TRIVUS_EXP_ABI = [
+    // claimWithSignature 함수
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "to",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "deadline",
+                "type": "uint256"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "nonce",
+                "type": "bytes32"
+            },
+            {
+                "internalType": "bytes",
+                "name": "signature",
+                "type": "bytes"
+            }
+        ],
+        "name": "claimWithSignature",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    // balanceOf 조회
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            }
+        ],
+        "name": "balanceOf",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    // transfer 함수
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "to",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+            }
+        ],
+        "name": "transfer",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+];
 
 @Controller('token-transactions')
 @UseGuards(JwtAuthGuard)
 export class TokenTransactionsController {
-    constructor(private readonly tokenTransactionService: TokenTransactionService) { }
+    constructor(
+        private readonly tokenTransactionService: TokenTransactionService,
+        private readonly trivusExpService: TrivusExpService,
+        private readonly userService: UserService,
+        private readonly configService: ConfigService,
+    ) { }
 
     /**
      * 테스트용: 인증 없이 토큰 거래 내역 조회
@@ -131,5 +222,45 @@ export class TokenTransactionsController {
             message: 'Token transactions by date range retrieved successfully',
             data: result,
         };
+    }
+
+    /**
+     * 사용자의 모든 누적 토큰을 한번에 수확
+     */
+    @Post('claim-all-accumulated')
+    async claimAllAccumulatedTokens(@CurrentUser() user: JwtUser) {
+        try {
+            if (!user.walletAddress) {
+                throw new Error('User wallet address not found');
+            }
+
+            // 사용자의 모든 누적 토큰을 한번에 수확하는 서명 생성
+            const result = await this.trivusExpService.createTokenClaimSignature({
+                address: user.walletAddress,
+                reason: 'bulk_claim_accumulated_tokens'
+            });
+
+            // TrivusEXP1363 컨트랙트 주소 가져오기
+            const trivusExpAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
+
+            // 서명만 반환하고 DB 기록은 ClaimExecuted 이벤트 감지 시 처리
+            return {
+                message: 'Token claim signature generated successfully',
+                data: {
+                    signature: result.signature,
+                    nonce: result.nonce,
+                    deadline: result.deadline,
+                    amount: result.amount,
+                    contractAddress: trivusExpAddress,
+                    contractABI: TRIVUS_EXP_ABI,
+                    message: 'Use this signature to execute the claim on the blockchain. The transaction will be recorded automatically when the claim is executed.',
+                },
+            };
+        } catch (error) {
+            return {
+                message: 'Failed to generate token claim signature',
+                error: (error as Error).message,
+            };
+        }
     }
 }

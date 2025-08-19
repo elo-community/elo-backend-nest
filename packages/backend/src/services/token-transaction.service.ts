@@ -8,8 +8,8 @@ export interface CreateTransactionDto {
     userId: number;
     transactionType: TransactionType;
     amount: number;
-    balanceBefore: number;
-    balanceAfter: number;
+    balanceBefore?: number; // 선택적 필드로 변경
+    balanceAfter?: number;  // 선택적 필드로 변경
     transactionHash?: string;
     blockchainAddress?: string;
     description?: string;
@@ -37,8 +37,19 @@ export class TokenTransactionService {
             throw new NotFoundException(`User with ID ${createDto.userId} not found`);
         }
 
+        // balanceBefore와 balanceAfter가 제공되지 않은 경우 자동 계산
+        let balanceBefore = createDto.balanceBefore;
+        let balanceAfter = createDto.balanceAfter;
+
+        if (balanceBefore === undefined || balanceAfter === undefined) {
+            balanceBefore = parseFloat(user.availableToken?.toString() || '0');
+            balanceAfter = balanceBefore + createDto.amount;
+        }
+
         const transaction = this.tokenTransactionRepository.create({
             ...createDto,
+            balanceBefore,
+            balanceAfter,
             user: user, // user 관계 설정
             status: TransactionStatus.COMPLETED,
             processedAt: new Date(),

@@ -103,6 +103,20 @@ export class ClaimRequestService {
     }
 
     /**
+     * nonce로 claim 요청 조회
+     */
+    async findByNonce(nonce: string): Promise<ClaimRequest | null> {
+        try {
+            return await this.claimRequestRepository.findOne({
+                where: { nonce }
+            });
+        } catch (error) {
+            this.logger.error(`Failed to find claim request by nonce ${nonce}: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
      * 특정 nonce의 claim 요청 조회
      */
     async getClaimRequestByNonce(walletAddress: string, nonce: string): Promise<ClaimRequest | null> {

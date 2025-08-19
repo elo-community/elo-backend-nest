@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 import { ClaimNonceService } from '../services/claim-nonce.service';
@@ -33,6 +33,7 @@ export class TrivusExpService {
         private claimNonceService: ClaimNonceService,
         private claimRequestService: ClaimRequestService,
         private claimEventService: ClaimEventService,
+        @Inject(forwardRef(() => UserService))
         private userService: UserService
     ) {
         // Polygon Amoy 네트워크 설정
@@ -213,7 +214,7 @@ export class TrivusExpService {
 
             return {
                 to: address,
-                amount: availableAmount.toString(),
+                amount: parseFloat(availableAmount.toString()).toFixed(1), // 소숫점 첫째자리까지만 표시
                 deadline,
                 signature,
                 nonce: nonce.toString() // BigInt를 string으로 변환
