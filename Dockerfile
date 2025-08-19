@@ -41,7 +41,7 @@ WORKDIR /usr/src/app
 
 # Copy runtime dependencies and built application
 COPY --from=backend-builder /app/packages/backend/package*.json ./
-COPY --from=backend-builder /app/packages/backend/node_modules ./node_modules
+COPY --from=backend-builder /app/node_modules ./node_modules
 COPY --from=backend-builder /app/packages/backend/dist ./dist
 
 # Copy built contracts from builder stage (if needed)
