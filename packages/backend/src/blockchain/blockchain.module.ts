@@ -1,11 +1,40 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ClaimNonce } from '../entities/claim-nonce.entity';
+import { ClaimRequest } from '../entities/claim-request.entity';
+import { PostLike } from '../entities/post-like.entity';
+import { Post } from '../entities/post.entity';
+import { TokenTransaction } from '../entities/token-transaction.entity';
+import { UserElo } from '../entities/user-elo.entity';
+import { User } from '../entities/user.entity';
+import { ClaimNonceService } from '../services/claim-nonce.service';
+import { ClaimRequestService } from '../services/claim-request.service';
+import { PostLikeService } from '../services/post-like.service';
+import { TokenTransactionService } from '../services/token-transaction.service';
+import { UserService } from '../services/user.service';
 import { BlockchainService } from './blockchain.service';
+import { ClaimEventService } from './claim-event.service';
+import { LikeEventService } from './like-event.service';
+import { PostLikeSystemService } from './post-like-system.service';
+import { TrivusExpService } from './trivus-exp.service';
 
 @Module({
-    imports: [ConfigModule],
+    imports: [
+        ConfigModule,
+        TypeOrmModule.forFeature([ClaimNonce, ClaimRequest, Post, PostLike, TokenTransaction, User, UserElo])
+    ],
     providers: [
         BlockchainService,
+        TrivusExpService,
+        ClaimNonceService,
+        ClaimRequestService,
+        PostLikeService,
+        TokenTransactionService,
+        UserService,
+        ClaimEventService,
+        LikeEventService,
+        PostLikeSystemService,
         {
             provide: 'AMOY_PROVIDER',
             useFactory: (configService: ConfigService) => {
@@ -61,6 +90,15 @@ import { BlockchainService } from './blockchain.service';
             inject: [ConfigService],
         },
     ],
-    exports: [BlockchainService],
+    exports: [
+        BlockchainService,
+        TrivusExpService,
+        ClaimEventService,
+        LikeEventService,
+        PostLikeService,
+        PostLikeSystemService,
+        TokenTransactionService,
+        UserService,
+    ],
 })
 export class BlockchainModule { } 

@@ -1,8 +1,12 @@
 import "@nomicfoundation/hardhat-toolbox";
 import "@openzeppelin/hardhat-upgrades";
 import "@typechain/hardhat";
-import "dotenv/config";
+import * as dotenv from "dotenv";
 import { HardhatUserConfig } from "hardhat/config";
+import { resolve } from "path";
+
+// 프로젝트 루트의 .env 파일 로드
+dotenv.config({ path: resolve(__dirname, "../../.env") });
 
 const config: HardhatUserConfig = {
     solidity: {
