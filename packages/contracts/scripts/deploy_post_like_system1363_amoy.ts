@@ -24,7 +24,7 @@ async function main() {
     // TrivusEXP1363 배포 (먼저)
     console.log("📝 1단계: TrivusEXP1363 토큰 배포 중...");
     const TrivusEXP1363 = await ethers.getContractFactory("TrivusEXP1363");
-    const trivusEXP1363 = await TrivusEXP1363.connect(deployer).deploy("Trivus EXP Token", "EXP");
+    const trivusEXP1363 = await TrivusEXP1363.connect(deployer).deploy("Trivus EXP Token", "EXP", deployer.address);
     await trivusEXP1363.waitForDeployment();
 
     const trivusEXP1363Address = await trivusEXP1363.getAddress();
@@ -52,7 +52,7 @@ async function main() {
     console.log(`   - 심볼: ${await trivusEXP1363.symbol()}`);
     console.log(`   - 소수점: ${await trivusEXP1363.decimals()}`);
     console.log(`   - 총 공급량: ${ethers.formatEther(await trivusEXP1363.totalSupply())} EXP`);
-    console.log(`   - Owner: ${await trivusEXP1363.owner()}`);
+    console.log(`   - Admin Role: ${await trivusEXP1363.hasRole(await trivusEXP1363.DEFAULT_ADMIN_ROLE(), deployer.address) ? 'Deployer' : 'Other'}`);
 
     // ERC1363 기능 테스트
     console.log("\n🧪 ERC1363 기능 테스트:");
