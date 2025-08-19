@@ -152,10 +152,11 @@ export class TrivusExpService {
             const { address, amount, reason } = request;
 
             // EIP-712 도메인 설정
+            const chainId = this.configService.get<number>('blockchain.amoy.chainId');
             const domain = {
                 name: 'Trivus EXP Token',
                 version: '1',
-                chainId: 80002, // Polygon Amoy
+                chainId: chainId,
                 verifyingContract: this.contractAddress
             };
 
@@ -183,7 +184,7 @@ export class TrivusExpService {
                 amount: amountWei,
                 nonce: nonce,
                 deadline,
-                chainId: 80002, // Polygon Amoy
+                chainId: chainId,
                 contractAddr: this.contractAddress
             };
 
@@ -319,10 +320,11 @@ export class TrivusExpService {
             this.logger.log(`[DEBUG] Signature not expired, proceeding with verification`);
 
             // EIP-712 서명 검증 (signTypedData로 생성된 서명 검증)
+            const chainId = this.configService.get<number>('blockchain.amoy.chainId');
             const domain = {
                 name: 'Trivus EXP Token',
                 version: '1',
-                chainId: 80002, // Polygon Amoy
+                chainId: chainId,
                 verifyingContract: this.contractAddress
             };
 

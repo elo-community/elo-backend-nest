@@ -23,11 +23,11 @@ export const awsConfig = registerAs('aws', () => ({
 export const blockchainConfig = registerAs('blockchain', () => ({
     amoy: {
         rpcUrl: process.env.RPC_AMOY,
-        chainId: parseInt(process.env.CHAIN_AMOY_ID || '80002', 10),
+        chainId: parseInt(process.env.AMOY_CHAIN_ID || '80002', 10),
     },
     very: {
         rpcUrl: process.env.RPC_VERY,
-        chainId: parseInt(process.env.CHAIN_VERY_ID || '80002', 10),
+        chainId: parseInt(process.env.VERY_CHAIN_ID || '80002', 10),
     },
     admin: {
         privateKey: process.env.ADMIN_PRIV_KEY,
