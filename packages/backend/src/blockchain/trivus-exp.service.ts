@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 import { ClaimNonceService } from '../services/claim-nonce.service';
@@ -33,6 +33,7 @@ export class TrivusExpService {
         private claimNonceService: ClaimNonceService,
         private claimRequestService: ClaimRequestService,
         private claimEventService: ClaimEventService,
+        @Inject(forwardRef(() => UserService))
         private userService: UserService
     ) {
         // Polygon Amoy 네트워크 설정
