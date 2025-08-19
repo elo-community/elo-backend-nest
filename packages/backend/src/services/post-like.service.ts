@@ -4,9 +4,8 @@ import { Repository } from 'typeorm';
 import { TrivusExpService } from '../blockchain/trivus-exp.service';
 import { PostLike } from '../entities/post-like.entity';
 import { Post } from '../entities/post.entity';
-import { TransactionType } from '../entities/token-transaction.entity';
 import { User } from '../entities/user.entity';
-import { CreateTransactionDto, TokenTransactionService } from './token-transaction.service';
+import { TokenTransactionService } from './token-transaction.service';
 
 @Injectable()
 export class PostLikeService {
@@ -23,6 +22,7 @@ export class PostLikeService {
 
     /**
      * 블록체인 이벤트로부터 좋아요 토큰 차감 처리
+     * (토큰 수정은 LikeEventService에서 처리, 여기서는 post_like 테이블만 업데이트)
      */
     async processLikeTokenDeduction(
         userId: number,
@@ -30,39 +30,6 @@ export class PostLikeService {
         transactionHash: string,
         amount: number
     ): Promise<void> {
-        const user = await this.userRepository.findOne({ where: { id: userId } });
-        if (!user) {
-            throw new NotFoundException(`User with ID ${userId} not found`);
-        }
-
-        const balanceBefore = user.availableToken;
-
-        // 사용 가능한 토큰에서 차감
-        user.availableToken = Math.max(0, user.availableToken - amount);
-        await this.userRepository.save(user);
-
-        // 토큰 거래 내역 기록
-        const transactionDto: CreateTransactionDto = {
-            userId: user.id, // 명시적으로 userId 설정
-            transactionType: TransactionType.LIKE_DEDUCT,
-            amount: -amount, // 차감이므로 음수
-            balanceBefore,
-            balanceAfter: user.availableToken,
-            transactionHash,
-            description: `Post like deduction for post ID: ${postId}`,
-            metadata: {
-                postId,
-                action: 'like_deduct',
-                tokenAmount: amount,
-            },
-            referenceId: postId.toString(),
-            referenceType: 'post_like',
-        };
-
-        console.log('DEBUG: CreateTransactionDto:', JSON.stringify(transactionDto, null, 2));
-
-        await this.tokenTransactionService.createTransaction(transactionDto);
-
         // PostLike 엔티티 생성 또는 업데이트
         let postLike = await this.postLikeRepository.findOne({
             where: { post: { id: postId }, user: { id: userId } },
@@ -90,56 +57,26 @@ export class PostLikeService {
     }
 
     /**
-     * 블록체인 이벤트로부터 좋아요 토큰 반환 처리
+     * 좋아요 취소 기능은 제거됨 (토큰이 걸려있어서 복잡함)
+     * 필요시 주석 해제하여 사용
      */
-    async processLikeTokenRefund(
-        userId: number,
-        postId: number,
-        transactionHash: string,
-        amount: number
-    ): Promise<void> {
-        const user = await this.userRepository.findOne({ where: { id: userId } });
-        if (!user) {
-            throw new NotFoundException(`User with ID ${userId} not found`);
-        }
+    // async processLikeTokenRefund(
+    //     userId: number,
+    //     postId: number,
+    //     transactionHash: string,
+    //     amount: number
+    // ): Promise<void> {
+    //     // PostLike 엔티티 업데이트
+    //     const postLike = await this.postLikeRepository.findOne({
+    //         where: { post: { id: postId }, user: { id: userId } },
+    //     });
 
-        const balanceBefore = user.availableToken;
-
-        // 토큰 반환
-        user.availableToken = user.availableToken + amount;
-        await this.userRepository.save(user);
-
-        // 토큰 거래 내역 기록
-        const transactionDto: CreateTransactionDto = {
-            userId: user.id,
-            transactionType: TransactionType.LIKE_REFUND,
-            amount: amount, // 반환이므로 양수
-            balanceBefore,
-            balanceAfter: user.availableToken,
-            transactionHash,
-            description: `Post like refund for post ID: ${postId}`,
-            metadata: {
-                postId,
-                action: 'like_refund',
-                tokenAmount: amount,
-            },
-            referenceId: postId.toString(),
-            referenceType: 'post_like',
-        };
-
-        await this.tokenTransactionService.createTransaction(transactionDto);
-
-        // PostLike 엔티티 업데이트
-        const postLike = await this.postLikeRepository.findOne({
-            where: { post: { id: postId }, user: { id: userId } },
-        });
-
-        if (postLike) {
-            postLike.isLiked = false;
-            postLike.transactionHash = transactionHash;
-            await this.postLikeRepository.save(postLike);
-        }
-    }
+    //     if (postLike) {
+    //         postLike.isLiked = false;
+    //         postLike.transactionHash = transactionHash;
+    //         await this.postLikeRepository.save(postLike);
+    //     }
+    // }
 
     async updateLikeTransactionHash(likeId: number, transactionHash: string): Promise<PostLike> {
         const postLike = await this.postLikeRepository.findOne({ where: { id: likeId } });

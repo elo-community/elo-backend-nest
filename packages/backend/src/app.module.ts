@@ -14,6 +14,7 @@ import {
 import { AuthController } from './controllers/auth.controller';
 import { CommentLikesController } from './controllers/comment-likes.controller';
 import { CommentsController } from './controllers/comments.controller';
+import { HotPostRewardController } from './controllers/hot-post-reward.controller';
 import { ImageController } from './controllers/image.controller';
 import { MatchResultsController, UserMatchesController } from './controllers/match-results.controller';
 import { PostHatesController } from './controllers/post-hates.controller';
@@ -32,6 +33,7 @@ import { ClaimNonce } from './entities/claim-nonce.entity';
 import { ClaimRequest } from './entities/claim-request.entity';
 import { CommentLike } from './entities/comment-like.entity';
 import { Comment } from './entities/comment.entity';
+import { HotPostReward } from './entities/hot-post-reward.entity';
 import { HotPost } from './entities/hot-post.entity';
 import { MatchResultHistory } from './entities/match-result-history.entity';
 import { MatchResult } from './entities/match-result.entity';
@@ -89,7 +91,7 @@ import { UserService } from './services/user.service';
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([
-      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost, TokenTransaction, ClaimNonce, ClaimRequest
+      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost, HotPostReward, TokenTransaction, ClaimNonce, ClaimRequest
     ]),
     AuthModule,
     EloModule,
@@ -97,7 +99,7 @@ import { UserService } from './services/user.service';
     RewardsModule,
   ],
   controllers: [
-    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController
+    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, HotPostRewardController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController
   ],
   providers: [
     UserService, PostService, CommentService, ReplyService, SportCategoryService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler

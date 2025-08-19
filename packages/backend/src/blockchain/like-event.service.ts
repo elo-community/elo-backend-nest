@@ -95,13 +95,19 @@ export class LikeEventService implements OnModuleInit {
                         {
                             "indexed": true,
                             "internalType": "address",
+                            "name": "postId",
+                            "type": "uint256"
+                        },
+                        {
+                            "indexed": true,
+                            "internalType": "address",
                             "name": "user",
                             "type": "address"
                         },
                         {
-                            "indexed": true,
+                            "indexed": false,
                             "internalType": "uint256",
-                            "name": "postId",
+                            "name": "amount",
                             "type": "uint256"
                         },
                         {
@@ -162,6 +168,38 @@ export class LikeEventService implements OnModuleInit {
                         }
                     ],
                     "name": "PostUnliked",
+                    "type": "event"
+                },
+                // TokensClaimed 이벤트 (PostLikeSystem1363의 claimWithSignature에서 emit)
+                {
+                    "anonymous": false,
+                    "inputs": [
+                        {
+                            "indexed": true,
+                            "internalType": "address",
+                            "name": "to",
+                            "type": "address"
+                        },
+                        {
+                            "indexed": true,
+                            "internalType": "uint256",
+                            "name": "postId",
+                            "type": "uint256"
+                        },
+                        {
+                            "indexed": false,
+                            "internalType": "uint256",
+                            "name": "amount",
+                            "type": "uint256"
+                        },
+                        {
+                            "indexed": false,
+                            "internalType": "bytes",
+                            "name": "signature",
+                            "type": "bytes"
+                        }
+                    ],
+                    "name": "TokensClaimed",
                     "type": "event"
                 }
             ];
@@ -339,6 +377,25 @@ export class LikeEventService implements OnModuleInit {
                 }
             }
 
+            // TokensClaimed 이벤트 폴링 (PostLikeSystem1363의 claimWithSignature에서 emit)
+            let tokensClaimedEvents: any[] = [];
+            try {
+                tokensClaimedEvents = await this.provider.getLogs({
+                    address: this.postLikeContract.target,
+                    topics: [
+                        ethers.id('TokensClaimed(address,uint256,uint256,bytes)')
+                    ],
+                    fromBlock: fromBlock,
+                    toBlock: toBlock
+                });
+            } catch (error) {
+                if (error.message && error.message.includes('network does not support ENS')) {
+                    this.logger.warn('ENS not supported, skipping TokensClaimed query');
+                } else {
+                    this.logger.error(`Failed to query TokensClaimed: ${error.message}`);
+                }
+            }
+
             for (const event of postLikeEvents) {
                 try {
                     const parsedEvent = this.postLikeContract.interface.parseLog(event);
@@ -391,6 +448,24 @@ export class LikeEventService implements OnModuleInit {
                     }
                 } catch (parseError) {
                     this.logger.warn(`Failed to parse PostUnliked: ${parseError.message}`);
+                }
+            }
+
+            // TokensClaimed 이벤트 처리
+            for (const event of tokensClaimedEvents) {
+                try {
+                    const parsedEvent = this.postLikeContract.interface.parseLog(event);
+                    if (parsedEvent && parsedEvent.args) {
+                        await this.handleTokensClaimedEvent(
+                            parsedEvent.args[0] as string, // to
+                            parsedEvent.args[1] as bigint, // postId
+                            parsedEvent.args[2] as bigint, // amount
+                            parsedEvent.args[3] as string, // signature
+                            event
+                        );
+                    }
+                } catch (parseError) {
+                    this.logger.warn(`Failed to parse TokensClaimed: ${parseError.message}`);
                 }
             }
 
@@ -485,7 +560,10 @@ export class LikeEventService implements OnModuleInit {
             }
 
             if (isLike) {
-                // 좋아요 토큰 차감 처리
+                // 좋아요 토큰 차감 처리 - tokenAmount에서 차감
+                await this.userService.deductTokens(user, amountNumber);
+
+                // post_like 테이블에 좋아요 기록
                 await this.postLikeService.processLikeTokenDeduction(
                     userEntity.id,
                     postIdNumber,
@@ -500,8 +578,8 @@ export class LikeEventService implements OnModuleInit {
                         userId: userEntity.id,
                         transactionType: TransactionType.LIKE_DEDUCT,
                         amount: -amountNumber, // 차감이므로 음수
-                        balanceBefore: (userEntity.availableToken || 0) + amountNumber,
-                        balanceAfter: userEntity.availableToken || 0,
+                        balanceBefore: (userEntity.tokenAmount || 0) + amountNumber, // 차감 전 tokenAmount
+                        balanceAfter: (userEntity.tokenAmount || 0), // 차감 후 tokenAmount
                         transactionHash,
                         blockchainAddress: user,
                         description: `Like token deduction for post ${postIdNumber}`,
@@ -519,42 +597,9 @@ export class LikeEventService implements OnModuleInit {
                 } catch (txError) {
                     this.logger.error(`Failed to record like token transaction: ${txError.message}`);
                 }
-
             } else {
-                // 좋아요 취소 토큰 반환 처리
-                await this.postLikeService.processLikeTokenRefund(
-                    userEntity.id,
-                    postIdNumber,
-                    transactionHash,
-                    amountNumber
-                );
-                this.logger.log(`Like token refund processed for user: ${userEntity.id}, post: ${postIdNumber}`);
-
-                // token_tx 테이블에 좋아요 취소 토큰 반환 기록
-                try {
-                    const transactionDto: CreateTransactionDto = {
-                        userId: userEntity.id,
-                        transactionType: TransactionType.LIKE_REFUND,
-                        amount: amountNumber, // 반환이므로 양수
-                        balanceBefore: (userEntity.availableToken || 0) - amountNumber,
-                        balanceAfter: userEntity.availableToken || 0,
-                        transactionHash,
-                        blockchainAddress: user,
-                        description: `Like token refund for post ${postIdNumber}`,
-                        metadata: {
-                            postId: postIdNumber,
-                            action: 'unlike',
-                            blockchainEvent: 'PostLikeEvent'
-                        },
-                        referenceId: postIdNumber.toString(),
-                        referenceType: 'post_like'
-                    };
-
-                    await this.tokenTransactionService.createTransaction(transactionDto);
-                    this.logger.log(`Token transaction recorded for unlike: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber}`);
-                } catch (txError) {
-                    this.logger.error(`Failed to record unlike token transaction: ${txError.message}`);
-                }
+                // 좋아요 취소는 지원하지 않음 (토큰이 걸려있어서 복잡함)
+                this.logger.warn(`Unlike event detected but not processed: user ${user}, post ${postIdNumber}`);
             }
         } catch (error) {
             this.logger.error(`Failed to process PostLikeEvent: ${(error as Error).message}`);
@@ -571,6 +616,55 @@ export class LikeEventService implements OnModuleInit {
         this.logger.log(`PostUnliked event detected: user ${user}, postId ${Number(postId)}, totalLikes ${Number(totalLikes)}, totalTokens ${ethers.formatEther(totalTokensCollected)}`);
 
         // 추가적인 로직이 필요한 경우 여기에 구현
+    }
+
+    private async handleTokensClaimedEvent(to: string, postId: bigint, amount: bigint, signature: string, event: any) {
+        const postIdNumber = Number(postId);
+        const amountNumber = Number(ethers.formatEther(amount));
+        const transactionHash = event.transactionHash;
+
+        this.logger.log(`TokensClaimed event detected: to ${to}, postId ${postIdNumber}, amount ${amountNumber}`);
+        this.logger.log(`Transaction hash: ${transactionHash}`);
+
+        try {
+            // 사용자 정보 조회
+            const userEntity = await this.userService.findByWalletAddress(to);
+            if (!userEntity) {
+                this.logger.warn(`User not found for wallet address: ${to}`);
+                return;
+            }
+
+            // 사용자의 토큰 정보 업데이트 (availableToken에서 tokenAmount로 이동)
+            await this.userService.syncTokenAmount(to, amountNumber);
+
+            // token_tx 테이블에 토큰 주입 기록
+            try {
+                const transactionDto: CreateTransactionDto = {
+                    userId: userEntity.id,
+                    transactionType: TransactionType.REWARD_CLAIM,
+                    amount: amountNumber, // 주입이므로 양수
+                    balanceBefore: (userEntity.availableToken || 0) - amountNumber,
+                    balanceAfter: userEntity.availableToken || 0,
+                    transactionHash,
+                    blockchainAddress: to,
+                    description: `Like token claim for post ${postIdNumber}`,
+                    metadata: {
+                        postId: postIdNumber,
+                        action: 'claim',
+                        blockchainEvent: 'TokensClaimed'
+                    },
+                    referenceId: postIdNumber.toString(),
+                    referenceType: 'post_like'
+                };
+
+                await this.tokenTransactionService.createTransaction(transactionDto);
+                this.logger.log(`Token transaction recorded for claim: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber}`);
+            } catch (txError) {
+                this.logger.error(`Failed to record like token claim transaction: ${txError.message}`);
+            }
+        } catch (error) {
+            this.logger.error(`Failed to process TokensClaimed: ${(error as Error).message}`);
+        }
     }
 
     private async handleTransferEvent(from: string, to: string, value: bigint, event: any) {

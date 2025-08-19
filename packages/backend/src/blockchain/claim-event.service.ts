@@ -180,7 +180,13 @@ export class ClaimEventService implements OnModuleInit {
                         const user = await this.userService.findByWalletAddress(to);
                         if (user) {
                             const amountDecimal = parseFloat(ethers.formatEther(amount));
+
+                            // 사용자의 토큰 정보 업데이트 (availableToken에서 tokenAmount로 이동)
+                            await this.userService.syncTokenAmount(to, amountDecimal);
+
+                            // 토큰 거래 내역 기록
                             await this.tokenTransactionService.createTransaction({
+                                userId: user.id,
                                 transactionType: TransactionType.REWARD_CLAIM,
                                 amount: amountDecimal,
                                 balanceBefore: user.tokenAmount || 0,
@@ -190,11 +196,12 @@ export class ClaimEventService implements OnModuleInit {
                                 description: `Token claim executed for nonce ${nonce}`,
                                 metadata: {
                                     nonce: nonce.toString(),
-                                    claim_type: 'backend_generated'
+                                    claim_type: 'bulk_claim',
+                                    deadline: deadline.toString(),
+                                    event_source: 'ClaimExecuted'
                                 },
                                 referenceId: nonce.toString(),
-                                referenceType: 'claim_request',
-                                userId: user.id
+                                referenceType: 'claim_request'
                             });
 
                             this.logger.log(`Token transaction recorded for user ${user.id}: ${amountDecimal} EXP claimed`);

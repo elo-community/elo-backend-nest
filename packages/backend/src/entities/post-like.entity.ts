@@ -11,9 +11,15 @@ export class PostLike {
     @JoinColumn({ name: 'user_id' })
     user!: User;
 
+    @Column({ type: 'int', name: 'user_id', nullable: false })
+    userId!: number;
+
     @ManyToOne(() => Post, { nullable: false })
     @JoinColumn({ name: 'post_id' })
     post!: Post;
+
+    @Column({ type: 'int', name: 'post_id', nullable: false })
+    postId!: number;
 
     @Column({ type: 'boolean', name: 'is_liked', nullable: true })
     isLiked?: boolean;

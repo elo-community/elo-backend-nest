@@ -191,4 +191,26 @@ export class UserService {
         }
         return updatedUser;
     }
+
+    /**
+     * 토큰 추가 (좋아요 취소, 보상 등에서 토큰 반환)
+     */
+    async addTokens(walletAddress: string, amount: number): Promise<User> {
+        const user = await this.findByWalletAddress(walletAddress);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const newTokenAmount = (user.tokenAmount || 0) + amount;
+
+        await this.userRepository.update(user.id, {
+            tokenAmount: newTokenAmount
+        });
+
+        const updatedUser = await this.findByWalletAddress(walletAddress);
+        if (!updatedUser) {
+            throw new NotFoundException('User not found after update');
+        }
+        return updatedUser;
+    }
 } 

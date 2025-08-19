@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HotPost } from '../entities/hot-post.entity';
 import { Post } from '../entities/post.entity';
+import { HotPostRewardService } from '../services/hot-post-reward.service';
 
 @Injectable()
 export class HotPostsScheduler {
@@ -14,6 +15,7 @@ export class HotPostsScheduler {
         private readonly postRepository: Repository<Post>,
         @InjectRepository(HotPost)
         private readonly hotPostRepository: Repository<HotPost>,
+        private readonly hotPostRewardService: HotPostRewardService,
     ) { }
 
     // 매일 새벽 0시에 인기글 선정 (24시간 주기)
@@ -117,8 +119,15 @@ export class HotPostsScheduler {
             const savedHotPosts = await this.hotPostRepository.save(hotPostsToSave);
             this.logger.log(`Saved ${savedHotPosts.length} hot posts to database`);
 
-            // TODO: 여기에 보상 지급 로직 추가
-            // await this.rewardService.distributeHotPostRewards(topPosts);
+            // 6. 각 인기글에 대해 보상 지급 (최초 선정 시에만)
+            for (const savedHotPost of savedHotPosts) {
+                try {
+                    await this.hotPostRewardService.distributeHotPostRewards(savedHotPost.id);
+                    this.logger.log(`Rewards distributed for HotPost ${savedHotPost.id}`);
+                } catch (error) {
+                    this.logger.error(`Failed to distribute rewards for HotPost ${savedHotPost.id}:`, error);
+                }
+            }
 
             this.logger.log(`Hot posts selection and storage completed successfully for ${today.toDateString()}`);
         } catch (error) {
