@@ -39,7 +39,7 @@ FROM node:20-alpine AS production
 WORKDIR /usr/src/app
 
 # Copy backend package files for production dependencies
-COPY packages/backend/package*.json ./
+COPY --from=backend-builder /app/packages/backend/package*.json ./
 
 # Set environment variables from build args
 ARG NODE_ENV=production
