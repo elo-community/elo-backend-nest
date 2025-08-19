@@ -1,8 +1,9 @@
-import { Body, Controller, Get, HttpException, HttpStatus, Post, Query } from '@nestjs/common';
+import { Body, Controller, HttpException, HttpStatus, Post } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 import { PostLikeSystemService } from '../blockchain/post-like-system.service';
 import { TrivusExpService } from '../blockchain/trivus-exp.service';
+import { PostService } from '../services/post.service';
 import { UserService } from '../services/user.service';
 
 // 컨트랙트 ABI 상수 정의
@@ -182,6 +183,7 @@ export class PostLikeSignatureController {
         private readonly postLikeSystemService: PostLikeSystemService,
         private readonly trivusExpService: TrivusExpService,
         private readonly userService: UserService,
+        private readonly postService: PostService,
         private readonly configService: ConfigService
     ) { }
 
@@ -240,12 +242,42 @@ export class PostLikeSignatureController {
                 throw new HttpException('Invalid userAddress', HttpStatus.BAD_REQUEST);
             }
 
+            // 1. postId의 author 확인
+            const post = await this.postService.findOne(postId);
+            if (!post) {
+                throw new HttpException(`Post with ID ${postId} not found`, HttpStatus.NOT_FOUND);
+            }
+
+            // 2. author의 walletAddress 확인
+            if (!post.author || !post.author.walletAddress) {
+                throw new HttpException(`Post author not found or has no wallet address`, HttpStatus.BAD_REQUEST);
+            }
+
+            // 3. 요청한 userAddress가 post의 author인지 확인
+            if (post.author.walletAddress.toLowerCase() !== userAddress.toLowerCase()) {
+                throw new HttpException(
+                    `User ${userAddress} is not the author of post ${postId}. Only the post author can claim like tokens.`,
+                    HttpStatus.FORBIDDEN
+                );
+            }
+
+            // 4. 해당 postId에서 가져올 수 있는 토큰 양 계산
+            const availableTokens = await this.postLikeSystemService.calculateAvailableTokens(postId, userAddress);
+
+            if (availableTokens <= 0) {
+                throw new HttpException(
+                    `No tokens available to claim for post ${postId}. This post may not have received any likes yet.`,
+                    HttpStatus.BAD_REQUEST
+                );
+            }
+
             const deadline = Math.floor(Date.now() / 1000) + 300; // 5분 후 만료
 
             const signatureData = await this.postLikeSystemService.createLikeSignature(
                 postId,
                 userAddress,
-                deadline
+                deadline,
+                availableTokens // 계산된 토큰 양 전달
             );
 
             // PostLikeSystem1363 컨트랙트 주소 가져오기
@@ -342,33 +374,5 @@ export class PostLikeSignatureController {
         }
     }
 
-    /**
-     * 사용자 토큰 정보 조회
-     */
-    @Get('user/tokens')
-    async getUserTokenInfo(@Query('walletAddress') walletAddress: string) {
-        try {
-            if (!walletAddress || !ethers.isAddress(walletAddress)) {
-                throw new HttpException('Invalid wallet address', HttpStatus.BAD_REQUEST);
-            }
 
-            const tokenInfo = await this.userService.getUserTokenInfo(walletAddress);
-
-            return {
-                success: true,
-                data: {
-                    walletAddress,
-                    totalTokens: tokenInfo.totalTokens,
-                    availableTokens: tokenInfo.availableTokens,
-                    pendingTokens: tokenInfo.pendingTokens
-                },
-                message: 'User token info retrieved successfully'
-            };
-        } catch (error) {
-            throw new HttpException(
-                `Failed to get user token info: ${error.message}`,
-                HttpStatus.INTERNAL_SERVER_ERROR
-            );
-        }
-    }
 }

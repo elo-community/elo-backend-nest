@@ -5,6 +5,7 @@ import { TransactionType } from '../entities/token-transaction.entity';
 import { PostLikeService } from '../services/post-like.service';
 import { CreateTransactionDto, TokenTransactionService } from '../services/token-transaction.service';
 import { UserService } from '../services/user.service';
+import { ClaimEventService } from './claim-event.service';
 
 @Injectable()
 export class LikeEventService implements OnModuleInit {
@@ -26,6 +27,7 @@ export class LikeEventService implements OnModuleInit {
         private postLikeService: PostLikeService,
         private userService: UserService,
         private tokenTransactionService: TokenTransactionService,
+        private claimEventService: ClaimEventService, // ClaimEventService 주입
     ) {
         this.instanceId = Math.random().toString(36).substring(2, 15); // 인스턴스 ID 생성
     }
@@ -191,6 +193,8 @@ export class LikeEventService implements OnModuleInit {
                     "type": "event"
                 }
             ];
+
+
 
             // TrivusEXP 컨트랙트 ABI (Transfer 이벤트만)
             const trivusExpContractABI = [
@@ -386,24 +390,7 @@ export class LikeEventService implements OnModuleInit {
                 }
             }
 
-            // TokensClaimed 이벤트 폴링 (PostLikeSystem1363의 claimWithSignature에서 emit)
-            let tokensClaimedEvents: any[] = [];
-            try {
-                tokensClaimedEvents = await this.provider.getLogs({
-                    address: this.postLikeContract.target,
-                    topics: [
-                        ethers.id('TokensClaimed(address,uint256,uint256,bytes)')
-                    ],
-                    fromBlock: fromBlock,
-                    toBlock: toBlock
-                });
-            } catch (error) {
-                if (error.message && error.message.includes('network does not support ENS')) {
-                    this.logger.warn('ENS not supported, skipping TokensClaimed query');
-                } else {
-                    this.logger.error(`Failed to query TokensClaimed: ${error.message}`);
-                }
-            }
+
 
             // PostLikeEvent는 더 이상 사용되지 않음 - PostLiked 이벤트만 처리
             // for (const event of postLikeEvents) {
@@ -476,6 +463,29 @@ export class LikeEventService implements OnModuleInit {
                 }
             }
 
+            // TokensClaimed 이벤트 폴링 (PostLikeSystem1363의 claimWithSignature에서 emit)
+            let tokensClaimedEvents: any[] = [];
+            try {
+                tokensClaimedEvents = await this.provider.getLogs({
+                    address: this.postLikeContract.target,
+                    topics: [
+                        ethers.id('TokensClaimed(address,uint256,uint256,bytes)')
+                    ],
+                    fromBlock: fromBlock,
+                    toBlock: toBlock
+                });
+
+                if (tokensClaimedEvents.length > 0) {
+                    this.logger.log(`✅ Found ${tokensClaimedEvents.length} TokensClaimed event(s)`);
+                }
+            } catch (error) {
+                if (error.message && error.message.includes('network does not support ENS')) {
+                    this.logger.warn('ENS not supported, skipping TokensClaimed query');
+                } else {
+                    this.logger.error(`Failed to query TokensClaimed: ${error.message}`);
+                }
+            }
+
             // TokensClaimed 이벤트 처리
             for (const event of tokensClaimedEvents) {
                 try {
@@ -493,6 +503,8 @@ export class LikeEventService implements OnModuleInit {
                     this.logger.warn(`Failed to parse TokensClaimed: ${parseError.message}`);
                 }
             }
+
+
 
             // Transfer 이벤트 폴링 (getLogs 사용)
             let transferEvents: any[] = [];
@@ -700,6 +712,11 @@ export class LikeEventService implements OnModuleInit {
         this.logger.warn(`Unlike functionality has been removed. Skipping processing for user ${user}, post ${Number(postId)}`);
     }
 
+
+
+    /**
+     * TokensClaimed 이벤트 처리 (PostLikeSystem1363의 claimWithSignature에서 emit)
+     */
     private async handleTokensClaimedEvent(to: string, postId: bigint, amount: bigint, signature: string, event: any) {
         const postIdNumber = Number(postId);
         const amountNumber = Number(ethers.formatEther(amount));
@@ -765,74 +782,19 @@ export class LikeEventService implements OnModuleInit {
 
         // 좋아요 관련 토큰 이동인지 확인
         if (this.isLikeRelatedTransfer(from, to, amount)) {
-            this.logger.log(`Processing like token transfer: ${amount} tokens from ${from} to ${to}`);
-            await this.processLikeTokenTransfer(from, to, amount, transactionHash);
+            this.logger.log(`PostLikeSystem transfer detected in LikeEventService: ${amount} tokens from ${from} to ${to}`);
+            this.logger.log(`Skipping TRANSFER_OUT record - PostLiked event will handle this`);
+            // PostLikeSystem으로의 전송은 PostLiked 이벤트에서 처리하므로 여기서는 아무것도 하지 않음
+            return;
         }
 
         // 처리된 트랜잭션 해시 기록
         this.processedTransactions.add(transactionHash);
     }
 
-    private async processLikeTokenTransfer(from: string, to: string, amount: string, transactionHash: string) {
-        try {
-            this.logger.log(`=== START processLikeTokenTransfer ===`);
-            this.logger.log(`Instance ID: ${this.instanceId}, Processing: ${this.isProcessing}`);
-            this.logger.log(`Processing like token transfer: ${amount} tokens from ${from} to ${to}`);
-
-            // 사용자 정보 조회
-            const user = await this.userService.findByWalletAddress(from);
-            if (!user) {
-                this.logger.warn(`User not found for wallet address: ${from}`);
-                return;
-            }
-
-            this.logger.log(`User found: ID ${user.id}, Available Token: ${user.availableToken}`);
-
-            // PostLikeSystem 컨트랙트 주소 확인
-            const postLikeSystemAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
-            const postLikeReceiverAddress = this.configService.get<string>('blockchain.contracts.postLikeReceiver.amoy');
-
-            // 좋아요 처리 (PostLikeSystem 또는 PostLikeReceiver로의 전송)
-            if (to === postLikeSystemAddress || to === postLikeReceiverAddress) {
-                this.logger.log(`PostLikeSystem transfer detected: ${amount} tokens from ${from} to ${to}`);
-                this.logger.log(`PostId cannot be determined from Transfer event - skipping post_like creation`);
-                this.logger.log(`PostLiked event will handle the actual like processing with correct postId`);
-
-                // Transfer 이벤트에서는 postId를 알 수 없으므로 처리하지 않음
-                // PostLiked 이벤트에서 올바른 postId로 처리됨
-                return;
-            }
-
-            // PostLikeSystem으로의 전송이 아닌 경우 일반 전송으로 처리
-            if (to !== postLikeSystemAddress && to !== postLikeReceiverAddress) {
-                this.logger.log(`Non-PostLikeSystem transfer, processing as regular transfer...`);
-
-                // 블록체인 이벤트를 토큰 거래 내역에 기록
-                const transactionDto: CreateTransactionDto = {
-                    userId: user.id,
-                    transactionType: TransactionType.TRANSFER_OUT,
-                    amount: -parseFloat(amount), // 차감이므로 음수
-                    balanceBefore: user.tokenAmount + parseFloat(amount), // 차감 전 잔액
-                    balanceAfter: user.tokenAmount, // 현재 잔액
-                    transactionHash,
-                    description: `Blockchain token transfer: ${amount} tokens sent`,
-                    metadata: {
-                        blockchainEvent: 'Transfer',
-                        from,
-                        to,
-                        amount,
-                        action: 'general_transfer',
-                    },
-                    referenceType: 'blockchain_event',
-                };
-
-                await this.tokenTransactionService.createTransaction(transactionDto);
-                this.logger.log(`General token transfer recorded for user: ${user.id}`);
-            }
-        } catch (error) {
-            this.logger.error(`Failed to process like token transfer: ${(error as Error).message}`);
-        }
-    }
+    // processLikeTokenTransfer 메서드는 더 이상 사용되지 않음
+    // PostLikeSystem으로의 전송은 PostLiked 이벤트에서 처리됨
+    // private async processLikeTokenTransfer(from: string, to: string, amount: string, transactionHash: string) { ... }
 
     private isLikeRelatedTransfer(from: string, to: string, amount: string): boolean {
         // PostLikeSystem 컨트랙트 주소 확인

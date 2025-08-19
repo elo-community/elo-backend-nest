@@ -130,6 +130,61 @@ export class UsersController {
         };
     }
 
+    /**
+     * 사용자 토큰 정보 조회
+     */
+    @Get(':id/tokens')
+    async getUserTokens(@Param('id') id: string, @CurrentUser() currentUser: JwtUser) {
+        try {
+            const userId = id === 'me' ? currentUser.id : parseInt(id);
+
+            if (!userId) {
+                return {
+                    success: false,
+                    message: 'Invalid user ID'
+                };
+            }
+
+            // 사용자 정보 조회
+            const user = await this.userService.findOne(userId);
+            if (!user) {
+                return {
+                    success: false,
+                    message: 'User not found'
+                };
+            }
+
+            // 사용자의 availableToken 업데이트 (accumulation에서 최신 데이터로)
+            if (!user.walletAddress) {
+                return {
+                    success: false,
+                    message: 'User wallet address not found'
+                };
+            }
+
+            await this.userService.updateAvailableTokens(user.walletAddress);
+
+            // 토큰 정보 조회
+            const tokenInfo = await this.userService.getUserTokenInfo(user.walletAddress);
+
+            return {
+                success: true,
+                data: {
+                    userId: user.id,
+                    walletAddress: user.walletAddress,
+                    totalTokens: tokenInfo.totalTokens,        // 총 보유 토큰 (token_amount)
+                    availableTokens: tokenInfo.availableTokens  // 클레임 가능한 토큰 (avail_token)
+                },
+                message: 'User token info retrieved successfully'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to get user token info: ${error.message}`
+            };
+        }
+    }
+
     @Post()
     async create(@Body() createUserDto: CreateUserDto) {
         const categories = await this.sportCategoryService.findAll();

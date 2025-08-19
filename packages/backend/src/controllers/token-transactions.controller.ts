@@ -7,6 +7,7 @@ import { CurrentUser } from '../auth/user.decorator';
 import { TrivusExpService } from '../blockchain/trivus-exp.service';
 import { TransactionType } from '../entities/token-transaction.entity';
 import { TokenTransactionService } from '../services/token-transaction.service';
+import { UserService } from '../services/user.service';
 
 // TrivusEXP1363 컨트랙트 ABI 상수 정의
 const TRIVUS_EXP_ABI = [
@@ -97,6 +98,7 @@ export class TokenTransactionsController {
     constructor(
         private readonly tokenTransactionService: TokenTransactionService,
         private readonly trivusExpService: TrivusExpService,
+        private readonly userService: UserService,
         private readonly configService: ConfigService,
     ) { }
 
@@ -235,6 +237,7 @@ export class TokenTransactionsController {
             // 사용자의 모든 누적 토큰을 한번에 수확하는 서명 생성
             const result = await this.trivusExpService.createTokenClaimSignature({
                 address: user.walletAddress,
+                reason: 'bulk_claim_accumulated_tokens'
             });
 
             // TrivusEXP1363 컨트랙트 주소 가져오기
