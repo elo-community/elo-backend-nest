@@ -1,17 +1,14 @@
 import { Body, Controller, HttpException, HttpStatus, Post } from '@nestjs/common';
 import { ethers } from 'ethers';
 import { PostLikeSystemService } from '../blockchain/post-like-system.service';
-
-export class CreateLikeSignatureDto {
-    postId: number;
-    userAddress: string;
-    amount: string; // wei 단위
-    deadline?: number; // 선택사항, 기본값은 1시간 후
-}
+import { TrivusExpService } from '../blockchain/trivus-exp.service';
 
 @Controller('post-like-signature')
 export class PostLikeSignatureController {
-    constructor(private readonly postLikeSystemService: PostLikeSystemService) { }
+    constructor(
+        private readonly postLikeSystemService: PostLikeSystemService,
+        private readonly trivusExpService: TrivusExpService
+    ) { }
 
     /**
      * 좋아요 데이터 생성 (ERC-1363용, 서명 없음)
@@ -24,15 +21,12 @@ export class PostLikeSignatureController {
             if (body.postId === undefined || body.postId === null || body.postId < 0) {
                 throw new HttpException('Invalid postId', HttpStatus.BAD_REQUEST);
             }
-
-            // ERC-1363 좋아요용: postId만 인코딩
             const encodedData = ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [body.postId]);
-
             return {
                 success: true,
                 data: {
                     postId: body.postId,
-                    encodedData: encodedData // ← 이것만 FE에서 transferAndCall에 사용
+                    encodedData: encodedData
                 },
                 message: 'Like data created successfully'
             };
@@ -50,48 +44,38 @@ export class PostLikeSignatureController {
      * @returns EIP-712 서명 데이터
      */
     @Post('create')
-    async createLikeSignature(@Body() createLikeSignatureDto: CreateLikeSignatureDto) {
+    async createLikeSignature(@Body() createLikeSignatureDto: {
+        postId: number;
+        userAddress: string;
+        amount: string;
+    }) {
         try {
-            // 1. 입력값 검증
-            if (!createLikeSignatureDto.postId || !createLikeSignatureDto.userAddress || !createLikeSignatureDto.amount) {
-                throw new HttpException('Missing required fields: postId, userAddress, amount', HttpStatus.BAD_REQUEST);
+            const { postId, userAddress, amount } = createLikeSignatureDto;
+
+            if (!postId || postId <= 0) {
+                throw new HttpException('Invalid postId', HttpStatus.BAD_REQUEST);
             }
 
-            // 2. 주소 형식 검증
-            if (!/^0x[a-fA-F0-9]{40}$/.test(createLikeSignatureDto.userAddress)) {
-                throw new HttpException('Invalid user address format', HttpStatus.BAD_REQUEST);
+            if (!userAddress || !ethers.isAddress(userAddress)) {
+                throw new HttpException('Invalid userAddress', HttpStatus.BAD_REQUEST);
             }
 
-            // 3. 게시글 ID 검증
-            if (createLikeSignatureDto.postId <= 0) {
-                throw new HttpException('Invalid post ID', HttpStatus.BAD_REQUEST);
+            if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+                throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
             }
 
-            // 4. 토큰 양 검증
-            if (!/^\d+$/.test(createLikeSignatureDto.amount) || BigInt(createLikeSignatureDto.amount) <= 0n) {
-                throw new HttpException('Invalid token amount', HttpStatus.BAD_REQUEST);
-            }
+            const deadline = Math.floor(Date.now() / 1000) + 300; // 5분 후 만료
 
-            // 5. deadline 설정 (기본값: 1시간 후)
-            const deadline = createLikeSignatureDto.deadline || Math.floor(Date.now() / 1000) + 3600;
-
-            // 6. 서명 생성
             const signatureData = await this.postLikeSystemService.createLikeSignature(
-                createLikeSignatureDto.postId,
-                createLikeSignatureDto.userAddress,
-                createLikeSignatureDto.amount,
+                postId,
+                userAddress,
+                amount,
                 deadline
             );
 
-            // 7. 프론트엔드에서 바로 사용할 수 있는 인코딩된 데이터 생성
             const encodedData = ethers.AbiCoder.defaultAbiCoder().encode(
-                ['uint256', 'uint256', 'bytes32', 'bytes'],
-                [
-                    signatureData.postId,
-                    signatureData.deadline,
-                    signatureData.nonce,
-                    signatureData.signature
-                ]
+                ['uint256', 'address', 'uint256', 'uint256', 'bytes32'],
+                [signatureData.postId, signatureData.to, ethers.parseUnits(signatureData.amount, 18), signatureData.deadline, signatureData.nonce]
             );
 
             return {
@@ -103,9 +87,7 @@ export class PostLikeSignatureController {
                     deadline: signatureData.deadline,
                     nonce: signatureData.nonce,
                     signature: signatureData.signature,
-                    // 프론트엔드에서 바로 사용할 수 있는 인코딩된 데이터
                     encodedData: encodedData,
-                    // 프론트엔드에서 사용할 수 있는 EIP-712 데이터
                     eip712Data: {
                         domain: signatureData.domain,
                         types: signatureData.types,
@@ -129,50 +111,92 @@ export class PostLikeSignatureController {
     }
 
     /**
-     * 좋아요 가격 조회
-     * @returns 좋아요 가격 (wei)
+     * TrivusEXP1363 토큰 클레임 서명 생성 (EIP-712용)
+     * @param createTokenClaimDto 토큰 클레임 서명 생성 요청 데이터
+     * @returns EIP-712 서명 데이터
      */
-    @Post('price')
-    async getLikePrice() {
+    @Post('token-claim/create')
+    async createTokenClaimSignature(@Body() createTokenClaimDto: {
+        address: string;
+        amount: string;
+        reason?: string;
+    }) {
         try {
-            const price = await this.postLikeSystemService.getLikePrice();
+            const { address, amount, reason } = createTokenClaimDto;
+
+            if (!address || !ethers.isAddress(address)) {
+                throw new HttpException('Invalid address', HttpStatus.BAD_REQUEST);
+            }
+
+            if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+                throw new HttpException('Invalid amount', HttpStatus.BAD_REQUEST);
+            }
+
+            const signatureData = await this.trivusExpService.createTokenClaimSignature({
+                address,
+                amount,
+                reason
+            });
+
             return {
                 success: true,
                 data: {
-                    price: price,
-                    priceInEther: (BigInt(price) / BigInt(10 ** 18)).toString()
+                    to: signatureData.to,
+                    amount: signatureData.amount,
+                    deadline: signatureData.deadline,
+                    nonce: signatureData.nonce,
+                    signature: signatureData.signature,
+                    eip712Data: {
+                        domain: {
+                            name: 'TrivusEXP1363',
+                            version: '1',
+                            chainId: 80002, // Polygon Amoy
+                            verifyingContract: await this.trivusExpService.getContractAddress()
+                        },
+                        types: {
+                            Claim: [
+                                { name: 'to', type: 'address' },
+                                { name: 'amount', type: 'uint256' },
+                                { name: 'deadline', type: 'uint256' },
+                                { name: 'nonce', type: 'bytes32' }
+                            ]
+                        },
+                        value: {
+                            to: signatureData.to,
+                            amount: ethers.parseUnits(signatureData.amount, 18),
+                            deadline: signatureData.deadline,
+                            nonce: signatureData.nonce
+                        }
+                    }
                 },
-                message: 'Like price retrieved successfully'
+                message: 'Token claim signature created successfully'
             };
         } catch (error) {
             throw new HttpException(
-                `Failed to get like price: ${error.message}`,
+                `Failed to create token claim signature: ${error.message}`,
                 HttpStatus.INTERNAL_SERVER_ERROR
             );
         }
     }
 
     /**
-     * 게시글 정보 조회
-     * @param body 게시글 ID와 사용자 주소
-     * @returns 게시글 정보
+     * 서비스 상태 확인
      */
-    @Post('post-info')
-    async getPostInfo(@Body() body: { postId: number; userAddress: string }) {
+    @Post('status')
+    async getServiceStatus() {
         try {
-            if (!body.postId || !body.userAddress) {
-                throw new HttpException('Missing required fields: postId, userAddress', HttpStatus.BAD_REQUEST);
-            }
+            const trivusExpStatus = await this.trivusExpService.getServiceStatus();
 
-            const postInfo = await this.postLikeSystemService.getPostInfo(body.postId, body.userAddress);
             return {
                 success: true,
-                data: postInfo,
-                message: 'Post info retrieved successfully'
+                data: {
+                    trivusExp: trivusExpStatus
+                },
+                message: 'Service status retrieved successfully'
             };
         } catch (error) {
             throw new HttpException(
-                `Failed to get post info: ${error.message}`,
+                `Failed to get service status: ${error.message}`,
                 HttpStatus.INTERNAL_SERVER_ERROR
             );
         }

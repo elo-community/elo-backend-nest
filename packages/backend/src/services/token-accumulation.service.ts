@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { TokenAccumulation, AccumulationType, AccumulationStatus } from '../entities/token-accumulation.entity';
+import { AccumulationStatus, AccumulationType, TokenAccumulation } from '../entities/token-accumulation.entity';
 
 export interface CreateAccumulationDto {
     walletAddress: string;
@@ -24,18 +24,18 @@ export class TokenAccumulationService {
     constructor(
         @InjectRepository(TokenAccumulation)
         private readonly tokenAccumulationRepository: Repository<TokenAccumulation>,
-    ) {}
+    ) { }
 
     /**
      * 사용자별 다음 nonce 조회
      */
-    async getNextNonce(walletAddress: string): Promise<bigint> {
+    async getNextNonce(walletAddress: string): Promise<string> {
         const lastAccumulation = await this.tokenAccumulationRepository.findOne({
             where: { walletAddress },
             order: { nonce: 'DESC' }
         });
 
-        return lastAccumulation ? lastAccumulation.nonce + 1n : 0n;
+        return (lastAccumulation ? lastAccumulation.nonce + 1n : 0n).toString();
     }
 
     /**
@@ -43,18 +43,18 @@ export class TokenAccumulationService {
      */
     async createAccumulation(dto: CreateAccumulationDto): Promise<TokenAccumulation> {
         const nonce = await this.getNextNonce(dto.walletAddress);
-        
+
         const accumulation = this.tokenAccumulationRepository.create({
             ...dto,
             amount: BigInt(dto.amount),
-            nonce,
+            nonce: BigInt(nonce), // string을 BigInt로 변환
             status: AccumulationStatus.PENDING,
             expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24시간 후 만료
         });
 
         const saved = await this.tokenAccumulationRepository.save(accumulation);
         this.logger.log(`Token accumulation created: ${dto.walletAddress}, amount: ${dto.amount}, nonce: ${nonce}`);
-        
+
         return saved;
     }
 
@@ -137,7 +137,7 @@ export class TokenAccumulationService {
         accumulations: TokenAccumulation[];
     }> {
         const claimableTokens = await this.getClaimableTokens(dto.walletAddress);
-        
+
         if (claimableTokens.length === 0) {
             throw new Error('No claimable tokens found');
         }
@@ -170,8 +170,8 @@ export class TokenAccumulationService {
      * 클레임 완료 처리
      */
     async markAsClaimed(
-        walletAddress: string, 
-        nonce: bigint, 
+        walletAddress: string,
+        nonce: bigint,
         txHash: string
     ): Promise<void> {
         const accumulation = await this.tokenAccumulationRepository.findOne({
@@ -203,7 +203,7 @@ export class TokenAccumulationService {
     /**
      * 사용자별 총 적립량 조회
      */
-    async getTotalAccumulatedAmount(walletAddress: string): Promise<bigint> {
+    async getTotalAccumulatedAmount(walletAddress: string): Promise<string> {
         const result = await this.tokenAccumulationRepository
             .createQueryBuilder('acc')
             .select('SUM(acc.amount)', 'total')
@@ -211,6 +211,6 @@ export class TokenAccumulationService {
             .andWhere('acc.status = :status', { status: AccumulationStatus.PENDING })
             .getRawOne();
 
-        return BigInt(result?.total || 0);
+        return BigInt(result?.total || 0).toString();
     }
 }

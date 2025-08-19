@@ -237,7 +237,7 @@ export class LikeEventService implements OnModuleInit {
             return;
         }
 
-        // 10초마다 최근 블록에서 이벤트 확인
+        // 30초마다 최근 블록에서 이벤트 확인 (로그 부담 줄이기)
         this.pollingInterval = setInterval(async () => {
             if (!this.isListening) {
                 if (this.pollingInterval) {
@@ -252,9 +252,9 @@ export class LikeEventService implements OnModuleInit {
             } catch (error) {
                 this.logger.error(`Error polling events: ${(error as Error).message}`);
             }
-        }, 5000); // 5초마다 (더 자주 확인)
+        }, 30000); // 30초마다 (로그 부담 줄이기)
 
-        this.logger.log(`Event polling started (5 second intervals) - Instance ID: ${this.instanceId}`);
+        this.logger.log(`Event polling started (30 second intervals) - Instance ID: ${this.instanceId}`);
     }
 
     private async pollRecentEvents() {
@@ -271,19 +271,15 @@ export class LikeEventService implements OnModuleInit {
 
             // 이미 처리한 블록은 건너뛰기
             if (this.lastProcessedBlock >= currentBlock) {
-                this.logger.debug(`Block ${currentBlock} already processed, skipping...`);
-                return;
+                return; // 로그 제거
             }
 
             const fromBlock = Math.max(this.lastProcessedBlock + 1, currentBlock - 1); // 마지막 처리 블록 + 1부터
             const toBlock = currentBlock;
 
-            this.logger.log(`Polling events from block ${fromBlock} to ${toBlock}`);
-
             // 블록 범위가 유효하지 않으면 건너뛰기
             if (fromBlock > toBlock) {
-                this.logger.debug(`Invalid block range: fromBlock ${fromBlock} > toBlock ${toBlock}`);
-                return;
+                return; // 로그 제거
             }
 
             // PostLikeEvent 이벤트 폴링 (getLogs 사용으로 필터 오류 방지)

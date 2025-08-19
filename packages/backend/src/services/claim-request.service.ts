@@ -89,11 +89,11 @@ export class ClaimRequestService {
      */
     async getExpiredClaimRequests(): Promise<ClaimRequest[]> {
         try {
-            const currentTime = BigInt(Math.floor(Date.now() / 1000));
+            const currentTime = Math.floor(Date.now() / 1000);
             return await this.claimRequestRepository.find({
                 where: {
                     status: ClaimStatus.PENDING,
-                    deadline: currentTime
+                    deadline: BigInt(currentTime)
                 }
             });
         } catch (error) {

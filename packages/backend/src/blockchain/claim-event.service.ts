@@ -66,14 +66,14 @@ export class ClaimEventService implements OnModuleInit {
                         {
                             "indexed": false,
                             "internalType": "uint256",
-                            "name": "nonce",
+                            "name": "deadline",
                             "type": "uint256"
                         },
                         {
                             "indexed": false,
-                            "internalType": "bytes",
-                            "name": "signature",
-                            "type": "bytes"
+                            "internalType": "bytes32",
+                            "name": "nonce",
+                            "type": "bytes32"
                         }
                     ],
                     "name": "ClaimExecuted",
@@ -110,7 +110,7 @@ export class ClaimEventService implements OnModuleInit {
     }
 
     private startEventPolling() {
-        const pollIntervalMs = 5000; // 5초
+        const pollIntervalMs = 15000; // 15초 (이벤트 감지 빠르게)
         const interval = setInterval(async () => {
             if (!this.isListening) {
                 clearInterval(interval);
@@ -124,28 +124,31 @@ export class ClaimEventService implements OnModuleInit {
             }
         }, pollIntervalMs);
 
-        this.logger.log('ClaimExecuted event polling started (5s intervals)');
+        this.logger.log('ClaimExecuted event polling started (15s intervals)');
     }
 
     private async pollRecentEvents() {
         try {
             const currentBlock = await this.provider.getBlockNumber();
-            const fromBlock = Math.max(0, currentBlock - 1); // 최대 1블록 전까지만 폴링
+            const fromBlock = Math.max(0, currentBlock - 10); // 최대 10블록 전까지 폴링 (이벤트 놓침 방지)
             const toBlock = currentBlock;
 
-            this.logger.log(`Polling ClaimExecuted from block ${fromBlock} to ${toBlock}`);
-
-            // ClaimExecuted 이벤트 폴링
+            // ClaimExecuted 이벤트 폴링 (TrivusEXP1363 컨트랙트와 일치)
             let claimEvents: any[] = [];
             try {
                 claimEvents = await this.provider.getLogs({
                     address: this.trivusExpContract.target,
                     topics: [
-                        ethers.id('ClaimExecuted(address,uint256,uint256,bytes)')
+                        ethers.id('ClaimExecuted(address,uint256,uint256,bytes32)')
                     ],
                     fromBlock: fromBlock,
                     toBlock: toBlock
                 });
+
+                // 디버깅: 폴링 결과 로그
+                if (claimEvents.length > 0) {
+                    this.logger.log(`Found ${claimEvents.length} ClaimExecuted events in blocks ${fromBlock}-${toBlock}`);
+                }
             } catch (error) {
                 this.logger.error(`Failed to get logs for ClaimExecuted: ${error.message}`);
                 return;
@@ -159,10 +162,10 @@ export class ClaimEventService implements OnModuleInit {
 
                     const to: string = parsed.args[0] as string;
                     const amount: bigint = parsed.args[1] as bigint;
-                    const nonce: string = parsed.args[2] as string; // nonce는 이제 string 타입
-                    // const signature: string = parsed.args[3] as string; // 필요 시 사용
+                    const deadline: bigint = parsed.args[2] as bigint;
+                    const nonce: string = parsed.args[3] as string; // nonce는 bytes32 타입
 
-                    this.logger.log(`ClaimExecuted event detected: to=${to}, amount=${ethers.formatEther(amount)} EXP, nonce=${nonce}`);
+                    this.logger.log(`ClaimExecuted event detected: to=${to}, amount=${ethers.formatEther(amount)} EXP, deadline=${deadline}, nonce=${nonce}`);
 
                     // DB에서 claim request 상태 업데이트
                     await this.claimRequestService.updateClaimStatus(

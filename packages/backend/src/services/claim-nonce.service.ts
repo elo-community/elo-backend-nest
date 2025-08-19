@@ -41,7 +41,7 @@ export class ClaimNonceService {
             nonceRecord.currentNonce = nonceRecord.currentNonce + BigInt(1);
             await this.claimNonceRepository.save(nonceRecord);
 
-            this.logger.log(`Generated random nonce for ${walletAddress}: ${nonceHex} (count: ${nonceRecord.currentNonce})`);
+            this.logger.log(`Generated random nonce for ${walletAddress}: ${nonceHex} (count: ${nonceRecord.currentNonce.toString()})`);
             return nonceHex;
         } catch (error) {
             this.logger.error(`Failed to get next nonce for ${walletAddress}: ${error.message}`);
@@ -62,7 +62,7 @@ export class ClaimNonceService {
                 // lastUsedNonce는 사용된 nonce 개수를 추적
                 nonceRecord.lastUsedNonce = nonceRecord.lastUsedNonce + BigInt(1);
                 await this.claimNonceRepository.save(nonceRecord);
-                this.logger.log(`Marked nonce ${nonce} as used for ${walletAddress} (total used: ${nonceRecord.lastUsedNonce})`);
+                this.logger.log(`Marked nonce ${nonce} as used for ${walletAddress} (total used: ${nonceRecord.lastUsedNonce.toString()})`);
             }
         } catch (error) {
             this.logger.error(`Failed to mark nonce as used: ${error.message}`);
@@ -72,7 +72,7 @@ export class ClaimNonceService {
     /**
      * 사용자의 nonce 상태 조회
      */
-    async getNonceStatus(walletAddress: string): Promise<{ generated: bigint; used: bigint } | null> {
+    async getNonceStatus(walletAddress: string): Promise<{ generated: string; used: string } | null> {
         try {
             const nonceRecord = await this.claimNonceRepository.findOne({
                 where: { walletAddress }
@@ -83,8 +83,8 @@ export class ClaimNonceService {
             }
 
             return {
-                generated: nonceRecord.currentNonce,  // 생성된 nonce 개수
-                used: nonceRecord.lastUsedNonce      // 사용된 nonce 개수
+                generated: nonceRecord.currentNonce.toString(),  // 생성된 nonce 개수
+                used: nonceRecord.lastUsedNonce.toString()      // 사용된 nonce 개수
             };
         } catch (error) {
             this.logger.error(`Failed to get nonce status for ${walletAddress}: ${error.message}`);

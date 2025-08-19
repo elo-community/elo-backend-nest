@@ -135,7 +135,7 @@ export class PostLikeSystemService {
                 to: userAddress,
                 amount,
                 deadline,
-                nonce,
+                nonce: nonce.toString(), // string으로 변환
                 signature,
                 domain,
                 types

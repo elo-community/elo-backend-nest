@@ -65,7 +65,7 @@ export class TrivusExpService {
             this.contractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy') || '';
             this.logger.log(`[DEBUG] Contract address: ${this.contractAddress}`);
 
-            // 컨트랙트 ABI (실제 TrivusEXP 컨트랙트와 일치)
+            // 컨트랙트 ABI (새로운 TrivusEXP1363와 일치)
             const contractABI = [
                 // ERC20 기본 함수들
                 {
@@ -103,7 +103,7 @@ export class TrivusExpService {
                     "stateMutability": "view",
                     "type": "function"
                 },
-                // TrivusEXP 전용 함수들
+                // TrivusEXP1363 전용 함수들
                 {
                     "inputs": [],
                     "name": "trustedSigner",
@@ -115,18 +115,18 @@ export class TrivusExpService {
                     "inputs": [
                         { "internalType": "address", "name": "to", "type": "address" },
                         { "internalType": "uint256", "name": "amount", "type": "uint256" },
-                        { "internalType": "uint256", "name": "nonce", "type": "uint256" },
                         { "internalType": "uint256", "name": "deadline", "type": "uint256" },
+                        { "internalType": "bytes32", "name": "nonce", "type": "bytes32" },
                         { "internalType": "bytes", "name": "signature", "type": "bytes" }
                     ],
-                    "name": "claim",
-                    "outputs": [],
+                    "name": "claimWithSignature",
+                    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
                     "stateMutability": "nonpayable",
                     "type": "function"
                 },
                 {
                     "inputs": [{ "internalType": "address", "name": "user", "type": "address" }],
-                    "name": "getNonce",
+                    "name": "nonces",
                     "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                     "stateMutability": "view",
                     "type": "function"
@@ -154,21 +154,19 @@ export class TrivusExpService {
             // EIP-712 도메인 설정
             const chainId = this.configService.get<number>('blockchain.amoy.chainId');
             const domain = {
-                name: 'Trivus EXP Token',
+                name: 'TrivusEXP1363',
                 version: '1',
                 chainId: chainId,
                 verifyingContract: this.contractAddress
             };
 
-            // 서명할 데이터 타입 (컨트랙트와 일치)
+            // 서명할 데이터 타입 (새로운 컨트랙트와 일치)
             const types = {
                 Claim: [
                     { name: 'to', type: 'address' },
                     { name: 'amount', type: 'uint256' },
-                    { name: 'nonce', type: 'uint256' },
                     { name: 'deadline', type: 'uint256' },
-                    { name: 'chainId', type: 'uint256' },
-                    { name: 'contractAddr', type: 'address' }
+                    { name: 'nonce', type: 'bytes32' }
                 ]
             };
 
@@ -176,32 +174,18 @@ export class TrivusExpService {
             const deadline = Math.floor(Date.now() / 1000) + 3600; // 1시간 후 만료
             const amountWei = ethers.parseEther(amount);
 
-            // 예측 불가능한 nonce 생성
+            // 예측 불가능한 nonce 생성 (32바이트 hex)
             const nonce = await this.claimNonceService.getNextNonce(address);
 
             const value = {
                 to: address,
                 amount: amountWei,
-                nonce: nonce,
                 deadline,
-                chainId: chainId,
-                contractAddr: this.contractAddress
+                nonce: nonce.toString() // BigInt를 string으로 변환
             };
 
-            // EIP-712 서명 생성 (ENS 에러 방지)
-            let signature: string;
-            try {
-                signature = await this.trustedSigner.signTypedData(domain, types, value);
-            } catch (error) {
-                if (error.message && error.message.includes('network does not support ENS')) {
-                    this.logger.warn('ENS not supported, using alternative signing method');
-                    // ENS를 사용하지 않는 대체 서명 방법
-                    const messageHash = ethers.hashMessage(`${address}-${amount}-${deadline}`);
-                    signature = await this.trustedSigner.signMessage(messageHash);
-                } else {
-                    throw error;
-                }
-            }
+            // EIP-712 서명 생성
+            const signature = await this.trustedSigner.signTypedData(domain, types, value);
 
             this.logger.log(`Token claim signature created for ${address}: ${amount} EXP`);
 
@@ -220,7 +204,7 @@ export class TrivusExpService {
                 amount,
                 deadline,
                 signature,
-                nonce
+                nonce: nonce.toString() // BigInt를 string으로 변환
             };
         } catch (error) {
             this.logger.error(`Failed to create token claim signature: ${(error as Error).message}`);
@@ -236,14 +220,8 @@ export class TrivusExpService {
             const { to, amount, nonce, deadline, signature } = claimSignature;
             const amountWei = ethers.parseEther(amount);
 
-            // 서명 유효성 검증
-            // const isValid = await this.contract.verifySignature(to, amountWei, deadline, signature); // Removed verifySignature
-            // if (!isValid) {
-            //     throw new Error('Invalid signature for token claim');
-            // }
-
-            // 토큰 지급 실행
-            const tx = await this.contract.claim(to, amountWei, nonce, deadline, signature);
+            // 새로운 claimWithSignature 함수 호출
+            const tx = await this.contract.claimWithSignature(to, amountWei, deadline, nonce, signature);
             await tx.wait();
 
             this.logger.log(`Tokens claimed successfully: ${amount} EXP to ${to}, TX: ${tx.hash}`);
@@ -319,10 +297,10 @@ export class TrivusExpService {
 
             this.logger.log(`[DEBUG] Signature not expired, proceeding with verification`);
 
-            // EIP-712 서명 검증 (signTypedData로 생성된 서명 검증)
+            // EIP-712 서명 검증 (새로운 컨트랙트와 일치)
             const chainId = this.configService.get<number>('blockchain.amoy.chainId');
             const domain = {
-                name: 'Trivus EXP Token',
+                name: 'TrivusEXP1363',
                 version: '1',
                 chainId: chainId,
                 verifyingContract: this.contractAddress
@@ -332,16 +310,16 @@ export class TrivusExpService {
                 Claim: [
                     { name: 'to', type: 'address' },
                     { name: 'amount', type: 'uint256' },
-                    { name: 'nonce', type: 'uint256' },
-                    { name: 'deadline', type: 'uint256' }
+                    { name: 'deadline', type: 'uint256' },
+                    { name: 'nonce', type: 'bytes32' }
                 ]
             };
 
             const value = {
                 to,
                 amount: ethers.parseEther(amount),
-                nonce: BigInt(nonce),
-                deadline
+                deadline,
+                nonce
             };
 
             this.logger.log(`[DEBUG] EIP-712 verification data:`);
@@ -350,10 +328,11 @@ export class TrivusExpService {
             this.logger.log(`[DEBUG]   Value: ${JSON.stringify({
                 to: value.to,
                 amount: value.amount.toString(),
-                deadline: value.deadline
+                deadline: value.deadline,
+                nonce: value.nonce
             })}`);
 
-            // signTypedData로 생성된 서명 검증 (ENS 에러 방지)
+            // signTypedData로 생성된 서명 검증
             let recoveredAddress: string;
             try {
                 recoveredAddress = ethers.verifyTypedData(domain, types, value, signature);
