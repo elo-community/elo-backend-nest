@@ -21,41 +21,100 @@ export const awsConfig = registerAs('aws', () => ({
 }));
 
 export const blockchainConfig = registerAs('blockchain', () => ({
+    // 현재 활성화된 네트워크 (기본값: amoy)
+    activeNetwork: process.env.ACTIVE_NETWORK || 'amoy',
+
+    // Polygon Amoy Testnet
     amoy: {
-        rpcUrl: process.env.RPC_AMOY,
-        chainId: parseInt(process.env.AMOY_CHAIN_ID || '80002', 10),
+        name: 'Polygon Amoy Testnet',
+        rpcUrl: process.env.RPC_AMOY || 'https://rpc-amoy.polygon.technology',
+        chainId: parseInt(process.env.CHAIN_AMOY_ID || '80002', 10),
+        explorer: 'https://www.oklink.com/amoy',
+        nativeCurrency: {
+            name: 'MATIC',
+            symbol: 'MATIC',
+            decimals: 18
+        }
     },
+
+    // Very Testnet
     very: {
-        rpcUrl: process.env.RPC_VERY,
-        chainId: parseInt(process.env.VERY_CHAIN_ID || '80002', 10),
+        name: 'Very Testnet',
+        rpcUrl: process.env.RPC_VERY || 'https://rpc.very.network',
+        chainId: parseInt(process.env.CHAIN_VERY_ID || '80002', 10),
+        explorer: 'https://explorer.very.network',
+        nativeCurrency: {
+            name: 'VERY',
+            symbol: 'VERY',
+            decimals: 18
+        }
     },
+
+    // 관리자 계정
     admin: {
         privateKey: process.env.ADMIN_PRIV_KEY,
+        address: process.env.ADMIN_ADDRESS,
     },
+
+    // 서명자 계정
     signer: {
         privateKey: process.env.SIGNER_PRIV_KEY,
+        address: process.env.SIGNER_ADDRESS,
     },
+
+    // 신뢰할 수 있는 서명자
     trustedSigner: {
         privateKey: process.env.TRUSTED_SIGNER_PRIV_KEY,
+        address: process.env.TRUSTED_SIGNER_ADDRESS,
     },
+
+    // 컨트랙트 주소들
     contracts: {
-        distributor: {
-            amoy: process.env.DISTRIBUTOR_AMOY,
-            very: process.env.DISTRIBUTOR_VERY,
-        },
-        rewardPool: {
-            amoy: process.env.REWARD_POOL_AMOY,
-            very: process.env.REWARD_POOL_VERY,
-        },
+        // 토큰 컨트랙트
         trivusExp: {
             amoy: process.env.TRIVUS_EXP_1363_AMOY,
             very: process.env.TRIVUS_EXP_VERY,
         },
+
+        // 좋아요 시스템 컨트랙트
         postLikeSystem: {
             amoy: process.env.POST_LIKE_SYSTEM_AMOY,
             very: process.env.POST_LIKE_SYSTEM_VERY,
         },
+
+        // 분배자 컨트랙트
+        distributor: {
+            amoy: process.env.DISTRIBUTOR_AMOY,
+            very: process.env.DISTRIBUTOR_VERY,
+        },
+
+        // 리워드 풀 컨트랙트
+        rewardPool: {
+            amoy: process.env.REWARD_POOL_AMOY,
+            very: process.env.REWARD_POOL_VERY,
+        },
     },
+
+    // 네트워크별 설정
+    networkSettings: {
+        // 폴링 간격 (밀리초)
+        pollingInterval: parseInt(process.env.BLOCKCHAIN_POLLING_INTERVAL || '15000', 10),
+
+        // 블록 확인 범위
+        blockRange: parseInt(process.env.BLOCKCHAIN_BLOCK_RANGE || '10', 10),
+
+        // 가스 가격 설정
+        gasPrice: {
+            amoy: process.env.GAS_PRICE_AMOY || 'auto',
+            very: process.env.GAS_PRICE_VERY || 'auto',
+        },
+
+        // 가스 한도 설정
+        gasLimit: {
+            amoy: parseInt(process.env.GAS_LIMIT_AMOY || '300000', 10),
+            very: parseInt(process.env.GAS_LIMIT_VERY || '300000', 10),
+        }
+    }
 }));
 
 export const appConfig = registerAs('app', () => ({

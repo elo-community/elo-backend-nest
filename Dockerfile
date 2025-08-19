@@ -38,16 +38,17 @@ FROM node:20-alpine AS production
 
 WORKDIR /usr/src/app
 
-# Copy package files
-COPY package*.json ./
+# Copy backend package files for production dependencies
 COPY packages/backend/package*.json ./
 
 # Set environment variables from build args
-ARG ENV_CONTENT
-ENV ENV_CONTENT=$ENV_CONTENT
+ARG NODE_ENV=production
+ARG ACTIVE_NETWORK=amoy
+ENV NODE_ENV=$NODE_ENV
+ENV ACTIVE_NETWORK=$ACTIVE_NETWORK
 
-# Install only production dependencies
-RUN npm ci --only=production
+# Install only production dependencies for backend
+RUN npm ci --only=production --ignore-scripts
 
 # Copy built backend from builder stage
 COPY --from=backend-builder /app/packages/backend/dist ./dist
