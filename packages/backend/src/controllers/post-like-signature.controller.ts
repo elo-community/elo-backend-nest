@@ -96,6 +96,36 @@ const POST_LIKE_SYSTEM_ABI = [
 ];
 
 const TRIVUS_EXP_ABI = [
+    // transferAndCall 함수 (ERC-1363)
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "to",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+            },
+            {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+            }
+        ],
+        "name": "transferAndCall",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
     // claimWithSignature 함수
     {
         "inputs": [
@@ -198,18 +228,20 @@ export class PostLikeSignatureController {
             if (body.postId === undefined || body.postId === null || body.postId < 0) {
                 throw new HttpException('Invalid postId', HttpStatus.BAD_REQUEST);
             }
+
+            // PostLikeSystem1363.sol의 data 형식: (postId만)
             const encodedData = ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [body.postId]);
 
-            // PostLikeSystem1363 컨트랙트 주소 가져오기
-            const postLikeSystemAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
+            // TrivusEXP1363 토큰 컨트랙트 주소 가져오기
+            const tokenContractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
 
             return {
                 success: true,
                 data: {
                     postId: body.postId,
                     encodedData: encodedData,
-                    contractAddress: postLikeSystemAddress,
-                    contractABI: POST_LIKE_SYSTEM_ABI
+                    contractAddress: tokenContractAddress,
+                    contractABI: TRIVUS_EXP_ABI
                 },
                 message: 'Like data created successfully'
             };
