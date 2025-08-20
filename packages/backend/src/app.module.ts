@@ -16,6 +16,7 @@ import { CommentLikesController } from './controllers/comment-likes.controller';
 import { CommentsController } from './controllers/comments.controller';
 import { HotPostRewardController } from './controllers/hot-post-reward.controller';
 import { ImageController } from './controllers/image.controller';
+import { MatchPostController } from './controllers/match-post.controller';
 import { MatchResultsController, UserMatchesController } from './controllers/match-results.controller';
 import { PostHatesController } from './controllers/post-hates.controller';
 import { PostLikeSignatureController } from './controllers/post-like-signature.controller';
@@ -35,11 +36,12 @@ import { CommentLike } from './entities/comment-like.entity';
 import { Comment } from './entities/comment.entity';
 import { HotPostReward } from './entities/hot-post-reward.entity';
 import { HotPost } from './entities/hot-post.entity';
+import { MatchRequest } from './entities/match-request.entity';
 import { MatchResultHistory } from './entities/match-result-history.entity';
 import { MatchResult } from './entities/match-result.entity';
 import { PostHate } from './entities/post-hate.entity';
 import { PostLike } from './entities/post-like.entity';
-import { Post } from './entities/post.entity';
+import { Post, PostType } from './entities/post.entity';
 import { Reply } from './entities/reply.entity';
 import { SportCategory } from './entities/sport-category.entity';
 import { TempImage } from './entities/temp-image.entity';
@@ -55,6 +57,7 @@ import { RealTimeHotPostsScheduler } from './schedulers/real-time-hot-posts.sche
 import { TempImageCleanupScheduler } from './schedulers/temp-image-cleanup.scheduler';
 import { CommentLikeService } from './services/comment-like.service';
 import { CommentService } from './services/comment.service';
+import { MatchPostService } from './services/match-post.service';
 import { MatchResultService } from './services/match-result.service';
 import { PostHateService } from './services/post-hate.service';
 import { PostService } from './services/post.service';
@@ -92,7 +95,7 @@ import { UserService } from './services/user.service';
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([
-      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost, HotPostReward, TokenTransaction, ClaimNonce, ClaimRequest
+      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost, HotPostReward, TokenTransaction, ClaimNonce, ClaimRequest, MatchRequest
     ]),
     AuthModule,
     EloModule,
@@ -100,10 +103,10 @@ import { UserService } from './services/user.service';
     RewardsModule,
   ],
   controllers: [
-    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, HotPostRewardController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController
+    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, HotPostRewardController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController, MatchPostController
   ],
   providers: [
-    PostService, CommentService, ReplyService, SportCategoryService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TokenTransactionService
+    PostService, CommentService, ReplyService, SportCategoryService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TokenTransactionService, MatchPostService
   ],
 })
 export class AppModule implements OnModuleInit {
@@ -223,36 +226,36 @@ export class AppModule implements OnModuleInit {
     const categories = await this.sportCategoryService.findAll();
     const samplePosts = [
       // 자유글
-      { title: '안녕하세요!', content: '처음 가입했습니다. 반갑습니다!', categoryName: '자유글', type: '일반' },
-      { title: '오늘 날씨가 좋네요', content: '산책하기 좋은 날씨입니다.', categoryName: '자유글', type: '일반' },
+      { title: '안녕하세요!', content: '처음 가입했습니다. 반갑습니다!', categoryName: '자유글', type: PostType.GENERAL },
+      { title: '오늘 날씨가 좋네요', content: '산책하기 좋은 날씨입니다.', categoryName: '자유글', type: PostType.GENERAL },
 
       // 테니스
-      { title: '테니스 레슨 후기', content: '오늘 테니스 레슨 받았는데 정말 재미있었어요!', categoryName: '테니스', type: '일반' },
-      { title: '테니스 라켓 추천', content: '초보자용 테니스 라켓 추천해주세요.', categoryName: '테니스', type: '일반' },
+      { title: '테니스 레슨 후기', content: '오늘 테니스 레슨 받았는데 정말 재미있었어요!', categoryName: '테니스', type: PostType.GENERAL },
+      { title: '테니스 라켓 추천', content: '초보자용 테니스 라켓 추천해주세요.', categoryName: '테니스', type: PostType.GENERAL },
 
       // 배드민턴
-      { title: '배드민턴 동호회 모집', content: '배드민턴 동호회에 가입하고 싶습니다.', categoryName: '배드민턴', type: '일반' },
-      { title: '배드민턴 기술 팁', content: '배드민턴 서브 기술을 연마하고 있습니다.', categoryName: '배드민턴', type: '일반' },
+      { title: '배드민턴 동호회 모집', content: '배드민턴 동호회에 가입하고 싶습니다.', categoryName: '배드민턴', type: PostType.GENERAL },
+      { title: '배드민턴 기술 팁', content: '배드민턴 서브 기술을 연마하고 있습니다.', categoryName: '배드민턴', type: PostType.GENERAL },
 
       // 탁구
-      { title: '탁구 대회 정보', content: '다음 달에 탁구 대회가 열린다고 하네요.', categoryName: '탁구', type: '일반' },
-      { title: '탁구 연습 방법', content: '탁구 연습을 위한 좋은 방법이 있을까요?', categoryName: '탁구', type: '일반' },
+      { title: '탁구 대회 정보', content: '다음 달에 탁구 대회가 열린다고 하네요.', categoryName: '탁구', type: PostType.GENERAL },
+      { title: '탁구 연습 방법', content: '탁구 연습을 위한 좋은 방법이 있을까요?', categoryName: '탁구', type: PostType.GENERAL },
 
       // 당구
-      { title: '당구장 추천', content: '좋은 당구장 추천해주세요.', categoryName: '당구', type: '일반' },
-      { title: '당구 기술 연습', content: '당구 기술을 연마하고 있습니다.', categoryName: '당구', type: '일반' },
+      { title: '당구장 추천', content: '좋은 당구장 추천해주세요.', categoryName: '당구', type: PostType.GENERAL },
+      { title: '당구 기술 연습', content: '당구 기술을 연마하고 있습니다.', categoryName: '당구', type: PostType.GENERAL },
 
       // 바둑
-      { title: '바둑 동호회', content: '바둑 동호회에 가입하고 싶습니다.', categoryName: '바둑', type: '일반' },
-      { title: '바둑 기보 공유', content: '재미있는 바둑 기보를 공유합니다.', categoryName: '바둑', type: '일반' },
+      { title: '바둑 동호회', content: '바둑 동호회에 가입하고 싶습니다.', categoryName: '바둑', type: PostType.GENERAL },
+      { title: '바둑 기보 공유', content: '재미있는 바둑 기보를 공유합니다.', categoryName: '바둑', type: PostType.GENERAL },
 
       // 체스
-      { title: '체스 대회 정보', content: '체스 대회가 열린다고 하네요.', categoryName: '체스', type: '일반' },
-      { title: '체스 전략', content: '체스 전략에 대해 이야기해보세요.', categoryName: '체스', type: '일반' },
+      { title: '체스 대회 정보', content: '체스 대회가 열린다고 하네요.', categoryName: '체스', type: PostType.GENERAL },
+      { title: '체스 전략', content: '체스 전략에 대해 이야기해보세요.', categoryName: '체스', type: PostType.GENERAL },
 
       // 공지사항
-      { title: '커뮤니티 이용 안내', content: '커뮤니티 이용 시 주의사항을 확인해주세요.', categoryName: '공지사항', type: '일반' },
-      { title: '새로운 기능 안내', content: '새로운 기능이 추가되었습니다.', categoryName: '공지사항', type: '일반' },
+      { title: '커뮤니티 이용 안내', content: '커뮤니티 이용 시 주의사항을 확인해주세요.', categoryName: '공지사항', type: PostType.GENERAL },
+      { title: '새로운 기능 안내', content: '새로운 기능이 추가되었습니다.', categoryName: '공지사항', type: PostType.GENERAL },
     ];
 
     for (const postData of samplePosts) {
