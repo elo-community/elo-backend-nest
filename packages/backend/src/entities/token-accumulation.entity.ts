@@ -1,8 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 export enum AccumulationType {
     HOT_POST_REWARD = 'hot_post_reward',
     LIKE_REWARD = 'like_reward',
+    TUTORIAL_FIRST_POST = 'tutorial_first_post',
+    TUTORIAL_FIRST_MATCH = 'tutorial_first_match',
     CUSTOM = 'custom'
 }
 

@@ -34,6 +34,19 @@ export class User {
     @Column({ type: 'varchar', length: 255, name: 'profile_image_url', nullable: true })
     profileImageUrl?: string;
 
+    // 튜토리얼 완료 상태 추적
+    @Column({ type: 'boolean', name: 'tutorial_first_post_completed', default: false })
+    tutorialFirstPostCompleted!: boolean;
+
+    @Column({ type: 'boolean', name: 'tutorial_first_match_completed', default: false })
+    tutorialFirstMatchCompleted!: boolean;
+
+    @Column({ type: 'timestamp', name: 'tutorial_first_post_completed_at', nullable: true })
+    tutorialFirstPostCompletedAt?: Date;
+
+    @Column({ type: 'timestamp', name: 'tutorial_first_match_completed_at', nullable: true })
+    tutorialFirstMatchCompletedAt?: Date;
+
     @OneToMany(() => Comment, (comment) => comment.user)
     comments?: Comment[];
 

@@ -11,6 +11,7 @@ import { User } from '../entities/user.entity';
 import { PostHateService } from './post-hate.service';
 import { PostLikeService } from './post-like.service';
 import { TempImageService } from './temp-image.service';
+import { UserService } from './user.service';
 
 @Injectable()
 export class PostService {
@@ -29,6 +30,7 @@ export class PostService {
         private readonly postLikeService: PostLikeService,
         private readonly postHateService: PostHateService,
         private readonly tempImageService: TempImageService,
+        private readonly userService: UserService,
     ) { }
 
     async findAll(query?: PostQueryDto): Promise<PaginationResponseDto<Post>> {
@@ -131,6 +133,14 @@ export class PostService {
 
         // 사용되지 않은 임시 이미지들 정리
         await this.tempImageService.cleanupUnusedImages(usedImageUrls, user.id);
+
+        // 첫글 작성 시 튜토리얼 완료 체크 및 토큰 지급
+        try {
+            await this.userService.completeTutorialFirstPost(user.id);
+        } catch (error) {
+            // 이미 완료된 경우나 다른 오류는 무시 (로그만 남김)
+            console.log(`Tutorial first post check failed for user ${user.id}: ${error.message}`);
+        }
 
         return savedPost;
     }
