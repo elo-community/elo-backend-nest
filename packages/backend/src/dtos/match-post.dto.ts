@@ -60,3 +60,8 @@ export class MatchResponseDto {
     @IsString()
     responseMessage?: string;
 }
+
+export class GetRecommendedMatchPostsDto {
+    sport?: number;
+    limit?: number;
+}

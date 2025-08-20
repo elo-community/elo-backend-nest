@@ -115,6 +115,7 @@ export class AppModule implements OnModuleInit {
     private readonly userService: UserService,
     private readonly postService: PostService,
     private readonly matchResultService: MatchResultService,
+    private readonly matchPostService: MatchPostService,
   ) { }
 
   async onModuleInit() {
@@ -269,5 +270,72 @@ export class AppModule implements OnModuleInit {
         }, user);
       }
     }
+
+    // 매치글 샘플 데이터 추가
+    await this.createSampleMatchPosts(user, categories);
+  }
+
+  private async createSampleMatchPosts(user: any, categories: any[]) {
+    // 기존 매치글이 있는지 확인
+    const existingMatchPosts = await this.postService.findAll({ type: PostType.MATCH });
+    if (existingMatchPosts.data.length > 0) {
+      console.log('이미 매치글이 존재합니다. 샘플 매치글 생성을 건너뜁니다.');
+      return;
+    }
+
+    const sampleMatchPosts = [
+      {
+        title: '테니스 2:2 매칭 구합니다',
+        content: '강남구 테니스장에서 2:2 매칭 구합니다. 실력은 중급 정도이고, 즐겁게 치고 싶습니다.',
+        categoryName: '테니스',
+        matchLocation: '강남구 테니스장',
+        myElo: 1200,
+        preferredElo: 'similar',
+        participantCount: 4,
+        deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1주일 후
+        matchDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3일 후
+      },
+      {
+        title: '탁구 1:1 연습 상대 구합니다',
+        content: '서초구 탁구장에서 1:1 연습 상대를 구합니다. 초급자도 환영합니다.',
+        categoryName: '탁구',
+        matchLocation: '서초구 탁구장',
+        myElo: 800,
+        preferredElo: 'any',
+        participantCount: 2,
+        deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5일 후
+        matchDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000) // 2일 후
+      },
+      {
+        title: '배드민턴 복식 파트너 구합니다',
+        content: '마포구 배드민턴장에서 복식 파트너를 구합니다. 여성 선수 우선입니다.',
+        categoryName: '배드민턴',
+        matchLocation: '마포구 배드민턴장',
+        myElo: 1000,
+        preferredElo: 'similar',
+        participantCount: 2,
+        deadline: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10일 후
+        matchDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000) // 4일 후
+      }
+    ];
+
+    for (const matchPostData of sampleMatchPosts) {
+      const category = categories.find(cat => cat.name === matchPostData.categoryName);
+      if (category) {
+        await this.matchPostService.createMatchPost({
+          title: matchPostData.title,
+          content: matchPostData.content,
+          sportCategoryId: category.id,
+          matchLocation: matchPostData.matchLocation,
+          myElo: matchPostData.myElo,
+          preferredElo: matchPostData.preferredElo,
+          participantCount: matchPostData.participantCount,
+          deadline: matchPostData.deadline.toISOString(),
+          matchDate: matchPostData.matchDate.toISOString()
+        }, user);
+      }
+    }
+
+    console.log('✅ 샘플 매치글 3개가 생성되었습니다.');
   }
 }
