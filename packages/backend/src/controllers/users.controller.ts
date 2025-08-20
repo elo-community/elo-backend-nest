@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Request, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { Public } from 'src/auth/public.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
@@ -246,6 +246,16 @@ export class UsersController {
             pagination: matchHistory.pagination,
             message: 'Match history retrieved successfully'
         };
+    }
+
+    @Get('tutorial-status')
+    @UseGuards(JwtAuthGuard)
+    async getTutorialStatus(@Request() req: any) {
+        const user = await this.userService.findById(req.user.id);
+        if (!user) {
+            throw new Error('User not found');
+        }
+        return this.userService.getTutorialStatus(user.id);
     }
 
     @Delete(':id')

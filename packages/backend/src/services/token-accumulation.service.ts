@@ -113,6 +113,58 @@ export class TokenAccumulationService {
     }
 
     /**
+     * 튜토리얼 첫글 작성 보상 적립
+     */
+    async accumulateTutorialFirstPostReward(walletAddress: string): Promise<TokenAccumulation> {
+        // 중복 적립 방지
+        const existing = await this.tokenAccumulationRepository.findOne({
+            where: {
+                walletAddress,
+                type: AccumulationType.TUTORIAL_FIRST_POST,
+                status: AccumulationStatus.PENDING
+            }
+        });
+
+        if (existing) {
+            throw new Error(`Tutorial first post reward already accumulated for ${walletAddress}`);
+        }
+
+        return this.createAccumulation({
+            walletAddress,
+            reason: 'Tutorial: First post reward',
+            amount: 3, // 3 토큰
+            type: AccumulationType.TUTORIAL_FIRST_POST,
+            metadata: { tutorial_type: 'first_post' }
+        });
+    }
+
+    /**
+     * 튜토리얼 첫 매치결과 등록 보상 적립
+     */
+    async accumulateTutorialFirstMatchReward(walletAddress: string): Promise<TokenAccumulation> {
+        // 중복 적립 방지
+        const existing = await this.tokenAccumulationRepository.findOne({
+            where: {
+                walletAddress,
+                type: AccumulationType.TUTORIAL_FIRST_MATCH,
+                status: AccumulationStatus.PENDING
+            }
+        });
+
+        if (existing) {
+            throw new Error(`Tutorial first match reward already accumulated for ${walletAddress}`);
+        }
+
+        return this.createAccumulation({
+            walletAddress,
+            reason: 'Tutorial: First match result reward',
+            amount: 5, // 5 토큰
+            type: AccumulationType.TUTORIAL_FIRST_MATCH,
+            metadata: { tutorial_type: 'first_match' }
+        });
+    }
+
+    /**
      * 클레임 가능한 토큰 조회
      */
     async getClaimableTokens(walletAddress: string): Promise<TokenAccumulation[]> {

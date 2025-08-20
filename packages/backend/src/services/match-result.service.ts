@@ -11,6 +11,7 @@ import { SportCategory } from '../entities/sport-category.entity';
 import { UserElo } from '../entities/user-elo.entity';
 import { User } from '../entities/user.entity';
 import { SseService } from './sse.service';
+import { UserService } from './user.service';
 
 @Injectable()
 export class MatchResultService {
@@ -28,6 +29,7 @@ export class MatchResultService {
         private readonly sseService: SseService,
         private readonly eloService: EloService,
         private readonly dataSource: DataSource,
+        private readonly userService: UserService,
     ) { }
 
     async create(createMatchResultDto: CreateMatchResultDto, user: JwtUser): Promise<MatchResult> {
@@ -122,6 +124,14 @@ export class MatchResultService {
             savedMatchResult.id,
             sportCategory.name || 'Unknown Sport'
         );
+
+        // 첫 매치결과 등록 시 튜토리얼 완료 체크 및 토큰 지급
+        try {
+            await this.userService.completeTutorialFirstMatch(user.id);
+        } catch (error) {
+            // 이미 완료된 경우나 다른 오류는 무시 (로그만 남김)
+            console.log(`Tutorial first match check failed for user ${user.id}: ${error.message}`);
+        }
 
         return savedMatchResult;
     }

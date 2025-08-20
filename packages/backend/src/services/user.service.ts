@@ -105,7 +105,12 @@ export class UserService {
 
         // TokenAccumulation에서 수확 가능한 토큰 양 조회
         const availableAmount = await this.tokenAccumulationService.getTotalAccumulatedAmount(walletAddress);
-        const availableTokens = parseFloat(availableAmount) / Math.pow(10, 18); // wei를 EXP로 변환
+
+        // 튜토리얼 보상은 이미 EXP 단위로 저장되어 있음 (wei 변환 불필요)
+        // 다른 보상 타입과 구분하여 처리
+        const availableTokens = availableAmount ? parseFloat(availableAmount) : 0;
+
+        console.log(`[UserService] updateAvailableTokens: walletAddress=${walletAddress}, availableAmount=${availableAmount}, availableTokens=${availableTokens}`);
 
         // availableToken 업데이트
         await this.userRepository.update(user.id, {
@@ -161,7 +166,7 @@ export class UserService {
 
         // DB에서 실시간으로 대기 중인 토큰 조회
         const pendingAmount = await this.tokenAccumulationService.getTotalAccumulatedAmount(walletAddress);
-        const pendingTokens = parseFloat(pendingAmount) / Math.pow(10, 18); // wei를 EXP로 변환
+        const pendingTokens = pendingAmount ? parseFloat(pendingAmount) : 0; // 이미 EXP 단위
 
         return {
             totalTokens: user.tokenAmount || 0,
@@ -233,6 +238,106 @@ export class UserService {
 
         console.log(`[UserService] User updated successfully. New tokenAmount: ${updatedUser.tokenAmount}`);
         return updatedUser;
+    }
+
+    /**
+     * 튜토리얼 첫글 작성 완료 처리 및 토큰 지급
+     */
+    async completeTutorialFirstPost(userId: number): Promise<{ user: User; tokenAccumulation: any }> {
+        const user = await this.findById(userId);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        // 이미 완료된 경우
+        if (user.tutorialFirstPostCompleted) {
+            throw new Error('Tutorial first post already completed');
+        }
+
+        // wallet address가 없는 경우 스킵
+        if (!user.walletAddress) {
+            throw new Error('User has no wallet address');
+        }
+
+        // 토큰 적립 생성
+        const tokenAccumulation = await this.tokenAccumulationService.accumulateTutorialFirstPostReward(user.walletAddress);
+
+        // 사용자 튜토리얼 상태 업데이트
+        await this.userRepository.update(user.id, {
+            tutorialFirstPostCompleted: true,
+            tutorialFirstPostCompletedAt: new Date()
+        });
+
+        // availableToken 업데이트
+        await this.updateAvailableTokens(user.walletAddress);
+
+        const updatedUser = await this.findById(userId);
+        if (!updatedUser) {
+            throw new NotFoundException('User not found after update');
+        }
+
+        return { user: updatedUser, tokenAccumulation };
+    }
+
+    /**
+     * 튜토리얼 첫 매치결과 등록 완료 처리 및 토큰 지급
+     */
+    async completeTutorialFirstMatch(userId: number): Promise<{ user: User; tokenAccumulation: any }> {
+        const user = await this.findById(userId);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        // 이미 완료된 경우
+        if (user.tutorialFirstMatchCompleted) {
+            throw new Error('Tutorial first match already completed');
+        }
+
+        // wallet address가 없는 경우 스킵
+        if (!user.walletAddress) {
+            throw new Error('User has no wallet address');
+        }
+
+        // 토큰 적립 생성
+        const tokenAccumulation = await this.tokenAccumulationService.accumulateTutorialFirstMatchReward(user.walletAddress);
+
+        // 사용자 튜토리얼 상태 업데이트
+        await this.userRepository.update(user.id, {
+            tutorialFirstMatchCompleted: true,
+            tutorialFirstMatchCompletedAt: new Date()
+        });
+
+        // availableToken 업데이트
+        await this.updateAvailableTokens(user.walletAddress);
+
+        const updatedUser = await this.findById(userId);
+        if (!updatedUser) {
+            throw new NotFoundException('User not found after update');
+        }
+
+        return { user: updatedUser, tokenAccumulation };
+    }
+
+    /**
+     * 사용자의 튜토리얼 완료 상태 조회
+     */
+    async getTutorialStatus(userId: number): Promise<{
+        firstPostCompleted: boolean;
+        firstMatchCompleted: boolean;
+        firstPostCompletedAt?: Date;
+        firstMatchCompletedAt?: Date;
+    }> {
+        const user = await this.findById(userId);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        return {
+            firstPostCompleted: user.tutorialFirstPostCompleted || false,
+            firstMatchCompleted: user.tutorialFirstMatchCompleted || false,
+            firstPostCompletedAt: user.tutorialFirstPostCompletedAt,
+            firstMatchCompletedAt: user.tutorialFirstMatchCompletedAt
+        };
     }
 
     /**
