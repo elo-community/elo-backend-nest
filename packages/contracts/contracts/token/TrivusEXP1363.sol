@@ -13,25 +13,26 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 
 contract TrivusEXP1363 is ERC20, Ownable, ERC165, IERC1363, EIP712, ReentrancyGuard {
     using ECDSA for bytes32;
-    
-    // Replay attack 방지를 위한 nonce 시스템
+
+    // === Nonce ===
     mapping(address => uint256) public nonces;
-    mapping(bytes32 => bool) public usedHashes;
-    
-    // EIP-712 claim을 위한 상태 변수들
+
+    // === EIP-712 claim ===
     mapping(bytes32 => bool) public usedClaimDigests;
     address public trustedSigner;
-    
-    // EIP-712 타입 해시
+
     bytes32 public constant CLAIM_TYPEHASH = keccak256(
         "Claim(address to,uint256 amount,uint256 deadline,bytes32 nonce)"
     );
-    
-    // 이벤트
+
     event ClaimExecuted(address indexed to, uint256 amount, uint256 deadline, bytes32 nonce);
     event TrustedSignerUpdated(address indexed oldSigner, address indexed newSigner);
-    
-    constructor() ERC20("TrivusEXP1363", "EXP") Ownable(msg.sender) EIP712("TrivusEXP1363", "1") {
+
+    constructor()
+        ERC20("TrivusEXP1363", "EXP")
+        Ownable(msg.sender)
+        EIP712("TrivusEXP1363", "1")
+    {
         _mint(msg.sender, 1_000_000 * 10**decimals());
         trustedSigner = msg.sender;
     }
@@ -41,38 +42,26 @@ contract TrivusEXP1363 is ERC20, Ownable, ERC165, IERC1363, EIP712, ReentrancyGu
         address to,
         uint256 amount,
         uint256 deadline,
-        bytes32 nonce,
+        bytes32 nonce_,
         bytes calldata signature
     ) external nonReentrant returns (bool) {
-        // 1. 만료 시간 검증
         require(block.timestamp <= deadline, "EXPIRED");
-        
-        // 2. 주소 검증
         require(to != address(0), "INVALID_ADDRESS");
         require(amount > 0, "INVALID_AMOUNT");
-        
-        // 3. EIP-712 서명 검증
-        bytes32 structHash = keccak256(abi.encode(CLAIM_TYPEHASH, to, amount, deadline, nonce));
-        bytes32 hash = _hashTypedDataV4(structHash);
-        
-        // 4. 서명자 검증
-        address signer = hash.recover(signature);
+
+        bytes32 structHash = keccak256(abi.encode(CLAIM_TYPEHASH, to, amount, deadline, nonce_));
+        bytes32 digest = _hashTypedDataV4(structHash);
+
+        address signer = digest.recover(signature);
         require(signer == trustedSigner, "INVALID_SIGNER");
-        
-        // 5. Replay attack 방지
-        require(!usedClaimDigests[hash], "SIGNATURE_ALREADY_USED");
-        usedClaimDigests[hash] = true;
-        
-        // 6. 토큰 전송
+        require(!usedClaimDigests[digest], "SIGNATURE_ALREADY_USED");
+        usedClaimDigests[digest] = true;
+
         _mint(to, amount);
-        
-        // 7. 이벤트 발생
-        emit ClaimExecuted(to, amount, deadline, nonce);
-        
+        emit ClaimExecuted(to, amount, deadline, nonce_);
         return true;
     }
 
-    // ===== Trusted Signer 관리 =====
     function setTrustedSigner(address newSigner) external onlyOwner {
         require(newSigner != address(0), "INVALID_SIGNER");
         address oldSigner = trustedSigner;
@@ -80,24 +69,38 @@ contract TrivusEXP1363 is ERC20, Ownable, ERC165, IERC1363, EIP712, ReentrancyGu
         emit TrustedSignerUpdated(oldSigner, newSigner);
     }
 
+    // ====== 1363 helpers ======
+    // data MUST be abi.encode(expectedNonce, payload) OR abi.encode(postId) for simple cases
+    function _decode(bytes memory data) internal pure returns (uint256 expectedNonce, bytes memory payload) {
+        require(data.length >= 32, "BAD_DATA"); // minimal length for postId or (nonce, payload)
+        
+        if (data.length == 32) {
+            // postId만 전달된 경우 (nonce = 0으로 처리)
+            expectedNonce = 0;
+            payload = data;
+        } else {
+            // (nonce, payload) 형식
+            require(data.length >= 64, "BAD_DATA");
+            (expectedNonce, payload) = abi.decode(data, (uint256, bytes));
+        }
+    }
+
     // ===== ERC-1363: transferAndCall =====
     function transferAndCall(address to, uint256 value) public returns (bool) {
+        // no payload / no nonce path (allowed, but no anti-replay)
         _transfer(_msgSender(), to, value);
         _callOnTransferReceived(_msgSender(), _msgSender(), to, value, "");
         return true;
     }
 
     function transferAndCall(address to, uint256 value, bytes memory data) public returns (bool) {
-        // Replay attack 방지: data에 nonce가 포함되어 있다면 검증
-        if (data.length >= 32) {
-            bytes32 dataHash = keccak256(abi.encodePacked(to, value, data, nonces[_msgSender()]));
-            require(!usedHashes[dataHash], "REPLAY_ATTACK");
-            usedHashes[dataHash] = true;
-            nonces[_msgSender()]++;
-        }
-        
+        (uint256 expectedNonce, bytes memory payload) = _decode(data);
+        require(expectedNonce == nonces[_msgSender()], "BAD_NONCE");
+
         _transfer(_msgSender(), to, value);
-        _callOnTransferReceived(_msgSender(), _msgSender(), to, value, data);
+        _callOnTransferReceived(_msgSender(), _msgSender(), to, value, payload);
+
+        unchecked { nonces[_msgSender()] += 1; }
         return true;
     }
 
@@ -110,17 +113,14 @@ contract TrivusEXP1363 is ERC20, Ownable, ERC165, IERC1363, EIP712, ReentrancyGu
     }
 
     function transferFromAndCall(address from, address to, uint256 value, bytes memory data) public returns (bool) {
-        // Replay attack 방지: data에 nonce가 포함되어 있다면 검증
-        if (data.length >= 32) {
-            bytes32 dataHash = keccak256(abi.encodePacked(from, to, value, data, nonces[from]));
-            require(!usedHashes[dataHash], "REPLAY_ATTACK");
-            usedHashes[dataHash] = true;
-            nonces[from]++;
-        }
-        
+        (uint256 expectedNonce, bytes memory payload) = _decode(data);
+        require(expectedNonce == nonces[from], "BAD_NONCE");
+
         _spendAllowance(from, _msgSender(), value);
         _transfer(from, to, value);
-        _callOnTransferReceived(_msgSender(), from, to, value, data);
+        _callOnTransferReceived(_msgSender(), from, to, value, payload);
+
+        unchecked { nonces[from] += 1; }
         return true;
     }
 
@@ -132,20 +132,17 @@ contract TrivusEXP1363 is ERC20, Ownable, ERC165, IERC1363, EIP712, ReentrancyGu
     }
 
     function approveAndCall(address spender, uint256 value, bytes memory data) public returns (bool) {
-        // Replay attack 방지: data에 nonce가 포함되어 있다면 검증
-        if (data.length >= 32) {
-            bytes32 dataHash = keccak256(abi.encodePacked(spender, value, data, nonces[_msgSender()]));
-            require(!usedHashes[dataHash], "REPLAY_ATTACK");
-            usedHashes[dataHash] = true;
-            nonces[_msgSender()]++;
-        }
-        
+        (uint256 expectedNonce, bytes memory payload) = _decode(data);
+        require(expectedNonce == nonces[_msgSender()], "BAD_NONCE");
+
         _approve(_msgSender(), spender, value);
-        _callOnApprovalReceived(_msgSender(), spender, value, data);
+        _callOnApprovalReceived(_msgSender(), spender, value, payload);
+
+        unchecked { nonces[_msgSender()] += 1; }
         return true;
     }
 
-    // ===== internal helpers =====
+    // ===== internal 1363 calls =====
     function _callOnTransferReceived(
         address operator, address from, address to, uint256 value, bytes memory data
     ) internal {
@@ -175,7 +172,7 @@ contract TrivusEXP1363 is ERC20, Ownable, ERC165, IERC1363, EIP712, ReentrancyGu
         return interfaceId == type(IERC1363).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    // (옵션) 운영용 민팅
+    // Utils
     function mint(address to, uint256 amount) external onlyOwner {
         require(to != address(0) && amount > 0, "bad");
         _mint(to, amount);
