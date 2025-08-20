@@ -1,22 +1,25 @@
+import { PostType } from '../entities/post.entity';
+
 export class CreatePostDto {
     title?: string;
     content?: string;
     author?: any;
     sportCategoryId?: number | { id?: number; name?: string; sortOrder?: number };
-    type?: string;
+    type?: PostType;
     isHidden?: boolean;
 }
 
 export class UpdatePostDto {
     title?: string;
     content?: string;
-    type?: string;
+    type?: PostType;
     isHidden?: boolean;
     sportCategoryId?: number | { id?: number; name?: string; sortOrder?: number };
 }
 
 export class PostQueryDto {
     sport?: number;
+    type?: PostType;
     page?: number;
     limit?: number;
 }

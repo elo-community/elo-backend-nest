@@ -5,7 +5,7 @@ import { JwtUser } from '../auth/jwt-user.interface';
 import { PaginationResponseDto } from '../dtos/pagination-response.dto';
 import { CreatePostDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
 import { HotPost } from '../entities/hot-post.entity';
-import { Post } from '../entities/post.entity';
+import { Post, PostType } from '../entities/post.entity';
 import { SportCategory } from '../entities/sport-category.entity';
 import { User } from '../entities/user.entity';
 import { PostHateService } from './post-hate.service';
@@ -46,6 +46,11 @@ export class PostService {
             queryBuilder.andWhere('post.sportCategory.id = :sportId', { sportId: query.sport });
         }
 
+        // 글 타입 필터링
+        if (query?.type) {
+            queryBuilder.andWhere('post.type = :type', { type: query.type });
+        }
+
         queryBuilder.orderBy('post.createdAt', 'DESC');
 
         // 페이지네이션 파라미터 설정
@@ -66,7 +71,7 @@ export class PostService {
     }
 
     async findOne(id: number): Promise<Post | null> {
-        return this.postRepository.findOne({ where: { id }, relations: ['author', 'sportCategory', 'comments'] });
+        return this.postRepository.findOne({ where: { id }, relations: ['author', 'sportCategory'] });
     }
 
     async findOneWithDetails(id: number): Promise<Post | null> {
@@ -122,6 +127,7 @@ export class PostService {
             sportCategory: sportCategoryEntity,
             author,
             imageUrls: usedImageUrls,
+            type: PostType.GENERAL, // 일반글으로 설정
         });
 
         const savedPost = await this.postRepository.save(post);
@@ -146,7 +152,7 @@ export class PostService {
     }
 
     async update(id: number, updatePostDto: UpdatePostDto): Promise<Post | null> {
-        const { sportCategoryId, content, ...rest } = updatePostDto;
+        const { sportCategoryId, content, type, ...rest } = updatePostDto;
         let sportCategoryEntity: SportCategory | undefined = undefined;
 
         // 스포츠 카테고리가 지정된 경우
