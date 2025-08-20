@@ -198,6 +198,8 @@ export class PostLikeSignatureController {
             if (body.postId === undefined || body.postId === null || body.postId < 0) {
                 throw new HttpException('Invalid postId', HttpStatus.BAD_REQUEST);
             }
+
+            // PostLikeSystem1363.sol의 data 형식: (postId만)
             const encodedData = ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [body.postId]);
 
             // PostLikeSystem1363 컨트랙트 주소 가져오기

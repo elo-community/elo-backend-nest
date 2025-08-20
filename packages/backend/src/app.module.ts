@@ -135,9 +135,14 @@ export class AppModule implements OnModuleInit {
     await this.createSampleMatchRequests(sampleUsers);
     console.log('✅ 샘플 매치 요청이 생성되었습니다.');
 
-    // 모든 사용자의 토큰 잔액을 블록체인에서 동기화
-    await this.userService.syncAllUsersTokenAmount();
-    console.log('✅ 모든 사용자의 토큰 잔액이 블록체인과 동기화되었습니다.');
+    // 모든 사용자의 토큰 잔액을 블록체인에서 동기화 (에러 처리 추가)
+    try {
+      await this.userService.syncAllUsersTokenAmount();
+      console.log('✅ 모든 사용자의 토큰 잔액이 블록체인과 동기화되었습니다.');
+    } catch (error) {
+      console.warn('⚠️ 토큰 잔액 동기화 실패 (블록체인 네트워크 문제일 수 있음):', error.message);
+      console.log('ℹ️ 애플리케이션은 정상적으로 실행됩니다. 토큰 기능은 제한될 수 있습니다.');
+    }
   }
 
   private async createSampleUsers() {
