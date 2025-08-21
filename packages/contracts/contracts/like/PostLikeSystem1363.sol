@@ -100,6 +100,7 @@ contract PostLikeSystem1363 is IERC1363Receiver, Ownable, ReentrancyGuard, EIP71
         bytes32 nonce,
         bytes calldata signature
     ) external nonReentrant {
+        require(msg.sender == to, "ONLY_RECIPIENT"); // msg.sender가 to 주소와 일치해야 함
         require(block.timestamp <= deadline, "EXPIRED");
         require(amount > 0 && amount <= postTokens[postId], "BAD_AMOUNT");
 

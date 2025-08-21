@@ -334,16 +334,34 @@ export class ClaimEventService implements OnModuleInit {
             if (user) {
                 const amountDecimal = parseFloat(ethers.formatEther(amount));
 
+                // 중복 기록 방지: 같은 transactionHash로 TRANSFER_IN이 이미 기록되었는지 확인
+                const existingTransferIn = await this.tokenTransactionService.getTransactionByHashAndType(
+                    transactionHash,
+                    TransactionType.TRANSFER_IN
+                );
+
+                if (existingTransferIn) {
+                    this.logger.log(`TRANSFER_IN already recorded for hash ${transactionHash}, skipping REWARD_CLAIM to avoid duplicate`);
+                    return;
+                }
+
+                // 변경 전 잔액 기록 (availableToken 기준)
+                const balanceBefore = user.availableToken || 0;
+
                 // 사용자의 토큰 정보 업데이트 (availableToken에서 tokenAmount로 이동)
                 await this.userService.syncTokenAmount(to, amountDecimal);
+
+                // 업데이트된 사용자 정보 다시 조회
+                const updatedUser = await this.userService.findByWalletAddress(to);
+                const balanceAfter = updatedUser?.availableToken || 0;
 
                 // 토큰 거래 내역 기록
                 await this.tokenTransactionService.createTransaction({
                     userId: user.id,
                     transactionType: TransactionType.REWARD_CLAIM,
                     amount: amountDecimal,
-                    balanceBefore: user.tokenAmount || 0,
-                    balanceAfter: (user.tokenAmount || 0) + amountDecimal,
+                    balanceBefore: balanceBefore,
+                    balanceAfter: balanceAfter,
                     transactionHash: transactionHash,
                     blockchainAddress: to,
                     description: `Token claim executed for nonce ${nonce}`,
@@ -408,23 +426,30 @@ export class ClaimEventService implements OnModuleInit {
                 return;
             }
 
+            // 변경 전 잔액 기록
+            const balanceBefore = user.tokenAmount || 0;
+
             // user.token_amount 업데이트
             this.logger.log(`Updating user token_amount: ${to} +${amountDecimal} EXP`);
+            let updatedUser;
             try {
-                const updatedUser = await this.userService.addTokens(to, amountDecimal);
-                this.logger.log(`User token_amount updated successfully: ${updatedUser.tokenAmount} EXP (was: ${user.tokenAmount} EXP)`);
+                updatedUser = await this.userService.addTokens(to, amountDecimal);
+                this.logger.log(`User token_amount updated successfully: ${updatedUser.tokenAmount} EXP (was: ${balanceBefore} EXP)`);
             } catch (addTokensError) {
                 this.logger.error(`Failed to update user token_amount: ${addTokensError.message}`);
                 throw addTokensError; // 에러 발생 시 전체 처리 중단
             }
+
+            // 변경 후 잔액 기록
+            const balanceAfter = updatedUser.tokenAmount || 0;
 
             // token_tx 테이블에 mint 기록
             await this.tokenTransactionService.createTransaction({
                 userId: user.id,
                 transactionType: TransactionType.TRANSFER_IN,
                 amount: amountDecimal,
-                balanceBefore: (user.tokenAmount || 0) - amountDecimal,
-                balanceAfter: (user.tokenAmount || 0) + amountDecimal, // 업데이트된 tokenAmount 반영
+                balanceBefore: balanceBefore,
+                balanceAfter: balanceAfter,
                 transactionHash,
                 blockchainAddress: to,
                 description: `Token minted: ${amountDecimal} EXP`,
@@ -460,13 +485,19 @@ export class ClaimEventService implements OnModuleInit {
             // from 주소의 사용자 조회
             const fromUser = await this.userService.findByWalletAddress(from);
             if (fromUser) {
+                // Transfer 이벤트는 이미 발생한 토큰 이동을 감지하는 것이므로
+                // 현재 tokenAmount가 이미 차감된 상태라고 가정
+                const currentBalance = fromUser.tokenAmount || 0;
+                const balanceBefore = currentBalance + amountDecimal; // 차감 전 잔액
+                const balanceAfter = currentBalance; // 차감 후 잔액 (현재 상태)
+
                 // from 사용자의 토큰 차감 기록
                 await this.tokenTransactionService.createTransaction({
                     userId: fromUser.id,
                     transactionType: TransactionType.TRANSFER_OUT,
                     amount: -amountDecimal,
-                    balanceBefore: (fromUser.tokenAmount || 0) + amountDecimal,
-                    balanceAfter: fromUser.tokenAmount || 0,
+                    balanceBefore: balanceBefore,
+                    balanceAfter: balanceAfter,
                     transactionHash,
                     blockchainAddress: from,
                     description: `Token transferred: ${amountDecimal} EXP to ${to}`,
@@ -478,19 +509,36 @@ export class ClaimEventService implements OnModuleInit {
                     referenceType: 'transfer'
                 });
 
-                this.logger.log(`Transfer out recorded for user ${fromUser.id}: ${amountDecimal} EXP sent`);
+                this.logger.log(`Transfer out recorded for user ${fromUser.id}: ${amountDecimal} EXP sent (${balanceBefore} → ${balanceAfter})`);
             }
 
             // to 주소의 사용자 조회
             const toUser = await this.userService.findByWalletAddress(to);
             if (toUser) {
+                // 중복 기록 방지: 같은 transactionHash로 REWARD_CLAIM이 이미 기록되었는지 확인
+                const existingRewardClaim = await this.tokenTransactionService.getTransactionByHashAndType(
+                    transactionHash,
+                    TransactionType.REWARD_CLAIM
+                );
+
+                if (existingRewardClaim) {
+                    this.logger.log(`REWARD_CLAIM already recorded for hash ${transactionHash}, skipping TRANSFER_IN to avoid duplicate`);
+                    return;
+                }
+
+                // Transfer 이벤트는 이미 발생한 토큰 이동을 감지하는 것이므로
+                // 현재 tokenAmount가 이미 증가된 상태라고 가정
+                const currentBalance = toUser.tokenAmount || 0;
+                const balanceBefore = currentBalance - amountDecimal; // 증가 전 잔액
+                const balanceAfter = currentBalance; // 증가 후 잔액 (현재 상태)
+
                 // to 사용자의 토큰 증가 기록
                 await this.tokenTransactionService.createTransaction({
                     userId: toUser.id,
                     transactionType: TransactionType.TRANSFER_IN,
                     amount: amountDecimal,
-                    balanceBefore: (toUser.tokenAmount || 0) - amountDecimal,
-                    balanceAfter: toUser.tokenAmount || 0,
+                    balanceBefore: balanceBefore,
+                    balanceAfter: balanceAfter,
                     transactionHash,
                     blockchainAddress: to,
                     description: `Token received: ${amountDecimal} EXP from ${from}`,
@@ -502,7 +550,7 @@ export class ClaimEventService implements OnModuleInit {
                     referenceType: 'transfer'
                 });
 
-                this.logger.log(`Transfer in recorded for user ${toUser.id}: ${amountDecimal} EXP received`);
+                this.logger.log(`Transfer in recorded for user ${toUser.id}: ${amountDecimal} EXP received (${balanceBefore} → ${balanceAfter})`);
             }
         } catch (error) {
             this.logger.error(`Failed to handle transfer event: ${(error as Error).message}`);

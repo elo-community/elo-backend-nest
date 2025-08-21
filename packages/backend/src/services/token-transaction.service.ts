@@ -217,6 +217,19 @@ export class TokenTransactionService {
     }
 
     /**
+     * 트랜잭션 해시와 타입으로 거래 내역 조회 (중복 체크용)
+     */
+    async getTransactionByHashAndType(transactionHash: string, transactionType: TransactionType): Promise<TokenTransaction | null> {
+        return await this.tokenTransactionRepository.findOne({
+            where: {
+                transactionHash,
+                transactionType
+            },
+            relations: ['user'],
+        });
+    }
+
+    /**
      * 거래 내역 상태 업데이트
      */
     async updateTransactionStatus(
