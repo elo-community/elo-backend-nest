@@ -232,8 +232,11 @@ export class PostLikeSignatureController {
             // PostLikeSystem1363.sol의 data 형식: (postId만)
             const encodedData = ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [body.postId]);
 
-            // TrivusEXP1363 토큰 컨트랙트 주소 가져오기
+            // TrivusEXP1363 토큰 컨트랙트 주소와 ABI 가져오기
             const tokenContractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
+
+            // TrivusExpService에서 실제 컨트랙트 ABI 가져오기
+            const contractABI = this.trivusExpService.getContractABI();
 
             return {
                 success: true,
@@ -241,7 +244,7 @@ export class PostLikeSignatureController {
                     postId: body.postId,
                     encodedData: encodedData,
                     contractAddress: tokenContractAddress,
-                    contractABI: TRIVUS_EXP_ABI
+                    contractABI: contractABI
                 },
                 message: 'Like data created successfully'
             };

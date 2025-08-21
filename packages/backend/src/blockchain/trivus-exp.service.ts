@@ -132,6 +132,28 @@ export class TrivusExpService {
                     "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
                     "stateMutability": "view",
                     "type": "function"
+                },
+                // ERC-1363 transferAndCall 함수들
+                {
+                    "inputs": [
+                        { "internalType": "address", "name": "to", "type": "address" },
+                        { "internalType": "uint256", "name": "value", "type": "uint256" }
+                    ],
+                    "name": "transferAndCall",
+                    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+                    "stateMutability": "nonpayable",
+                    "type": "function"
+                },
+                {
+                    "inputs": [
+                        { "internalType": "address", "name": "to", "type": "address" },
+                        { "internalType": "uint256", "name": "value", "type": "uint256" },
+                        { "internalType": "bytes", "name": "data", "type": "bytes" }
+                    ],
+                    "name": "transferAndCall",
+                    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+                    "stateMutability": "nonpayable",
+                    "type": "function"
                 }
             ];
 
@@ -383,6 +405,84 @@ export class TrivusExpService {
      */
     async getContractAddress(): Promise<string> {
         return this.contractAddress;
+    }
+
+    /**
+     * 컨트랙트 ABI 반환
+     */
+    getContractABI(): any[] {
+        if (!this.isInitialized || !this.contract) {
+            return [];
+        }
+
+        // 하드코딩된 ABI 반환 (더 안전함)
+        return [
+            // ERC20 기본 함수들
+            {
+                "inputs": [],
+                "name": "name",
+                "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "symbol",
+                "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "decimals",
+                "outputs": [{ "internalType": "uint8", "name": "", "type": "uint8" }],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [{ "internalType": "address", "name": "account", "type": "address" }],
+                "name": "balanceOf",
+                "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            // ERC-1363 transferAndCall 함수들
+            {
+                "inputs": [
+                    { "internalType": "address", "name": "to", "type": "address" },
+                    { "internalType": "uint256", "name": "value", "type": "uint256" }
+                ],
+                "name": "transferAndCall",
+                "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    { "internalType": "address", "name": "to", "type": "address" },
+                    { "internalType": "uint256", "name": "value", "type": "uint256" },
+                    { "internalType": "bytes", "name": "data", "type": "bytes" }
+                ],
+                "name": "transferAndCall",
+                "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            // claimWithSignature 함수
+            {
+                "inputs": [
+                    { "internalType": "address", "name": "to", "type": "address" },
+                    { "internalType": "uint256", "name": "amount", "type": "uint256" },
+                    { "internalType": "uint256", "name": "deadline", "type": "uint256" },
+                    { "internalType": "bytes32", "name": "nonce", "type": "bytes32" },
+                    { "internalType": "bytes", "name": "signature", "type": "bytes" }
+                ],
+                "name": "claimWithSignature",
+                "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            }
+        ];
     }
 
     /**
