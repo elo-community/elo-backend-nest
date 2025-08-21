@@ -337,6 +337,17 @@ export class ClaimEventService implements OnModuleInit {
                 // 사용자의 토큰 정보 업데이트 (availableToken에서 tokenAmount로 이동)
                 await this.userService.syncTokenAmount(to, amountDecimal);
 
+                // 중복 기록 방지: 같은 transactionHash로 TRANSFER_IN이 이미 기록되었는지 확인
+                const existingTransferIn = await this.tokenTransactionService.getTransactionByHashAndType(
+                    transactionHash,
+                    TransactionType.TRANSFER_IN
+                );
+
+                if (existingTransferIn) {
+                    this.logger.log(`TRANSFER_IN already recorded for hash ${transactionHash}, skipping REWARD_CLAIM to avoid duplicate`);
+                    return;
+                }
+
                 // 토큰 거래 내역 기록
                 await this.tokenTransactionService.createTransaction({
                     userId: user.id,
@@ -484,6 +495,17 @@ export class ClaimEventService implements OnModuleInit {
             // to 주소의 사용자 조회
             const toUser = await this.userService.findByWalletAddress(to);
             if (toUser) {
+                // 중복 기록 방지: 같은 transactionHash로 REWARD_CLAIM이 이미 기록되었는지 확인
+                const existingRewardClaim = await this.tokenTransactionService.getTransactionByHashAndType(
+                    transactionHash,
+                    TransactionType.REWARD_CLAIM
+                );
+
+                if (existingRewardClaim) {
+                    this.logger.log(`REWARD_CLAIM already recorded for hash ${transactionHash}, skipping TRANSFER_IN to avoid duplicate`);
+                    return;
+                }
+
                 // to 사용자의 토큰 증가 기록
                 await this.tokenTransactionService.createTransaction({
                     userId: toUser.id,

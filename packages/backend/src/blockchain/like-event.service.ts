@@ -736,6 +736,17 @@ export class LikeEventService implements OnModuleInit {
             // 사용자의 토큰 정보 업데이트 (availableToken에서 tokenAmount로 이동)
             await this.userService.syncTokenAmount(to, amountNumber);
 
+            // 중복 기록 방지: 같은 transactionHash로 TRANSFER_IN이 이미 기록되었는지 확인
+            const existingTransferIn = await this.tokenTransactionService.getTransactionByHashAndType(
+                transactionHash,
+                TransactionType.TRANSFER_IN
+            );
+
+            if (existingTransferIn) {
+                this.logger.log(`TRANSFER_IN already recorded for hash ${transactionHash}, skipping REWARD_CLAIM to avoid duplicate`);
+                return;
+            }
+
             // token_tx 테이블에 토큰 주입 기록
             try {
                 const transactionDto: CreateTransactionDto = {
