@@ -45,6 +45,7 @@ contract TrivusEXP1363 is ERC20, Ownable, ERC165, IERC1363, EIP712, ReentrancyGu
         bytes32 nonce_,
         bytes calldata signature
     ) external nonReentrant returns (bool) {
+        require(msg.sender == to, "ONLY_RECIPIENT"); // msg.sender가 to 주소와 일치해야 함
         require(block.timestamp <= deadline, "EXPIRED");
         require(to != address(0), "INVALID_ADDRESS");
         require(amount > 0, "INVALID_AMOUNT");
