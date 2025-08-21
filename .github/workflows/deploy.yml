@@ -59,7 +59,7 @@ jobs:
           fi
           echo "✅ All build verifications passed"
 
-      - name: Log in to Docker Hub
+      - name: Log in to Docker Hub (CI)
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -77,10 +77,9 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/elo-community:latest
             ${{ secrets.DOCKER_USERNAME }}/elo-community:${{ github.sha }}
 
-      - name: Test Docker Image
+      - name: Test Docker Image (local)
         run: |
           echo "Testing Docker image locally..."
-          # 환경변수가 제대로 설정되었는지 확인
           docker run --rm ${{ secrets.DOCKER_USERNAME }}/elo-community:latest node -e "
             console.log('NODE_ENV:', process.env.NODE_ENV);
             console.log('ACTIVE_NETWORK:', process.env.ACTIVE_NETWORK);
@@ -92,6 +91,19 @@ jobs:
           "
           echo "✅ Docker image test passed"
 
+      # (2) envsubst 설치 + docker-compose 렌더링(SHA 태그 주입)
+      - name: Install envsubst
+        run: sudo apt-get update && sudo apt-get install -y gettext-base
+
+      - name: Render docker-compose with immutable tag (SHA)
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          envsubst < infra/docker-compose.yml > infra/docker-compose.rendered.yml
+          echo "=== Rendered docker-compose ==="
+          head -n 80 infra/docker-compose.rendered.yml || true
+
       # EC2 SSH 키 설정
       - name: Add SSH key
         uses: webfactory/ssh-agent@v0.8.0
@@ -102,25 +114,39 @@ jobs:
       - name: Create .env file on EC2
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << EOF
+            mkdir -p /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest
             echo "${{ secrets.ENV }}" | base64 -d > /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest/.env
           EOF
 
-      # EC2로 파일 복사
+      # (2) 렌더링된 compose & nginx 설정을 EC2에 업로드
       - name: Upload docker-compose and nginx config to EC2
         run: |
-          scp -o StrictHostKeyChecking=no -r ./infra/docker-compose.yml ./nginx \
+          scp -o StrictHostKeyChecking=no -r ./infra/docker-compose.rendered.yml ./nginx \
             ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USERNAME }}/elo-backend-nest/
 
-      # EC2에서 Docker Compose 실행
+      # (1)+(3) EC2에서 docker login 후 강제 재배포
       - name: SSH into EC2 and deploy
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
             cd /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest
+
+            # (3) 레지스트리 로그인 (프라이빗 레포 대비)
+            echo "${{ secrets.DOCKER_PASSWORD }}" | sudo docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+            # 렌더링된 compose를 표준 파일명으로 적용
+            mv -f docker-compose.rendered.yml docker-compose.yml
+
+            # (1) 강제 재배포: pull + no-deps + force-recreate + pull always
             sudo docker compose pull
-            sudo docker compose up -d
+            sudo docker compose up -d --pull always --no-deps --force-recreate backend
+
+            # 상태/로그 확인
+            sudo docker compose ps
+            sudo docker compose logs --tail=50 backend
           EOF
 
-      # 배포 후 검증
+      # 배포 후 검증(유지)
       - name: Verify deployment
         run: |
           echo "Waiting for deployment to stabilize..."
