@@ -7,10 +7,7 @@ import { CreateTransactionDto, TokenTransactionService } from '../services/token
 import { UserService } from '../services/user.service';
 import { ClaimEventService } from './claim-event.service';
 import { PostLikeSystemService } from './post-like-system.service';
-<<<<<<< HEAD
 import { TrivusExpService } from './trivus-exp.service';
-=======
->>>>>>> f10e837a (fix: getContractABI도입)
 
 @Injectable()
 export class LikeEventService implements OnModuleInit {
