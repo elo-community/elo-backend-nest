@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ClaimNonce } from '../entities/claim-nonce.entity';
@@ -39,8 +39,14 @@ import { TrivusExpService } from './trivus-exp.service';
         TokenAccumulationService,
         TokenTransactionService,
         UserService,
-        ClaimEventService,
-        LikeEventService,
+        {
+            provide: ClaimEventService,
+            useClass: ClaimEventService,
+        },
+        {
+            provide: LikeEventService,
+            useClass: LikeEventService,
+        },
         PostLikeSystemService,
         {
             provide: 'AMOY_PROVIDER',

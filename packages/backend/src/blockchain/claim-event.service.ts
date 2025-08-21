@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 import { ClaimStatus } from '../entities/claim-request.entity';
@@ -34,6 +34,7 @@ export class ClaimEventService implements OnModuleInit {
         private claimRequestService: ClaimRequestService,
         private tokenTransactionService: TokenTransactionService,
         private userService: UserService,
+        @Inject(forwardRef(() => TrivusExpService))
         private trivusExpService: TrivusExpService,
     ) { }
 

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 import { TransactionType } from '../entities/token-transaction.entity';
@@ -31,6 +31,7 @@ export class LikeEventService implements OnModuleInit {
         private tokenTransactionService: TokenTransactionService,
         private claimEventService: ClaimEventService, // ClaimEventService 주입
         private postLikeSystemService: PostLikeSystemService, // PostLikeSystemService 주입
+        @Inject(forwardRef(() => TrivusExpService))
         private trivusExpService: TrivusExpService, // TrivusExpService 주입
     ) {
         this.instanceId = Math.random().toString(36).substring(2, 15); // 인스턴스 ID 생성
