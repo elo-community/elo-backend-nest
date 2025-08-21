@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeleteResult, Repository } from 'typeorm';
 import { SportCategory } from '../entities/sport-category.entity';
@@ -18,6 +19,7 @@ export class UserService {
         private readonly tokenAccumulationService: TokenAccumulationService,
         // TrivusExpService는 순환 참조로 인해 제거, 직접 블록체인 접근으로 대체
         private readonly tokenTransactionService: TokenTransactionService,
+        private readonly configService: ConfigService,
     ) { }
 
     async findByEmail(email: string): Promise<User | null> {
@@ -382,9 +384,14 @@ export class UserService {
      */
     private async getBlockchainTokenBalance(walletAddress: string): Promise<number> {
         try {
-            // 환경변수에서 RPC URL과 컨트랙트 주소 가져오기
-            const rpcUrl = process.env.RPC_URL || 'https://rpc-amoy.polygon.technology';
-            const contractAddress = process.env.TRIVUS_EXP_CONTRACT_ADDRESS || '0x5BF617D9d68868414611618336603B37f8061819';
+            // ConfigService에서 RPC URL과 컨트랙트 주소 가져오기
+            const rpcUrl = this.configService.get<string>('blockchain.amoy.rpcUrl') || 'https://rpc-amoy.polygon.technology';
+            const contractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
+
+            if (!contractAddress) {
+                console.error('❌ TrivusEXP contract address not configured');
+                return 0;
+            }
 
             // ethers.js로 직접 블록체인 접근
             const { ethers } = await import('ethers');

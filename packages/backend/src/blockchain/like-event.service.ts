@@ -676,12 +676,18 @@ export class LikeEventService implements OnModuleInit {
 
             // token_tx 테이블에 LIKE_DEDUCT 기록
             try {
+                // PostLiked 이벤트는 이미 발생한 토큰 차감을 감지하는 것이므로
+                // 현재 tokenAmount가 이미 차감된 상태라고 가정
+                const currentBalance = userEntity.tokenAmount || 0;
+                const balanceBefore = currentBalance + amountNumber; // 차감 전 잔액
+                const balanceAfter = currentBalance; // 차감 후 잔액 (현재 상태)
+
                 const transactionDto: CreateTransactionDto = {
                     userId: userEntity.id,
                     transactionType: TransactionType.LIKE_DEDUCT,
                     amount: -amountNumber, // 차감이므로 음수
-                    balanceBefore: userEntity.tokenAmount || 0,
-                    balanceAfter: (userEntity.tokenAmount || 0) - amountNumber,
+                    balanceBefore: balanceBefore,
+                    balanceAfter: balanceAfter,
                     transactionHash,
                     blockchainAddress: user,
                     description: `Like payment for post ${postIdNumber}: ${amountNumber} EXP`,
@@ -695,7 +701,7 @@ export class LikeEventService implements OnModuleInit {
                 };
 
                 await this.tokenTransactionService.createTransaction(transactionDto);
-                this.logger.log(`Like token transaction recorded: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber} EXP`);
+                this.logger.log(`Like token transaction recorded: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber} EXP (${balanceBefore} → ${balanceAfter})`);
             } catch (txError) {
                 this.logger.error(`Failed to record like token transaction: ${txError.message}`);
             }
@@ -733,9 +739,6 @@ export class LikeEventService implements OnModuleInit {
                 return;
             }
 
-            // 사용자의 토큰 정보 업데이트 (availableToken에서 tokenAmount로 이동)
-            await this.userService.syncTokenAmount(to, amountNumber);
-
             // 중복 기록 방지: 같은 transactionHash로 TRANSFER_IN이 이미 기록되었는지 확인
             const existingTransferIn = await this.tokenTransactionService.getTransactionByHashAndType(
                 transactionHash,
@@ -747,14 +750,24 @@ export class LikeEventService implements OnModuleInit {
                 return;
             }
 
+            // 변경 전 잔액 기록 (availableToken 기준)
+            const balanceBefore = userEntity.availableToken || 0;
+
+            // 사용자의 토큰 정보 업데이트 (availableToken에서 tokenAmount로 이동)
+            await this.userService.syncTokenAmount(to, amountNumber);
+
+            // 업데이트된 사용자 정보 다시 조회
+            const updatedUser = await this.userService.findByWalletAddress(to);
+            const balanceAfter = updatedUser?.availableToken || 0;
+
             // token_tx 테이블에 토큰 주입 기록
             try {
                 const transactionDto: CreateTransactionDto = {
                     userId: userEntity.id,
                     transactionType: TransactionType.REWARD_CLAIM,
                     amount: amountNumber, // 주입이므로 양수
-                    balanceBefore: (userEntity.availableToken || 0) - amountNumber,
-                    balanceAfter: userEntity.availableToken || 0,
+                    balanceBefore: balanceBefore,
+                    balanceAfter: balanceAfter,
                     transactionHash,
                     blockchainAddress: to,
                     description: `Like token claim for post ${postIdNumber}`,
@@ -768,7 +781,7 @@ export class LikeEventService implements OnModuleInit {
                 };
 
                 await this.tokenTransactionService.createTransaction(transactionDto);
-                this.logger.log(`Token transaction recorded for claim: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber}`);
+                this.logger.log(`Token transaction recorded for claim: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber} (${balanceBefore} → ${balanceAfter})`);
             } catch (txError) {
                 this.logger.error(`Failed to record like token claim transaction: ${txError.message}`);
             }
