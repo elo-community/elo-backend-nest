@@ -23,7 +23,8 @@ export class LikeSignatureExample {
         this.provider = new ethers.JsonRpcProvider(rpcUrl);
         this.userWallet = new ethers.Wallet(userPrivateKey, this.provider);
 
-        // TrivusEXP1363 토큰 컨트랙트 ABI (transferAndCall 포함)
+        // TrivusEXP1363 토큰 컨트랙트 ABI (필요한 함수만 포함)
+        // 실제 프로덕션에서는 TrivusExpService.getContractAbi()를 사용하세요
         const tokenABI = [
             'function transferAndCall(address to, uint256 amount, bytes calldata data) returns (bool)',
             'function balanceOf(address account) view returns (uint256)',
@@ -33,7 +34,8 @@ export class LikeSignatureExample {
 
         this.tokenContract = new ethers.Contract(tokenAddress, tokenABI, this.userWallet);
 
-        // PostLikeSystem1363 컨트랙트 ABI
+        // PostLikeSystem1363 컨트랙트 ABI (필요한 함수만 포함)
+        // 실제 프로덕션에서는 PostLikeSystemService.getContractAbi()를 사용하세요
         const postLikeABI = [
             'function likePrice() view returns (uint256)',
             'function getPostInfo(uint256 postId, address user) view returns (uint256 totalLikes, uint256 totalTokens, bool isLikedByUser)'

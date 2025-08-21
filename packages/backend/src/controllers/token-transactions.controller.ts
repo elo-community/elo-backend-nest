@@ -9,88 +9,7 @@ import { TransactionType } from '../entities/token-transaction.entity';
 import { TokenTransactionService } from '../services/token-transaction.service';
 import { UserService } from '../services/user.service';
 
-// TrivusEXP1363 컨트랙트 ABI 상수 정의
-const TRIVUS_EXP_ABI = [
-    // claimWithSignature 함수
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "to",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "deadline",
-                "type": "uint256"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "nonce",
-                "type": "bytes32"
-            },
-            {
-                "internalType": "bytes",
-                "name": "signature",
-                "type": "bytes"
-            }
-        ],
-        "name": "claimWithSignature",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    // balanceOf 조회
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            }
-        ],
-        "name": "balanceOf",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    // transfer 함수
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "to",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            }
-        ],
-        "name": "transfer",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    }
-];
+// TrivusEXP1363 컨트랙트 ABI는 TrivusExpService에서 가져옴
 
 @Controller('token-transactions')
 @UseGuards(JwtAuthGuard)
@@ -253,7 +172,7 @@ export class TokenTransactionsController {
                     nonce: result.nonce,
                     signature: result.signature,
                     contractAddress: trivusExpAddress,
-                    contractABI: TRIVUS_EXP_ABI,
+                    contractABI: this.trivusExpService.getContractAbi(),
                     message: 'Use this signature to execute the claim on the blockchain. The transaction will be recorded automatically when the claim is executed.',
                 },
             };

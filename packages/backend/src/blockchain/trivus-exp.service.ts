@@ -68,94 +68,7 @@ export class TrivusExpService {
             this.logger.log(`[DEBUG] Contract address: ${this.contractAddress}`);
 
             // 컨트랙트 ABI (새로운 TrivusEXP1363와 일치)
-            const contractABI = [
-                // ERC20 기본 함수들
-                {
-                    "inputs": [],
-                    "name": "name",
-                    "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [],
-                    "name": "symbol",
-                    "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [],
-                    "name": "decimals",
-                    "outputs": [{ "internalType": "uint8", "name": "", "type": "uint8" }],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [],
-                    "name": "totalSupply",
-                    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [{ "internalType": "address", "name": "account", "type": "address" }],
-                    "name": "balanceOf",
-                    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                // TrivusEXP1363 전용 함수들
-                {
-                    "inputs": [],
-                    "name": "trustedSigner",
-                    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                {
-                    "inputs": [
-                        { "internalType": "address", "name": "to", "type": "address" },
-                        { "internalType": "uint256", "name": "amount", "type": "uint256" },
-                        { "internalType": "uint256", "name": "deadline", "type": "uint256" },
-                        { "internalType": "bytes32", "name": "nonce", "type": "bytes32" },
-                        { "internalType": "bytes", "name": "signature", "type": "bytes" }
-                    ],
-                    "name": "claimWithSignature",
-                    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-                    "stateMutability": "nonpayable",
-                    "type": "function"
-                },
-                {
-                    "inputs": [{ "internalType": "address", "name": "user", "type": "address" }],
-                    "name": "nonces",
-                    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-                    "stateMutability": "view",
-                    "type": "function"
-                },
-                // ERC-1363 transferAndCall 함수들
-                {
-                    "inputs": [
-                        { "internalType": "address", "name": "to", "type": "address" },
-                        { "internalType": "uint256", "name": "value", "type": "uint256" }
-                    ],
-                    "name": "transferAndCall",
-                    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-                    "stateMutability": "nonpayable",
-                    "type": "function"
-                },
-                {
-                    "inputs": [
-                        { "internalType": "address", "name": "to", "type": "address" },
-                        { "internalType": "uint256", "name": "value", "type": "uint256" },
-                        { "internalType": "bytes", "name": "data", "type": "bytes" }
-                    ],
-                    "name": "transferAndCall",
-                    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
-                    "stateMutability": "nonpayable",
-                    "type": "function"
-                }
-            ];
+            const contractABI = this.getContractAbi();
 
             this.contract = new ethers.Contract(this.contractAddress, contractABI, this.trustedSigner);
 
@@ -169,253 +82,9 @@ export class TrivusExpService {
     }
 
     /**
-     * 토큰 지급을 위한 EIP-712 서명 생성
+     * 컨트랙트 ABI 반환
      */
-    async createTokenClaimSignature(request: TokenClaimRequest): Promise<TokenClaimSignature> {
-        try {
-            const { address, reason } = request;
-
-            // 1. 사용자의 availableToken 업데이트 (accumulation에서 최신 데이터로)
-            await this.userService.updateAvailableTokens(address);
-
-            // 2. DB에서 사용자의 사용 가능한 토큰 양 조회
-            const tokenInfo = await this.userService.getUserTokenInfo(address);
-            const availableAmount = tokenInfo.availableTokens;
-
-            if (availableAmount <= 0) {
-                throw new Error('No available tokens to claim');
-            }
-
-            // EIP-712 도메인 설정
-            const chainId = this.configService.get<number>('blockchain.amoy.chainId');
-            const domain = {
-                name: 'TrivusEXP1363',
-                version: '1',
-                chainId: chainId,
-                verifyingContract: this.contractAddress
-            };
-
-            // 서명할 데이터 타입 (새로운 컨트랙트와 일치)
-            const types = {
-                Claim: [
-                    { name: 'to', type: 'address' },
-                    { name: 'amount', type: 'uint256' },
-                    { name: 'deadline', type: 'uint256' },
-                    { name: 'nonce', type: 'bytes32' }
-                ]
-            };
-
-            // 서명할 값
-            const deadline = Math.floor(Date.now() / 1000) + 3600; // 1시간 후 만료
-            const amountWei = ethers.parseEther(availableAmount.toString());
-
-            // 예측 불가능한 nonce 생성 (32바이트 hex)
-            const nonce = await this.claimNonceService.getNextNonce(address);
-
-            const value = {
-                to: address,
-                amount: amountWei,
-                deadline,
-                nonce: nonce.toString() // BigInt를 string으로 변환
-            };
-
-            // EIP-712 서명 생성
-            const signature = await this.trustedSigner.signTypedData(domain, types, value);
-
-            this.logger.log(`Token claim signature created for ${address}: ${availableAmount} EXP`);
-
-            // claim 요청을 DB에 저장
-            await this.claimRequestService.createClaimRequest(
-                address,
-                nonce,
-                availableAmount.toString(),
-                BigInt(deadline),
-                signature,
-                reason
-            );
-
-            return {
-                to: address,
-                amount: parseFloat(availableAmount.toString()).toFixed(1), // 소숫점 첫째자리까지만 표시
-                deadline,
-                signature,
-                nonce: nonce.toString() // BigInt를 string으로 변환
-            };
-        } catch (error) {
-            this.logger.error(`Failed to create token claim signature: ${(error as Error).message}`);
-            throw error;
-        }
-    }
-
-    /**
-     * 서명을 사용하여 토큰 지급 실행
-     */
-    async executeTokenClaim(claimSignature: TokenClaimSignature): Promise<string> {
-        try {
-            const { to, amount, nonce, deadline, signature } = claimSignature;
-            const amountWei = ethers.parseEther(amount);
-
-            // 새로운 claimWithSignature 함수 호출
-            const tx = await this.contract.claimWithSignature(to, amountWei, deadline, nonce, signature);
-            await tx.wait();
-
-            this.logger.log(`Tokens claimed successfully: ${amount} EXP to ${to}, TX: ${tx.hash}`);
-
-            return tx.hash;
-        } catch (error) {
-            this.logger.error(`Failed to execute token claim: ${error.message}`);
-            throw error;
-        }
-    }
-
-    /**
-     * 사용자 토큰 잔액 조회
-     */
-    async getBalance(address: string): Promise<string> {
-        try {
-            const balance = await this.contract.balanceOf(address);
-            return ethers.formatEther(balance);
-        } catch (error) {
-            this.logger.error(`Failed to get balance for ${address}: ${error.message}`);
-            throw error;
-        }
-    }
-
-    /**
-     * 총 토큰 공급량 조회
-     */
-    async getTotalSupply(): Promise<string> {
-        try {
-            const totalSupply = await this.contract.totalSupply();
-            return ethers.formatEther(totalSupply);
-        } catch (error) {
-            this.logger.error(`Failed to get total supply: ${error.message}`);
-            throw error;
-        }
-    }
-
-    /**
-     * TrustedSigner 주소 조회
-     */
-    async getTrustedSigner(): Promise<string> {
-        try {
-            return await this.contract.trustedSigner();
-        } catch (error) {
-            // ENS 에러인 경우 로그만 남기고 기본값 반환
-            if (error.message && error.message.includes('network does not support ENS')) {
-                this.logger.warn('ENS not supported on this network, using configured trusted signer address');
-                return this.trustedSigner.address;
-            }
-            this.logger.error(`Failed to get trusted signer: ${error.message}`);
-            throw error;
-        }
-    }
-
-    /**
-     * 서명이 유효한지 확인 (읽기 전용)
-     * @param data 서명 데이터
-     * @return 유효한 서명인지 여부
-     */
-    async verifySignature(data: { to: string; amount: string; nonce: string; deadline: number; signature: string }): Promise<boolean> {
-        try {
-            const { to, amount, nonce, deadline, signature } = data;
-
-            this.logger.log(`[DEBUG] Starting signature verification for ${to}, amount: ${amount} EXP`);
-            this.logger.log(`[DEBUG] Current timestamp: ${Math.floor(Date.now() / 1000)}`);
-            this.logger.log(`[DEBUG] Deadline: ${deadline}`);
-
-            // 서명 만료 시간 체크
-            if (deadline <= Math.floor(Date.now() / 1000)) {
-                this.logger.warn(`[DEBUG] Signature expired: deadline ${deadline}, current ${Math.floor(Date.now() / 1000)}`);
-                return false;
-            }
-
-            this.logger.log(`[DEBUG] Signature not expired, proceeding with verification`);
-
-            // EIP-712 서명 검증 (새로운 컨트랙트와 일치)
-            const chainId = this.configService.get<number>('blockchain.amoy.chainId');
-            const domain = {
-                name: 'TrivusEXP1363',
-                version: '1',
-                chainId: chainId,
-                verifyingContract: this.contractAddress
-            };
-
-            const types = {
-                Claim: [
-                    { name: 'to', type: 'address' },
-                    { name: 'amount', type: 'uint256' },
-                    { name: 'deadline', type: 'uint256' },
-                    { name: 'nonce', type: 'bytes32' }
-                ]
-            };
-
-            const value = {
-                to,
-                amount: ethers.parseEther(amount),
-                deadline,
-                nonce
-            };
-
-            this.logger.log(`[DEBUG] EIP-712 verification data:`);
-            this.logger.log(`[DEBUG]   Domain: ${JSON.stringify(domain)}`);
-            this.logger.log(`[DEBUG]   Types: ${JSON.stringify(types)}`);
-            this.logger.log(`[DEBUG]   Value: ${JSON.stringify({
-                to: value.to,
-                amount: value.amount.toString(),
-                deadline: value.deadline,
-                nonce: value.nonce
-            })}`);
-
-            // signTypedData로 생성된 서명 검증
-            let recoveredAddress: string;
-            try {
-                recoveredAddress = ethers.verifyTypedData(domain, types, value, signature);
-            } catch (error) {
-                this.logger.error(`Signature verification failed: ${error.message}`);
-                return false;
-            }
-            this.logger.log(`[DEBUG] Recovered address from signature: ${recoveredAddress}`);
-
-            // TrustedSigner와 비교
-            const trustedSigner = await this.contract.trustedSigner();
-            this.logger.log(`[DEBUG] Contract trustedSigner: ${trustedSigner}`);
-            this.logger.log(`[DEBUG] Current backend trustedSigner: ${this.trustedSigner.address}`);
-
-            const isValid = recoveredAddress.toLowerCase() === trustedSigner.toLowerCase();
-            this.logger.log(`[DEBUG] Address comparison: ${recoveredAddress.toLowerCase()} === ${trustedSigner.toLowerCase()} = ${isValid}`);
-
-            if (!isValid) {
-                this.logger.warn(`[DEBUG] Signature verification failed: recovered address doesn't match trustedSigner`);
-                this.logger.warn(`[DEBUG] Recovered: ${recoveredAddress}`);
-                this.logger.warn(`[DEBUG] Expected: ${trustedSigner}`);
-                this.logger.warn(`[DEBUG] Backend signer: ${this.trustedSigner.address}`);
-            }
-
-            return isValid;
-        } catch (error) {
-            this.logger.error(`[DEBUG] Failed to verify signature: ${(error as Error).message}`);
-            this.logger.error(`[DEBUG] Error stack: ${(error as Error).stack}`);
-            return false;
-        }
-    }
-
-    /**
-     * 컨트랙트 주소 조회
-     */
-    async getContractAddress(): Promise<string> {
-        return this.contractAddress;
-    }
-
-    /**
- * 컨트랙트 ABI 반환
- */
-    getContractABI(): any[] {
-        if (!this.isInitialized || !this.contract) {
-            return [];
-        }
-
-        // 실제 컨트랙트 코드와 정확히 일치하는 ABI
+    public getContractAbi(): any[] {
         return [
             {
                 "inputs": [
@@ -1277,6 +946,245 @@ export class TrivusExpService {
     }
 
     /**
+     * 토큰 지급을 위한 EIP-712 서명 생성
+     */
+    async createTokenClaimSignature(request: TokenClaimRequest): Promise<TokenClaimSignature> {
+        try {
+            const { address, reason } = request;
+
+            // 1. 사용자의 availableToken 업데이트 (accumulation에서 최신 데이터로)
+            await this.userService.updateAvailableTokens(address);
+
+            // 2. DB에서 사용자의 사용 가능한 토큰 양 조회
+            const tokenInfo = await this.userService.getUserTokenInfo(address);
+            const availableAmount = tokenInfo.availableTokens;
+
+            if (availableAmount <= 0) {
+                throw new Error('No available tokens to claim');
+            }
+
+            // EIP-712 도메인 설정
+            const chainId = this.configService.get<number>('blockchain.amoy.chainId');
+            const domain = {
+                name: 'TrivusEXP1363',
+                version: '1',
+                chainId: chainId,
+                verifyingContract: this.contractAddress
+            };
+
+            // 서명할 데이터 타입 (새로운 컨트랙트와 일치)
+            const types = {
+                Claim: [
+                    { name: 'to', type: 'address' },
+                    { name: 'amount', type: 'uint256' },
+                    { name: 'deadline', type: 'uint256' },
+                    { name: 'nonce', type: 'bytes32' }
+                ]
+            };
+
+            // 서명할 값
+            const deadline = Math.floor(Date.now() / 1000) + 3600; // 1시간 후 만료
+            const amountWei = ethers.parseEther(availableAmount.toString());
+
+            // 예측 불가능한 nonce 생성 (32바이트 hex)
+            const nonce = await this.claimNonceService.getNextNonce(address);
+
+            const value = {
+                to: address,
+                amount: amountWei,
+                deadline,
+                nonce: nonce.toString() // BigInt를 string으로 변환
+            };
+
+            // EIP-712 서명 생성
+            const signature = await this.trustedSigner.signTypedData(domain, types, value);
+
+            this.logger.log(`Token claim signature created for ${address}: ${availableAmount} EXP`);
+
+            // claim 요청을 DB에 저장
+            await this.claimRequestService.createClaimRequest(
+                address,
+                nonce,
+                availableAmount.toString(),
+                BigInt(deadline),
+                signature,
+                reason
+            );
+
+            return {
+                to: address,
+                amount: parseFloat(availableAmount.toString()).toFixed(1), // 소숫점 첫째자리까지만 표시
+                deadline,
+                signature,
+                nonce: nonce.toString() // BigInt를 string으로 변환
+            };
+        } catch (error) {
+            this.logger.error(`Failed to create token claim signature: ${(error as Error).message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * 서명을 사용하여 토큰 지급 실행
+     */
+    async executeTokenClaim(claimSignature: TokenClaimSignature): Promise<string> {
+        try {
+            const { to, amount, nonce, deadline, signature } = claimSignature;
+            const amountWei = ethers.parseEther(amount);
+
+            // 새로운 claimWithSignature 함수 호출
+            const tx = await this.contract.claimWithSignature(to, amountWei, deadline, nonce, signature);
+            await tx.wait();
+
+            this.logger.log(`Tokens claimed successfully: ${amount} EXP to ${to}, TX: ${tx.hash}`);
+
+            return tx.hash;
+        } catch (error) {
+            this.logger.error(`Failed to execute token claim: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * 사용자 토큰 잔액 조회
+     */
+    async getBalance(address: string): Promise<string> {
+        try {
+            const balance = await this.contract.balanceOf(address);
+            return ethers.formatEther(balance);
+        } catch (error) {
+            this.logger.error(`Failed to get balance for ${address}: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * 총 토큰 공급량 조회
+     */
+    async getTotalSupply(): Promise<string> {
+        try {
+            const totalSupply = await this.contract.totalSupply();
+            return ethers.formatEther(totalSupply);
+        } catch (error) {
+            this.logger.error(`Failed to get total supply: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * TrustedSigner 주소 조회
+     */
+    async getTrustedSigner(): Promise<string> {
+        try {
+            return await this.contract.trustedSigner();
+        } catch (error) {
+            // ENS 에러인 경우 로그만 남기고 기본값 반환
+            if (error.message && error.message.includes('network does not support ENS')) {
+                this.logger.warn('ENS not supported on this network, using configured trusted signer address');
+                return this.trustedSigner.address;
+            }
+            this.logger.error(`Failed to get trusted signer: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * 서명이 유효한지 확인 (읽기 전용)
+     * @param data 서명 데이터
+     * @return 유효한 서명인지 여부
+     */
+    async verifySignature(data: { to: string; amount: string; nonce: string; deadline: number; signature: string }): Promise<boolean> {
+        try {
+            const { to, amount, nonce, deadline, signature } = data;
+
+            this.logger.log(`[DEBUG] Starting signature verification for ${to}, amount: ${amount} EXP`);
+            this.logger.log(`[DEBUG] Current timestamp: ${Math.floor(Date.now() / 1000)}`);
+            this.logger.log(`[DEBUG] Deadline: ${deadline}`);
+
+            // 서명 만료 시간 체크
+            if (deadline <= Math.floor(Date.now() / 1000)) {
+                this.logger.warn(`[DEBUG] Signature expired: deadline ${deadline}, current ${Math.floor(Date.now() / 1000)}`);
+                return false;
+            }
+
+            this.logger.log(`[DEBUG] Signature not expired, proceeding with verification`);
+
+            // EIP-712 서명 검증 (새로운 컨트랙트와 일치)
+            const chainId = this.configService.get<number>('blockchain.amoy.chainId');
+            const domain = {
+                name: 'TrivusEXP1363',
+                version: '1',
+                chainId: chainId,
+                verifyingContract: this.contractAddress
+            };
+
+            const types = {
+                Claim: [
+                    { name: 'to', type: 'address' },
+                    { name: 'amount', type: 'uint256' },
+                    { name: 'deadline', type: 'uint256' },
+                    { name: 'nonce', type: 'bytes32' }
+                ]
+            };
+
+            const value = {
+                to,
+                amount: ethers.parseEther(amount),
+                deadline,
+                nonce
+            };
+
+            this.logger.log(`[DEBUG] EIP-712 verification data:`);
+            this.logger.log(`[DEBUG]   Domain: ${JSON.stringify(domain)}`);
+            this.logger.log(`[DEBUG]   Types: ${JSON.stringify(types)}`);
+            this.logger.log(`[DEBUG]   Value: ${JSON.stringify({
+                to: value.to,
+                amount: value.amount.toString(),
+                deadline: value.deadline,
+                nonce: value.nonce
+            })}`);
+
+            // signTypedData로 생성된 서명 검증
+            let recoveredAddress: string;
+            try {
+                recoveredAddress = ethers.verifyTypedData(domain, types, value, signature);
+            } catch (error) {
+                this.logger.error(`Signature verification failed: ${error.message}`);
+                return false;
+            }
+            this.logger.log(`[DEBUG] Recovered address from signature: ${recoveredAddress}`);
+
+            // TrustedSigner와 비교
+            const trustedSigner = await this.contract.trustedSigner();
+            this.logger.log(`[DEBUG] Contract trustedSigner: ${trustedSigner}`);
+            this.logger.log(`[DEBUG] Current backend trustedSigner: ${this.trustedSigner.address}`);
+
+            const isValid = recoveredAddress.toLowerCase() === trustedSigner.toLowerCase();
+            this.logger.log(`[DEBUG] Address comparison: ${recoveredAddress.toLowerCase()} === ${trustedSigner.toLowerCase()} = ${isValid}`);
+
+            if (!isValid) {
+                this.logger.warn(`[DEBUG] Signature verification failed: recovered address doesn't match trustedSigner`);
+                this.logger.warn(`[DEBUG] Recovered: ${recoveredAddress}`);
+                this.logger.warn(`[DEBUG] Expected: ${trustedSigner}`);
+                this.logger.warn(`[DEBUG] Backend signer: ${this.trustedSigner.address}`);
+            }
+
+            return isValid;
+        } catch (error) {
+            this.logger.error(`[DEBUG] Failed to verify signature: ${(error as Error).message}`);
+            this.logger.error(`[DEBUG] Error stack: ${(error as Error).stack}`);
+            return false;
+        }
+    }
+
+    /**
+     * 컨트랙트 주소 조회
+     */
+    async getContractAddress(): Promise<string> {
+        return this.contractAddress;
+    }
+
+    /**
      * 서비스 상태 확인
      */
     async getServiceStatus(): Promise<{
@@ -1316,4 +1224,4 @@ export class TrivusExpService {
             claimEventService: this.claimEventService?.getStatus() || null
         };
     }
-} 
+}

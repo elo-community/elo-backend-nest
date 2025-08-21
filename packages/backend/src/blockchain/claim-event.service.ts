@@ -6,6 +6,7 @@ import { TransactionType } from '../entities/token-transaction.entity';
 import { ClaimRequestService } from '../services/claim-request.service';
 import { TokenTransactionService } from '../services/token-transaction.service';
 import { UserService } from '../services/user.service';
+import { TrivusExpService } from './trivus-exp.service';
 
 @Injectable()
 export class ClaimEventService implements OnModuleInit {
@@ -33,6 +34,7 @@ export class ClaimEventService implements OnModuleInit {
         private claimRequestService: ClaimRequestService,
         private tokenTransactionService: TokenTransactionService,
         private userService: UserService,
+        private trivusExpService: TrivusExpService,
     ) { }
 
     async onModuleInit() {
@@ -56,67 +58,8 @@ export class ClaimEventService implements OnModuleInit {
 
             this.provider = new ethers.JsonRpcProvider(rpcUrl);
 
-            // TrivusEXP 컨트랙트 ABI (ClaimExecuted 이벤트 + Transfer 이벤트 포함)
-            const trivusExpContractABI = [
-                // ClaimExecuted 이벤트
-                {
-                    "anonymous": false,
-                    "inputs": [
-                        {
-                            "indexed": true,
-                            "internalType": "address",
-                            "name": "to",
-                            "type": "address"
-                        },
-                        {
-                            "indexed": false,
-                            "internalType": "uint256",
-                            "name": "amount",
-                            "type": "uint256"
-                        },
-                        {
-                            "indexed": false,
-                            "internalType": "uint256",
-                            "name": "deadline",
-                            "type": "uint256"
-                        },
-                        {
-                            "indexed": false,
-                            "internalType": "bytes32",
-                            "name": "nonce",
-                            "type": "bytes32"
-                        }
-                    ],
-                    "name": "ClaimExecuted",
-                    "type": "event"
-                },
-                // Transfer 이벤트 (mint, claim 등에서 emit)
-                {
-                    "anonymous": false,
-                    "inputs": [
-                        {
-                            "indexed": true,
-                            "internalType": "address",
-                            "name": "from",
-                            "type": "address"
-                        },
-                        {
-                            "indexed": true,
-                            "internalType": "address",
-                            "name": "to",
-                            "type": "address"
-                        },
-                        {
-                            "indexed": false,
-                            "internalType": "uint256",
-                            "name": "value",
-                            "type": "uint256"
-                        }
-                    ],
-                    "name": "Transfer",
-                    "type": "event"
-                }
-            ];
+            // TrivusEXP 컨트랙트 ABI는 TrivusExpService에서 가져옴
+            const trivusExpContractABI = this.trivusExpService.getContractAbi();
 
             this.trivusExpContract = new ethers.Contract(trivusExpContractAddress, trivusExpContractABI, this.provider);
 

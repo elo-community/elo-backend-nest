@@ -7,118 +7,7 @@ import { PostService } from '../services/post.service';
 import { UserService } from '../services/user.service';
 
 // PostLikeSystem1363 ABI는 PostLikeSystemService에서 가져옴
-
-const TRIVUS_EXP_ABI = [
-    // transferAndCall 함수 (ERC-1363)
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "to",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            },
-            {
-                "internalType": "bytes",
-                "name": "data",
-                "type": "bytes"
-            }
-        ],
-        "name": "transferAndCall",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    // claimWithSignature 함수
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "to",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "deadline",
-                "type": "uint256"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "nonce",
-                "type": "bytes32"
-            },
-            {
-                "internalType": "bytes",
-                "name": "signature",
-                "type": "bytes"
-            }
-        ],
-        "name": "claimWithSignature",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    // balanceOf 조회
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            }
-        ],
-        "name": "balanceOf",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    // transfer 함수
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "to",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            }
-        ],
-        "name": "transfer",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    }
-];
+// TrivusEXP1363 ABI는 TrivusExpService에서 가져옴
 
 @Controller('post-like-signature')
 export class PostLikeSignatureController {
@@ -152,7 +41,7 @@ export class PostLikeSignatureController {
             const postLikeSystemAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
 
             // TrivusExpService에서 실제 컨트랙트 ABI 가져오기
-            const contractABI = this.trivusExpService.getContractABI();
+            const contractABI = this.trivusExpService.getContractAbi();
 
             return {
                 success: true,
@@ -245,7 +134,7 @@ export class PostLikeSignatureController {
                     nonce: signatureData.nonce,
                     signature: signatureData.signature,
                     contractAddress: postLikeSystemAddress,
-                    contractABI: this.postLikeSystemService.getContractABI()
+                    contractABI: this.postLikeSystemService.getContractAbi()
                 },
                 message: 'Like signature created successfully'
             };
@@ -291,7 +180,7 @@ export class PostLikeSignatureController {
                     nonce: signatureData.nonce,
                     signature: signatureData.signature,
                     contractAddress: trivusExpAddress,
-                    contractABI: TRIVUS_EXP_ABI
+                    contractABI: this.trivusExpService.getContractAbi()
                 },
                 message: 'Token claim signature created successfully'
             };

@@ -7,6 +7,7 @@ import { CreateTransactionDto, TokenTransactionService } from '../services/token
 import { UserService } from '../services/user.service';
 import { ClaimEventService } from './claim-event.service';
 import { PostLikeSystemService } from './post-like-system.service';
+import { TrivusExpService } from './trivus-exp.service';
 
 @Injectable()
 export class LikeEventService implements OnModuleInit {
@@ -30,6 +31,7 @@ export class LikeEventService implements OnModuleInit {
         private tokenTransactionService: TokenTransactionService,
         private claimEventService: ClaimEventService, // ClaimEventService 주입
         private postLikeSystemService: PostLikeSystemService, // PostLikeSystemService 주입
+        private trivusExpService: TrivusExpService, // TrivusExpService 주입
     ) {
         this.instanceId = Math.random().toString(36).substring(2, 15); // 인스턴스 ID 생성
     }
@@ -61,36 +63,8 @@ export class LikeEventService implements OnModuleInit {
             // PostLikeSystem 컨트랙트 ABI는 PostLikeSystemService에서 가져옴
             const postLikeContractABI = this.postLikeSystemService.getContractABI();
 
-
-
-            // TrivusEXP 컨트랙트 ABI (Transfer 이벤트만)
-            const trivusExpContractABI = [
-                {
-                    "anonymous": false,
-                    "inputs": [
-                        {
-                            "indexed": true,
-                            "internalType": "address",
-                            "name": "from",
-                            "type": "address"
-                        },
-                        {
-                            "indexed": true,
-                            "internalType": "address",
-                            "name": "to",
-                            "type": "address"
-                        },
-                        {
-                            "indexed": false,
-                            "internalType": "uint256",
-                            "name": "value",
-                            "type": "uint256"
-                        }
-                    ],
-                    "name": "Transfer",
-                    "type": "event"
-                }
-            ];
+            // TrivusEXP 컨트랙트 ABI는 TrivusExpService에서 가져옴
+            const trivusExpContractABI = this.trivusExpService.getContractAbi();
 
             this.postLikeContract = new ethers.Contract(postLikeContractAddress, postLikeContractABI, this.provider);
             this.trivusExpContract = new ethers.Contract(trivusExpContractAddress, trivusExpContractABI, this.provider);

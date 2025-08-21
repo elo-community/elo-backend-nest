@@ -44,14 +44,7 @@ export class PostLikeSystemService {
             this.logger.log(`Wallet private key: ${this.trustedSigner.privateKey}`);
 
             // PostLikeSystem1363 컨트랙트 ABI (필요한 함수만)
-            const postLikeContractABI = [
-                'function likePrice() view returns (uint256)',
-                'function trustedSigner() view returns (address)',
-                'function getPostInfo(uint256 postId, address user) view returns (uint256 totalLikes, uint256 totalTokens, bool isLikedByUser)',
-                'function hasLiked(uint256 postId, address user) view returns (bool)',
-                'function postLikes(uint256 postId) view returns (uint256)',
-                'function postTokens(uint256 postId) view returns (uint256)'
-            ];
+            const postLikeContractABI = this.getContractAbi();
 
             this.postLikeContract = new ethers.Contract(
                 postLikeContractAddress,
@@ -63,6 +56,768 @@ export class PostLikeSystemService {
         } catch (error) {
             this.logger.error('Failed to initialize PostLikeSystem service:', error);
         }
+    }
+
+    /**
+     * 컨트랙트 ABI 반환
+     */
+    public getContractAbi(): any[] {
+        return [
+            {
+                "inputs": [
+                    {
+                        "internalType": "uint256[]",
+                        "name": "postIds",
+                        "type": "uint256[]"
+                    },
+                    {
+                        "internalType": "uint256[]",
+                        "name": "deadlines",
+                        "type": "uint256[]"
+                    },
+                    {
+                        "internalType": "bytes32[]",
+                        "name": "nonces",
+                        "type": "bytes32[]"
+                    },
+                    {
+                        "internalType": "bytes[]",
+                        "name": "signatures",
+                        "type": "bytes[]"
+                    }
+                ],
+                "name": "batchLikePosts",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "postId",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "to",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "amount",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "deadline",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "bytes32",
+                        "name": "nonce",
+                        "type": "bytes32"
+                    },
+                    {
+                        "internalType": "bytes",
+                        "name": "signature",
+                        "type": "bytes"
+                    }
+                ],
+                "name": "claimWithSignature",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "_token",
+                        "type": "address"
+                    }
+                ],
+                "stateMutability": "nonpayable",
+                "type": "constructor"
+            },
+            {
+                "inputs": [],
+                "name": "ECDSAInvalidSignature",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "length",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "ECDSAInvalidSignatureLength",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes32",
+                        "name": "s",
+                        "type": "bytes32"
+                    }
+                ],
+                "name": "ECDSAInvalidSignatureS",
+                "type": "error"
+            },
+            {
+                "inputs": [],
+                "name": "InvalidShortString",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "from",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "value",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "bytes",
+                        "name": "data",
+                        "type": "bytes"
+                    }
+                ],
+                "name": "onTransferReceived",
+                "outputs": [
+                    {
+                        "internalType": "bytes4",
+                        "name": "",
+                        "type": "bytes4"
+                    }
+                ],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "owner",
+                        "type": "address"
+                    }
+                ],
+                "name": "OwnableInvalidOwner",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "account",
+                        "type": "address"
+                    }
+                ],
+                "name": "OwnableUnauthorizedAccount",
+                "type": "error"
+            },
+            {
+                "inputs": [],
+                "name": "ReentrancyGuardReentrantCall",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "token",
+                        "type": "address"
+                    }
+                ],
+                "name": "SafeERC20FailedOperation",
+                "type": "error"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "string",
+                        "name": "str",
+                        "type": "string"
+                    }
+                ],
+                "name": "StringTooLong",
+                "type": "error"
+            },
+            {
+                "anonymous": false,
+                "inputs": [],
+                "name": "EIP712DomainChanged",
+                "type": "event"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {
+                        "indexed": false,
+                        "internalType": "uint256",
+                        "name": "price",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "LikePriceUpdated",
+                "type": "event"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {
+                        "indexed": true,
+                        "internalType": "address",
+                        "name": "previousOwner",
+                        "type": "address"
+                    },
+                    {
+                        "indexed": true,
+                        "internalType": "address",
+                        "name": "newOwner",
+                        "type": "address"
+                    }
+                ],
+                "name": "OwnershipTransferred",
+                "type": "event"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {
+                        "indexed": true,
+                        "internalType": "uint256",
+                        "name": "postId",
+                        "type": "uint256"
+                    },
+                    {
+                        "indexed": true,
+                        "internalType": "address",
+                        "name": "user",
+                        "type": "address"
+                    },
+                    {
+                        "indexed": false,
+                        "internalType": "uint256",
+                        "name": "amount",
+                        "type": "uint256"
+                    },
+                    {
+                        "indexed": false,
+                        "internalType": "uint256",
+                        "name": "timestamp",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "PostLiked",
+                "type": "event"
+            },
+            {
+                "inputs": [],
+                "name": "renounceOwnership",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "_price",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "setLikePrice",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "_signer",
+                        "type": "address"
+                    }
+                ],
+                "name": "setTrustedSigner",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "to",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "amount",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "sweep",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {
+                        "indexed": false,
+                        "internalType": "address",
+                        "name": "to",
+                        "type": "address"
+                    },
+                    {
+                        "indexed": false,
+                        "internalType": "uint256",
+                        "name": "amount",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "Swept",
+                "type": "event"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {
+                        "indexed": true,
+                        "internalType": "address",
+                        "name": "to",
+                        "type": "address"
+                    },
+                    {
+                        "indexed": true,
+                        "internalType": "uint256",
+                        "name": "postId",
+                        "type": "uint256"
+                    },
+                    {
+                        "indexed": false,
+                        "internalType": "uint256",
+                        "name": "amount",
+                        "type": "uint256"
+                    },
+                    {
+                        "indexed": false,
+                        "internalType": "bytes",
+                        "name": "signature",
+                        "type": "bytes"
+                    }
+                ],
+                "name": "TokensClaimed",
+                "type": "event"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "newOwner",
+                        "type": "address"
+                    }
+                ],
+                "name": "transferOwnership",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "anonymous": false,
+                "inputs": [
+                    {
+                        "indexed": false,
+                        "internalType": "address",
+                        "name": "signer",
+                        "type": "address"
+                    }
+                ],
+                "name": "TrustedSignerUpdated",
+                "type": "event"
+            },
+            {
+                "inputs": [],
+                "name": "eip712Domain",
+                "outputs": [
+                    {
+                        "internalType": "bytes1",
+                        "name": "fields",
+                        "type": "bytes1"
+                    },
+                    {
+                        "internalType": "string",
+                        "name": "name",
+                        "type": "string"
+                    },
+                    {
+                        "internalType": "string",
+                        "name": "version",
+                        "type": "string"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "chainId",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "verifyingContract",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "bytes32",
+                        "name": "salt",
+                        "type": "bytes32"
+                    },
+                    {
+                        "internalType": "uint256[]",
+                        "name": "extensions",
+                        "type": "uint256[]"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "getContractBalance",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "postId",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "user",
+                        "type": "address"
+                    }
+                ],
+                "name": "getPostInfo",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "postId",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "getPostTokens",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "",
+                        "type": "address"
+                    }
+                ],
+                "name": "hasLiked",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes32",
+                        "name": "digest",
+                        "type": "bytes32"
+                    }
+                ],
+                "name": "isBatchLikeDigestUsed",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes32",
+                        "name": "digest",
+                        "type": "bytes32"
+                    }
+                ],
+                "name": "isClaimDigestUsed",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "user",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "postId",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "isLikeTicketUsed",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "likePrice",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "user",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "postId",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "likeTicketKey",
+                "outputs": [
+                    {
+                        "internalType": "bytes32",
+                        "name": "",
+                        "type": "bytes32"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "owner",
+                "outputs": [
+                    {
+                        "internalType": "address",
+                        "name": "",
+                        "type": "address"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "postLikes",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "name": "postTokens",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "token",
+                "outputs": [
+                    {
+                        "internalType": "contract IERC20",
+                        "name": "",
+                        "type": "address"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "trustedSigner",
+                "outputs": [
+                    {
+                        "internalType": "address",
+                        "name": "",
+                        "type": "address"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes32",
+                        "name": "",
+                        "type": "bytes32"
+                    }
+                ],
+                "name": "usedBatchLikeDigests",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes32",
+                        "name": "",
+                        "type": "bytes32"
+                    }
+                ],
+                "name": "usedClaimDigests",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "bytes32",
+                        "name": "",
+                        "type": "bytes32"
+                    }
+                ],
+                "name": "usedLikeTickets",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            }
+        ];
     }
 
     /**
