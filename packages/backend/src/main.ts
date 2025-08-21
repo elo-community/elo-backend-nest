@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
@@ -11,6 +12,14 @@ import { initializeNetwork } from './config/network-loader';
 async function bootstrap() {
   // 네트워크별 환경변수 로드
   initializeNetwork();
+
+  // 로그 레벨 설정 (환경변수에서 가져오기)
+  const logLevel = process.env.LOG_LEVEL || 'log';
+  Logger.overrideLogger(logLevel === 'error' ? ['error'] :
+    logLevel === 'warn' ? ['warn', 'error'] :
+      logLevel === 'log' ? ['log', 'warn', 'error'] :
+        logLevel === 'debug' ? ['debug', 'log', 'warn', 'error'] :
+          ['log', 'warn', 'error']);
 
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
@@ -44,5 +53,6 @@ async function bootstrap() {
   await app.listen(port);
 
   console.log(`🚀 Application is running on: http://localhost:${port}`);
+  console.log(`📝 Log level set to: ${logLevel}`);
 }
 bootstrap();
