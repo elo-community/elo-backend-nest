@@ -131,19 +131,24 @@ jobs:
             set -e
             cd /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest
 
-            # (3) 레지스트리 로그인 (프라이빗 레포 대비)
+            # 0) 우리가 실제로 배포하려는 compose 파일이 맞는지 확인(디버그용)
+            echo "=== docker-compose.yml (head) ==="
+            sed -n '1,120p' docker-compose.yml || true
+
+            # 1) 레지스트리 로그인(프라이빗 대비)
             echo "${{ secrets.DOCKER_PASSWORD }}" | sudo docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-            # 렌더링된 compose를 표준 파일명으로 적용
-            mv -f docker-compose.rendered.yml docker-compose.yml
+            # 2) 이름 충돌 방지: 기존 /backend, elo-backend-1 제거
+            sudo docker rm -f backend || true
+            sudo docker rm -f elo-backend-1 || true
 
-            # (1) 강제 재배포: pull + no-deps + force-recreate + pull always
+            # 3) 최신 이미지 pull + 강제 재생성 + 고아 정리
             sudo docker compose pull
-            sudo docker compose up -d --pull always --no-deps --force-recreate backend
+            sudo docker compose up -d --pull always --no-deps --force-recreate --remove-orphans backend nginx
 
-            # 상태/로그 확인
+            # 4) 상태/로그
             sudo docker compose ps
-            sudo docker compose logs --tail=50 backend
+            sudo docker compose logs --tail=80 backend
           EOF
 
       # 배포 후 검증(유지)
