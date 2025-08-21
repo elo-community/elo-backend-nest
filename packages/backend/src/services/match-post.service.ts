@@ -257,8 +257,25 @@ export class MatchPostService {
             .take(limit)
             .getMany();
 
+        // 각 매치글의 참가자 정보 조회
+        const postsWithParticipants = await Promise.all(
+            posts.map(async (post) => {
+                const matchRequests = await this.matchRequestRepository.find({
+                    where: { post: { id: post.id } },
+                    relations: ['user']
+                });
+
+                const participants = groupMatchRequestsByStatus(matchRequests);
+
+                return {
+                    ...post,
+                    participants
+                };
+            })
+        );
+
         return {
-            posts,
+            posts: postsWithParticipants,
             total,
             page,
             limit,
@@ -354,7 +371,25 @@ export class MatchPostService {
             .slice(0, limit);
 
         console.log(`✅ [MatchPostService] 최종 추천 매치글 ${sortedPosts.length}개 반환`);
-        return sortedPosts;
+
+        // 각 매치글의 참가자 정보 조회
+        const postsWithParticipants = await Promise.all(
+            sortedPosts.map(async (post) => {
+                const matchRequests = await this.matchRequestRepository.find({
+                    where: { post: { id: post.id } },
+                    relations: ['user']
+                });
+
+                const participants = groupMatchRequestsByStatus(matchRequests);
+
+                return {
+                    ...post,
+                    participants
+                };
+            })
+        );
+
+        return postsWithParticipants as any; // 타입 에러 해결을 위해 any 사용
     }
 
     /**
@@ -393,10 +428,29 @@ export class MatchPostService {
             .getMany();
 
         // JavaScript에서 Elo 차이로 정렬
-        return recommendedPosts.sort((a, b) => {
+        const sortedPosts = recommendedPosts.sort((a, b) => {
             const aDiff = Math.abs((a.myElo || 1400) - userEloValue);
             const bDiff = Math.abs((b.myElo || 1400) - userEloValue);
             return aDiff - bDiff;
         });
+
+        // 각 매치글의 참가자 정보 조회
+        const postsWithParticipants = await Promise.all(
+            sortedPosts.map(async (post) => {
+                const matchRequests = await this.matchRequestRepository.find({
+                    where: { post: { id: post.id } },
+                    relations: ['user']
+                });
+
+                const participants = groupMatchRequestsByStatus(matchRequests);
+
+                return {
+                    ...post,
+                    participants
+                };
+            })
+        );
+
+        return postsWithParticipants as any; // 타입 에러 해결을 위해 any 사용
     }
 }

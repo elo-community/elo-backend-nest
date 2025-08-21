@@ -10,6 +10,7 @@ import { PostDetailResponseDto } from '../dtos/post-detail-response.dto';
 import { PostResponseDto } from '../dtos/post-response.dto';
 import { CreatePostDto, HotPostResponseDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
 import { CommentService } from '../services/comment.service';
+import { MatchPostService } from '../services/match-post.service';
 import { PostService } from '../services/post.service';
 
 @UseGuards(OptionalJwtAuthGuard)
@@ -18,6 +19,7 @@ export class PostsController {
     constructor(
         private readonly postService: PostService,
         private readonly commentService: CommentService,
+        private readonly matchPostService: MatchPostService,
     ) { }
 
     @Get()
@@ -27,7 +29,21 @@ export class PostsController {
         // 각 포스트에 대해 사용자의 좋아요/싫어요 여부 확인
         const postsWithStatus = await Promise.all(
             paginatedPosts.data.map(async (post) => {
-                // 사용자의 좋아요/싫어요 여부 확인
+                // 매치글인 경우 MatchPostResponse 형태로 반환
+                if (post.type === 'match') {
+                    try {
+                        const matchPostResponse = await this.matchPostService.getMatchPostDetail(post.id);
+                        return matchPostResponse;
+                    } catch (error) {
+                        console.error(`Failed to get match post details for post ${post.id}:`, error);
+                        // 에러 발생 시 기본 PostResponseDto로 반환
+                        const isLiked = user ? await this.postService.checkUserLikeStatus(post.id, user.id) : false;
+                        const isHated = user ? await this.postService.checkUserHateStatus(post.id, user.id) : false;
+                        return new PostResponseDto(post, isLiked, isHated);
+                    }
+                }
+
+                // 일반글인 경우 PostResponseDto 형태로 반환
                 const isLiked = user ? await this.postService.checkUserLikeStatus(post.id, user.id) : false;
                 const isHated = user ? await this.postService.checkUserHateStatus(post.id, user.id) : false;
 
@@ -138,7 +154,17 @@ export class PostsController {
             post.viewCount += 1;
         }
 
-        // 사용자의 좋아요/싫어요 여부와 개수 확인
+        // 매치글인 경우 MatchPostResponse 형태로 반환
+        if (post.type === 'match') {
+            const matchPostResponse = await this.matchPostService.getMatchPostDetail(id);
+            return {
+                success: true,
+                data: matchPostResponse,
+                message: 'Match post with details retrieved successfully'
+            };
+        }
+
+        // 일반글인 경우 PostDetailResponseDto 형태로 반환
         const isLiked = user ? await this.postService.checkUserLikeStatus(id, user.id) : false;
         const isHated = user ? await this.postService.checkUserHateStatus(id, user.id) : false;
         const likeCount = await this.postService.getPostLikeCount(id);
