@@ -6,94 +6,7 @@ import { TrivusExpService } from '../blockchain/trivus-exp.service';
 import { PostService } from '../services/post.service';
 import { UserService } from '../services/user.service';
 
-// 컨트랙트 ABI 상수 정의
-const POST_LIKE_SYSTEM_ABI = [
-    // PostLiked 이벤트
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "uint256",
-                "name": "postId",
-                "type": "uint256"
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "user",
-                "type": "address"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "timestamp",
-                "type": "uint256"
-            }
-        ],
-        "name": "PostLiked",
-        "type": "event"
-    },
-    // claimWithSignature 함수
-    {
-        "inputs": [
-            {
-                "internalType": "uint256",
-                "name": "postId",
-                "type": "uint256"
-            },
-            {
-                "internalType": "address",
-                "name": "to",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "deadline",
-                "type": "uint256"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "nonce",
-                "type": "bytes32"
-            },
-            {
-                "internalType": "bytes",
-                "name": "signature",
-                "type": "bytes"
-            }
-        ],
-        "name": "claimWithSignature",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    // likePrice 조회
-    {
-        "inputs": [],
-        "name": "likePrice",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    }
-];
+// PostLikeSystem1363 ABI는 PostLikeSystemService에서 가져옴
 
 const TRIVUS_EXP_ABI = [
     // transferAndCall 함수 (ERC-1363)
@@ -328,7 +241,7 @@ export class PostLikeSignatureController {
                     nonce: signatureData.nonce,
                     signature: signatureData.signature,
                     contractAddress: postLikeSystemAddress,
-                    contractABI: POST_LIKE_SYSTEM_ABI
+                    contractABI: this.postLikeSystemService.getContractABI()
                 },
                 message: 'Like signature created successfully'
             };

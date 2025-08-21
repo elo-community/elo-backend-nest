@@ -6,6 +6,7 @@ import { PostLikeService } from '../services/post-like.service';
 import { CreateTransactionDto, TokenTransactionService } from '../services/token-transaction.service';
 import { UserService } from '../services/user.service';
 import { ClaimEventService } from './claim-event.service';
+import { PostLikeSystemService } from './post-like-system.service';
 
 @Injectable()
 export class LikeEventService implements OnModuleInit {
@@ -28,6 +29,7 @@ export class LikeEventService implements OnModuleInit {
         private userService: UserService,
         private tokenTransactionService: TokenTransactionService,
         private claimEventService: ClaimEventService, // ClaimEventService 주입
+        private postLikeSystemService: PostLikeSystemService, // PostLikeSystemService 주입
     ) {
         this.instanceId = Math.random().toString(36).substring(2, 15); // 인스턴스 ID 생성
     }
@@ -56,143 +58,8 @@ export class LikeEventService implements OnModuleInit {
             // ENS 에러 방지를 위한 provider 설정
             this.provider = new ethers.JsonRpcProvider(rpcUrl);
 
-            // PostLikeSystem 컨트랙트 ABI
-            const postLikeContractABI = [
-                // PostLikeEvent 이벤트
-                {
-                    "anonymous": false,
-                    "inputs": [
-                        {
-                            "indexed": true,
-                            "internalType": "address",
-                            "name": "user",
-                            "type": "address"
-                        },
-                        {
-                            "indexed": true,
-                            "internalType": "uint256",
-                            "name": "postId",
-                            "type": "uint256"
-                        },
-                        {
-                            "indexed": false,
-                            "internalType": "uint256",
-                            "name": "amount",
-                            "type": "uint256"
-                        },
-                        {
-                            "indexed": false,
-                            "internalType": "bool",
-                            "name": "isLike",
-                            "type": "bool"
-                        }
-                    ],
-                    "name": "PostLikeEvent",
-                    "type": "event"
-                },
-                // PostLiked 이벤트
-                {
-                    "anonymous": false,
-                    "inputs": [
-                        {
-                            "indexed": true,
-                            "internalType": "uint256",
-                            "name": "postId",
-                            "type": "uint256"
-                        },
-                        {
-                            "indexed": true,
-                            "internalType": "address",
-                            "name": "user",
-                            "type": "address"
-                        },
-                        {
-                            "indexed": false,
-                            "internalType": "uint256",
-                            "name": "amount",
-                            "type": "uint256"
-                        },
-                        {
-                            "indexed": false,
-                            "internalType": "uint256",
-                            "name": "timestamp",
-                            "type": "uint256"
-                        }
-                    ],
-                    "name": "PostLiked",
-                    "type": "event"
-                },
-                // PostUnliked 이벤트 (사용하지 않음 - unlike 기능 제거됨)
-                // {
-                //     "anonymous": false,
-                //     "inputs": [
-                //         {
-                //             "indexed": true,
-                //             "internalType": "address",
-                //             "name": "user",
-                //             "type": "address"
-                //         },
-                //         {
-                //             "indexed": true,
-                //             "internalType": "uint256",
-                //             "name": "postId",
-                //             "type": "uint256"
-                //         },
-                //         {
-                //             "indexed": false,
-                //             "internalType": "uint256",
-                //             "name": "timestamp",
-                //             "type": "uint256"
-                //         },
-                //         {
-                //             "indexed": false,
-                //             "internalType": "uint256",
-                //             "name": "totalLikes",
-                //             "type": "uint256"
-                //         },
-                //         {
-                //             "indexed": false,
-                //             "internalType": "uint256",
-                //             "name": "totalTokensCollected",
-                //             "type": "uint256"
-                //         }
-                //     ],
-                //     "name": "PostUnliked",
-                //     "type": "event"
-                // },
-                // TokensClaimed 이벤트 (PostLikeSystem1363의 claimWithSignature에서 emit)
-                {
-                    "anonymous": false,
-                    "inputs": [
-                        {
-                            "indexed": true,
-                            "internalType": "address",
-                            "name": "to",
-                            "type": "address"
-                        },
-                        {
-                            "indexed": true,
-                            "internalType": "uint256",
-                            "name": "postId",
-                            "type": "uint256"
-                        },
-                        {
-                            "indexed": false,
-                            "internalType": "uint256",
-                            "name": "amount",
-                            "type": "uint256"
-                        },
-                        {
-                            "indexed": false,
-                            "internalType": "bytes",
-                            "name": "signature",
-                            "type": "bytes"
-                        }
-                    ],
-                    "name": "TokensClaimed",
-                    "type": "event"
-                }
-            ];
+            // PostLikeSystem 컨트랙트 ABI는 PostLikeSystemService에서 가져옴
+            const postLikeContractABI = this.postLikeSystemService.getContractABI();
 
 
 
