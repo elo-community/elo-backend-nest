@@ -163,7 +163,7 @@ export class PostLikeSignatureController {
                 data: {
                     postId: body.postId,
                     to: postLikeSystemAddress, // PostLikeSystem1363 컨트랙트 주소
-                    encodedData: encodedData,
+                    value: encodedData,
                     contractAddress: tokenContractAddress,
                     contractABI: contractABI
                 },
