@@ -101,8 +101,9 @@ export class MatchPostService {
             matchLocation: post.matchLocation!,
             myElo: post.myElo!,
             preferredElo: post.preferredElo!,
-            participantCount: post.participantCount!,
             status: post.matchStatus!,
+            participantCount: post.participantCount!,
+            createdAt: post.createdAt, // 매치글 작성 날짜 추가
             deadline: post.deadline,
             matchDate: post.matchDate
         };

@@ -6,6 +6,7 @@ export interface MatchInfo {
     preferredElo: string;
     participantCount: number;
     status: string;
+    createdAt: Date; // 매치글 작성 날짜 추가
     deadline?: Date;
     matchDate?: Date;
 }
