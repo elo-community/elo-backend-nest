@@ -247,10 +247,11 @@ export class TokenTransactionsController {
             return {
                 message: 'Token claim signature generated successfully',
                 data: {
-                    signature: result.signature,
-                    nonce: result.nonce,
-                    deadline: result.deadline,
+                    to: user.walletAddress,
                     amount: result.amount,
+                    deadline: result.deadline,
+                    nonce: result.nonce,
+                    signature: result.signature,
                     contractAddress: trivusExpAddress,
                     contractABI: TRIVUS_EXP_ABI,
                     message: 'Use this signature to execute the claim on the blockchain. The transaction will be recorded automatically when the claim is executed.',

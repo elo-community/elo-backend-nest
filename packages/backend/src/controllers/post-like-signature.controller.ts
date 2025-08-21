@@ -148,6 +148,9 @@ export class PostLikeSignatureController {
             // TrivusEXP1363 토큰 컨트랙트 주소와 ABI 가져오기
             const tokenContractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
 
+            // PostLikeSystem1363 컨트랙트 주소 가져오기
+            const postLikeSystemAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
+
             // TrivusExpService에서 실제 컨트랙트 ABI 가져오기
             const contractABI = this.trivusExpService.getContractABI();
 
@@ -155,6 +158,7 @@ export class PostLikeSignatureController {
                 success: true,
                 data: {
                     postId: body.postId,
+                    to: postLikeSystemAddress, // PostLikeSystem1363 컨트랙트 주소
                     encodedData: encodedData,
                     contractAddress: tokenContractAddress,
                     contractABI: contractABI
