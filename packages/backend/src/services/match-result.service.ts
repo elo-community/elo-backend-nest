@@ -125,13 +125,7 @@ export class MatchResultService {
             sportCategory.name || 'Unknown Sport'
         );
 
-        // 첫 매치결과 등록 시 튜토리얼 완료 체크 및 토큰 지급
-        try {
-            await this.userService.completeTutorialFirstMatch(user.id);
-        } catch (error) {
-            // 이미 완료된 경우나 다른 오류는 무시 (로그만 남김)
-            console.log(`Tutorial first match check failed for user ${user.id}: ${error.message}`);
-        }
+        // 첫 매치결과 등록 시 튜토리얼 완료 체크는 상대방이 승인했을 때 수행
 
         return savedMatchResult;
     }
@@ -253,6 +247,14 @@ export class MatchResultService {
                 'approved',
                 updatedMatchResult.sportCategory?.name || 'Unknown'
             );
+
+            // 첫 매치결과 승인 시 튜토리얼 완료 체크 및 토큰 지급 (매치 생성자에게)
+            try {
+                await this.userService.completeTutorialFirstMatch(updatedMatchResult.user.id);
+            } catch (error) {
+                // 이미 완료된 경우나 다른 오류는 무시 (로그만 남김)
+                console.log(`Tutorial first match check failed for user ${updatedMatchResult.user.id}: ${error.message}`);
+            }
 
             return updatedMatchResult;
         } else if (action === 'reject') {
