@@ -140,6 +140,8 @@ jobs:
 
             # 2) 이름 충돌 방지: 기존 /backend, elo-backend-1 제거
             sudo docker rm -f backend || true
+            sudo docker rm -f nginx-proxy || true
+            sudo docker rm -f certbot || true
             sudo docker rm -f elo-backend-1 || true
 
             # 3) 최신 이미지 pull + 강제 재생성 + 고아 정리
