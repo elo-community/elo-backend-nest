@@ -2,8 +2,7 @@ name: Deploy ELO Community Monorepo
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   deploy:
@@ -23,47 +22,26 @@ jobs:
 
       - name: Install package dependencies
         run: |
-          echo "Installing contracts dependencies..."
           npm install --workspace=contracts
-          echo "Installing backend dependencies..."
           npm install --workspace=backend
 
-      - name: Create .env file
+      - name: Create .env file (for build only)
         run: |
-          echo "Creating .env file from GitHub Secrets..."
           echo "${{ secrets.ENV }}" | base64 -d > .env
-          echo "=== .env file created ==="
-          ls -la .env
 
       - name: Build contracts
-        run: |
-          echo "Building smart contracts..."
-          npm run build:contracts
+        run: npm run build:contracts
 
       - name: Build backend
-        run: |
-          echo "Building NestJS backend..."
-          npm run build:backend
+        run: npm run build:backend
 
       - name: Verify build outputs
         run: |
-          echo "Checking contracts build output..."
-          ls -la packages/contracts/artifacts/
-          ls -la packages/contracts/typechain-types/
-          
-          echo "Checking backend build output..."
-          ls -la packages/backend/dist/
-          if [ ! -f "packages/backend/dist/main.js" ]; then
-            echo "❌ Error: packages/backend/dist/main.js not found!"
-            exit 1
-          fi
-          echo "✅ All build verifications passed"
+          test -f packages/backend/dist/main.js
 
-      - name: Log in to Docker Hub (CI)
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+      # ⬇️ 액션 대신 수동 로그인 (post-step 없음)
+      - name: Login to Docker Hub (manual)
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
       - name: Build & Push Docker Image
         uses: docker/build-push-action@v4
@@ -77,85 +55,56 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/elo-community:latest
             ${{ secrets.DOCKER_USERNAME }}/elo-community:${{ github.sha }}
 
-      - name: Test Docker Image (local)
-        run: |
-          echo "Testing Docker image locally..."
-          docker run --rm ${{ secrets.DOCKER_USERNAME }}/elo-community:latest node -e "
-            console.log('NODE_ENV:', process.env.NODE_ENV);
-            console.log('ACTIVE_NETWORK:', process.env.ACTIVE_NETWORK);
-            if (process.env.NODE_ENV && process.env.ACTIVE_NETWORK) {
-              console.log('✅ Environment variables loaded successfully');
-            } else {
-              console.log('❌ Environment variables not loaded');
-            }
-          "
-          echo "✅ Docker image test passed"
-
-      # (2) envsubst 설치 + docker-compose 렌더링(SHA 태그 주입)
       - name: Install envsubst
         run: sudo apt-get update && sudo apt-get install -y gettext-base
 
-      - name: Render docker-compose with immutable tag (SHA)
+      - name: Render docker-compose with tag
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           IMAGE_TAG: ${{ github.sha }}
-        run: |
-          envsubst < infra/docker-compose.yml > infra/docker-compose.rendered.yml
-          echo "=== Rendered docker-compose ==="
-          head -n 80 infra/docker-compose.rendered.yml || true
+        run: envsubst < infra/docker-compose.yml > infra/docker-compose.rendered.yml
 
-      # EC2 SSH 키 설정
-      - name: Add SSH key
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: ${{ secrets.EC2_PRIVATE_KEY }}
-
-      # .env 파일 생성
-      - name: Create .env file on EC2
+      # ⬇️ ssh-agent 액션 제거, 프라이빗키 파일로 직접 접속
+      - name: Prepare SSH key
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << EOF
-            mkdir -p /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest
-            echo "${{ secrets.ENV }}" | base64 -d > /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest/.env
-          EOF
+          echo "${{ secrets.EC2_PRIVATE_KEY }}" > key.pem
+          chmod 600 key.pem
 
-      # (2) 렌더링된 compose & nginx 설정을 EC2에 업로드
-      - name: Upload docker-compose and nginx config to EC2
+      - name: Put .env to EC2
         run: |
-          scp -o StrictHostKeyChecking=no -r ./infra/docker-compose.rendered.yml ./nginx \
-            ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USERNAME }}/elo-backend-nest/
+          ssh -i key.pem -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} 'mkdir -p ~/elo-backend-nest && cat > ~/elo-backend-nest/.env' <<< "$(echo "${{ secrets.ENV }}" | base64 -d)"
 
-      - name: SSH into EC2 and deploy
+      - name: Upload compose + nginx
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
+          scp -i key.pem -o StrictHostKeyChecking=no infra/docker-compose.rendered.yml \
+            ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/elo-backend-nest/docker-compose.rendered.yml
+          scp -i key.pem -o StrictHostKeyChecking=no -r nginx \
+            ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/elo-backend-nest/
+
+      - name: SSH into EC2 and deploy (quiet & robust)
+        run: |
+          ssh -i key.pem -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} <<'EOSSH'
             set -e
-            cd /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest
+            cd ~/elo-backend-nest
 
-            # 1) Docker login (조용히)
+            # 조용한 레지스트리 로그인
             echo "${{ secrets.DOCKER_PASSWORD }}" | sudo docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin >/dev/null 2>&1 || true
 
-            # 2) 렌더링본 적용
+            # 렌더링본 적용
             mv -f docker-compose.rendered.yml docker-compose.yml
 
-            # 3) 이름 충돌 제거(조용히 무시)
+            # 이름 충돌 제거 (조용히)
             sudo docker rm -f backend nginx-proxy certbot elo-backend-1 >/dev/null 2>&1 || true
 
-            # 4) 동일 프로젝트명으로 배포
             PROJECT=elo
             sudo docker compose -p "$PROJECT" pull >/dev/null
             sudo docker compose -p "$PROJECT" up -d --pull always --no-deps --force-recreate --remove-orphans backend nginx >/dev/null
 
-            # 5) 백엔드 healthy 대기
+            # backend healthy 대기
             get_backend_cid() {
-              sudo docker ps -q \
-                -f "label=com.docker.compose.project=$PROJECT" \
-                -f "label=com.docker.compose.service=backend"
+              sudo docker ps -q -f "label=com.docker.compose.project=$PROJECT" -f "label=com.docker.compose.service=backend"
             }
-            CID=""
-            for i in $(seq 1 30); do
-              CID="$(get_backend_cid)"
-              [ -n "$CID" ] && break
-              sleep 2
-            done
+            for i in $(seq 1 30); do CID="$(get_backend_cid)"; [ -n "$CID" ] && break; sleep 2; done
             [ -n "$CID" ] || { echo "Backend container not found."; exit 1; }
 
             get_health() {
@@ -172,22 +121,18 @@ jobs:
               [ "$H" = "healthy" ] || { echo "Backend not healthy in time."; exit 1; }
             fi
 
-            # 6) nginx 컨테이너 존재 확인
+            # nginx 확인 + HTTP 체크 (Host 헤더, 리다이렉트 허용)
             NGINX_CID="$(sudo docker ps -q -f "label=com.docker.compose.project=$PROJECT" -f "label=com.docker.compose.service=nginx")"
             [ -n "$NGINX_CID" ] || { echo "nginx container not found."; exit 1; }
 
-            # 7) Nginx HTTP 체크 (Host 헤더 포함 + 리다이렉트 허용, 조용히 대기 루프)
             HOST=api.trivus.net
             ok=false
             for i in $(seq 1 60); do
               STATUS="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Host: $HOST" http://127.0.0.1/ || true)"
-              case "$STATUS" in
-                200|301|302|308) ok=true; break ;;
-              esac
+              case "$STATUS" in 200|301|302|308) ok=true; break;; esac
               sleep 2
             done
             $ok || { echo "Nginx not ready (bad status)."; exit 1; }
 
             echo "Deploy OK."
-            exit 0
-          EOF
+          EOSSH
