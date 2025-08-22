@@ -200,15 +200,21 @@ jobs:
 
             echo "Backend not healthy in time."
             exit 1
-          EOF
 
-      # 배포 후 검증(유지)
-      - name: Verify deployment
-        run: |
-          echo "Waiting for deployment to stabilize..."
-          sleep 30
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
-            cd /home/${{ secrets.EC2_USERNAME }}/elo-backend-nest
-            sudo docker compose ps
-            sudo docker compose logs --tail=20
+          # 6) nginx 컨테이너가 실행 중인지 확인
+            NGINX_CID="$(sudo docker ps -q -f "label=com.docker.compose.project=$PROJECT" -f "label=com.docker.compose.service=nginx")"
+            if [ -z "$NGINX_CID" ]; then
+              echo "nginx container not found."; exit 1
+            fi
+
+            # 7) HTTP 확인 (민감 로그 없이, 코드만 확인)
+            # 로컬 80 → 200/301 이면 OK
+            STATUS="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1/ || true)"
+            case "$STATUS" in
+              200|301|302) echo "Nginx OK ($STATUS)";;
+              *) echo "Nginx bad status: $STATUS"; exit 1;;
+            esac
+
+            echo "Deploy OK."
+            exit 0
           EOF
