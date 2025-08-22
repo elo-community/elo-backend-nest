@@ -37,7 +37,7 @@ services:
     environment:
       - NODE_ENV=production
     healthcheck:
-      test: [ "CMD", "node", "-e", "http=require('http');req=http.request({host:'127.0.0.1',port:3000,path:'/health',timeout:1000},r=>process.exit(r.statusCode===200?0:1));req.on('error',()=>process.exit(1));req.end()" ]
+      test: [ "CMD", "node", "-e", "http=require('http');req=http.request({host:'127.0.0.1',port:3000,path:'api/v1/health',timeout:1000},r=>process.exit(r.statusCode===200?0:1));req.on('error',()=>process.exit(1));req.end()" ]
       interval: 10s
       timeout: 3s
       retries: 5
