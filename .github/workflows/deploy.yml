@@ -136,7 +136,7 @@ jobs:
             sed -n '1,120p' docker-compose.yml || true
 
             # 1) 레지스트리 로그인(프라이빗 대비)
-            echo "${{ secrets.DOCKER_PASSWORD }}" | sudo docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+            echo "${{ secrets.DOCKER_PASSWORD }}" | sudo docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
 
             # 2) 이름 충돌 방지: 기존 /backend, elo-backend-1 제거
             sudo docker rm -f backend || true
