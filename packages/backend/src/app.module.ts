@@ -90,7 +90,7 @@ import { UserService } from './services/user.service';
         autoLoadEntities: true,
         synchronize: true,
         dropSchema: true,
-        logging: true,
+        logging: false,
       }),
       inject: [ConfigService],
     }),
