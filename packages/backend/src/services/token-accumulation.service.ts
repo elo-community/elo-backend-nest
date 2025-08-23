@@ -265,4 +265,61 @@ export class TokenAccumulationService {
 
         return BigInt(result?.total || 0).toString();
     }
+
+    /**
+     * 특정 게시글과 관련된 token_accumulation 상태를 CLAIMED로 업데이트
+     * (좋아요 클레임 완료 시 사용)
+     */
+    async markLikeRewardAsClaimed(
+        walletAddress: string,
+        postId: number,
+        txHash: string
+    ): Promise<void> {
+        const accumulation = await this.tokenAccumulationRepository.findOne({
+            where: {
+                walletAddress,
+                type: AccumulationType.LIKE_REWARD,
+                metadata: { postId },
+                status: AccumulationStatus.PENDING
+            }
+        });
+
+        if (!accumulation) {
+            this.logger.warn(`Like reward accumulation not found for wallet ${walletAddress}, post ${postId}`);
+            return;
+        }
+
+        accumulation.status = AccumulationStatus.CLAIMED;
+        accumulation.claimTxHash = txHash;
+        accumulation.claimedAt = new Date();
+
+        await this.tokenAccumulationRepository.save(accumulation);
+        this.logger.log(`Like reward accumulation marked as claimed: ${walletAddress}, post ${postId}, tx: ${txHash}`);
+    }
+
+    /**
+     * 특정 nonce의 token_accumulation 상태를 CLAIMED로 업데이트
+     * (벌크 클레임 완료 시 사용)
+     */
+    async markByNonceAsClaimed(
+        walletAddress: string,
+        nonce: bigint,
+        txHash: string
+    ): Promise<void> {
+        const accumulation = await this.tokenAccumulationRepository.findOne({
+            where: { walletAddress, nonce, status: AccumulationStatus.PENDING }
+        });
+
+        if (!accumulation) {
+            this.logger.warn(`Accumulation not found for wallet ${walletAddress}, nonce ${nonce}`);
+            return;
+        }
+
+        accumulation.status = AccumulationStatus.CLAIMED;
+        accumulation.claimTxHash = txHash;
+        accumulation.claimedAt = new Date();
+
+        await this.tokenAccumulationRepository.save(accumulation);
+        this.logger.log(`Accumulation marked as claimed: ${walletAddress}, nonce ${nonce}, tx: ${txHash}`);
+    }
 }

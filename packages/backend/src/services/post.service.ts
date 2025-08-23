@@ -541,6 +541,22 @@ export class PostService {
         }
     }
 
+    /**
+     * 특정 작성자의 모든 게시글 조회
+     */
+    async findByAuthorId(authorId: number): Promise<Post[]> {
+        try {
+            return await this.postRepository.find({
+                where: { author: { id: authorId } },
+                relations: ['author', 'sportCategory'],
+                order: { createdAt: 'DESC' }
+            });
+        } catch (error) {
+            console.error(`Failed to find posts by author ID ${authorId}: ${error.message}`);
+            throw error;
+        }
+    }
+
     // content에서 이미지 URL 추출
     private extractImageUrlsFromContent(content: string): string[] {
         const imageUrlRegex = /https:\/\/[^\s<>"']+\.(jpg|jpeg|png|gif|webp)/gi;

@@ -117,4 +117,22 @@ export class PostLikeService {
     async updateLike(postLike: PostLike): Promise<PostLike> {
         return await this.postLikeRepository.save(postLike);
     }
+
+    /**
+     * 사용자가 특정 게시글에 이미 좋아요를 눌렀는지 확인
+     * @param userId 사용자 ID
+     * @param postId 게시글 ID
+     * @returns 이미 좋아요를 눌렀으면 true, 아니면 false
+     */
+    async hasUserLikedPost(userId: number, postId: number): Promise<boolean> {
+        const existingLike = await this.postLikeRepository.findOne({
+            where: {
+                post: { id: postId },
+                user: { id: userId },
+                isLiked: true
+            },
+        });
+
+        return !!existingLike;
+    }
 } 

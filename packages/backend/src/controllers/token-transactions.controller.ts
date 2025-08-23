@@ -8,6 +8,7 @@ import { TrivusExpService } from '../blockchain/trivus-exp.service';
 import { TransactionType } from '../entities/token-transaction.entity';
 import { TokenTransactionService } from '../services/token-transaction.service';
 import { UserService } from '../services/user.service';
+import { ERROR_CODES, ERROR_MESSAGES } from '../shared/error-codes';
 
 // TrivusEXP1363 컨트랙트 ABI는 TrivusExpService에서 가져옴
 
@@ -153,7 +154,25 @@ export class TokenTransactionsController {
                 throw new Error('User wallet address not found');
             }
 
-            // 사용자의 모든 누적 토큰을 한번에 수확하는 서명 생성
+            // 1. 사용자의 현재 available_token 개수 확인
+            const userTokenInfo = await this.userService.getUserTokenInfo(user.walletAddress);
+
+            if (!userTokenInfo.availableTokens || userTokenInfo.availableTokens <= 0) {
+                return {
+                    success: false,
+                    data: null,
+                    error: {
+                        code: ERROR_CODES.NO_ACCUMULATED_TOKENS,
+                        message: ERROR_MESSAGES[ERROR_CODES.NO_ACCUMULATED_TOKENS],
+                        details: {
+                            currentAvailableTokens: userTokenInfo.availableTokens || 0,
+                            action: 'claim_all_accumulated'
+                        }
+                    }
+                };
+            }
+
+            // 2. 사용자의 모든 누적 토큰을 한번에 수확하는 서명 생성
             const result = await this.trivusExpService.createTokenClaimSignature({
                 address: user.walletAddress,
                 reason: 'bulk_claim_accumulated_tokens'
@@ -164,7 +183,7 @@ export class TokenTransactionsController {
 
             // 서명만 반환하고 DB 기록은 ClaimExecuted 이벤트 감지 시 처리
             return {
-                message: 'Token claim signature generated successfully',
+                success: true,
                 data: {
                     to: user.walletAddress,
                     amount: result.amount,
@@ -173,13 +192,26 @@ export class TokenTransactionsController {
                     signature: result.signature,
                     contractAddress: trivusExpAddress,
                     contractABI: this.trivusExpService.getContractAbi(),
-                    message: 'Use this signature to execute the claim on the blockchain. The transaction will be recorded automatically when the claim is executed.',
+                    userTokenInfo: {
+                        availableTokens: userTokenInfo.availableTokens,
+                        totalTokens: userTokenInfo.totalTokens,
+                        pendingTokens: userTokenInfo.pendingTokens
+                    },
+                    message: `Use this signature to execute the claim on the blockchain. You are claiming ${userTokenInfo.availableTokens} EXP. The transaction will be recorded automatically when the claim is executed.`,
                 },
+                message: 'Token claim signature generated successfully'
             };
         } catch (error) {
             return {
-                message: 'Failed to generate token claim signature',
-                error: (error as Error).message,
+                success: false,
+                data: null,
+                error: {
+                    code: ERROR_CODES.INTERNAL_SERVER_ERROR,
+                    message: (error as Error).message,
+                    details: {
+                        action: 'claim_all_accumulated'
+                    }
+                }
             };
         }
     }
