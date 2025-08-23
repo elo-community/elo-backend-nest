@@ -289,15 +289,9 @@ export class ClaimEventService implements OnModuleInit {
                     return;
                 }
 
-                // 변경 전 잔액 기록 (availableToken 기준)
-                const balanceBefore = user.availableToken || 0;
-
-                // 사용자의 토큰 정보 업데이트 (availableToken에서 tokenAmount로 이동)
-                await this.userService.syncTokenAmount(to, amountDecimal);
-
-                // 업데이트된 사용자 정보 다시 조회
-                const updatedUser = await this.userService.findByWalletAddress(to);
-                const balanceAfter = updatedUser?.availableToken || 0;
+                // 트랜잭션 발생 시점의 잔액 기준으로 계산
+                const balanceBefore = Number(user.availableToken || 0); // 트랜잭션 발생 시점의 availableToken
+                const balanceAfter = Number((balanceBefore + amountDecimal).toFixed(8)); // amount는 양수이므로 증가
 
                 // 토큰 거래 내역 기록
                 await this.tokenTransactionService.createTransaction({

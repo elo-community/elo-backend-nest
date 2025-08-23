@@ -457,8 +457,8 @@ export class LikeEventService implements OnModuleInit {
                         userId: userEntity.id,
                         transactionType: TransactionType.LIKE_DEDUCT,
                         amount: -amountNumber, // 차감이므로 음수
-                        balanceBefore: (userEntity.tokenAmount || 0) + amountNumber, // 차감 전 tokenAmount
-                        balanceAfter: (userEntity.tokenAmount || 0), // 차감 후 tokenAmount
+                        balanceBefore: Number(userEntity.tokenAmount || 0), // 트랜잭션 발생 시점의 잔액
+                        balanceAfter: Number(((userEntity.tokenAmount || 0) + (-amountNumber)).toFixed(8)), // amount는 음수이므로 차감
                         transactionHash,
                         blockchainAddress: user,
                         description: `Like token deduction for post ${postIdNumber}`,
@@ -518,11 +518,9 @@ export class LikeEventService implements OnModuleInit {
 
             // token_tx 테이블에 LIKE_DEDUCT 기록
             try {
-                // PostLiked 이벤트는 이미 발생한 토큰 차감을 감지하는 것이므로
-                // 현재 tokenAmount가 이미 차감된 상태라고 가정
-                const currentBalance = userEntity.tokenAmount || 0;
-                const balanceBefore = currentBalance + amountNumber; // 차감 전 잔액
-                const balanceAfter = currentBalance; // 차감 후 잔액 (현재 상태)
+                // 트랜잭션 발생 시점의 잔액 기준으로 계산
+                const balanceBefore = Number(userEntity.tokenAmount || 0); // 트랜잭션 발생 시점의 잔액
+                const balanceAfter = Number((balanceBefore + (-amountNumber)).toFixed(8)); // amount는 음수이므로 차감
 
                 const transactionDto: CreateTransactionDto = {
                     userId: userEntity.id,
@@ -592,15 +590,9 @@ export class LikeEventService implements OnModuleInit {
                 return;
             }
 
-            // 변경 전 잔액 기록 (availableToken 기준)
-            const balanceBefore = userEntity.availableToken || 0;
-
-            // 사용자의 토큰 정보 업데이트 (availableToken에서 tokenAmount로 이동)
-            await this.userService.syncTokenAmount(to, amountNumber);
-
-            // 업데이트된 사용자 정보 다시 조회
-            const updatedUser = await this.userService.findByWalletAddress(to);
-            const balanceAfter = updatedUser?.availableToken || 0;
+            // 트랜잭션 발생 시점의 잔액 기준으로 계산
+            const balanceBefore = Number(userEntity.availableToken || 0); // 트랜잭션 발생 시점의 availableToken
+            const balanceAfter = Number((balanceBefore + amountNumber).toFixed(8)); // amount는 양수이므로 증가
 
             // token_tx 테이블에 토큰 주입 기록
             try {
