@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 import { TransactionType } from '../entities/token-transaction.entity';
 import { PostLikeService } from '../services/post-like.service';
+import { TokenAccumulationService } from '../services/token-accumulation.service';
 import { CreateTransactionDto, TokenTransactionService } from '../services/token-transaction.service';
 import { UserService } from '../services/user.service';
 import { ClaimEventService } from './claim-event.service';
@@ -29,6 +30,7 @@ export class LikeEventService implements OnModuleInit {
         private postLikeService: PostLikeService,
         private userService: UserService,
         private tokenTransactionService: TokenTransactionService,
+        private tokenAccumulationService: TokenAccumulationService,
         private claimEventService: ClaimEventService, // ClaimEventService 주입
         private postLikeSystemService: PostLikeSystemService, // PostLikeSystemService 주입
         @Inject(forwardRef(() => TrivusExpService))
@@ -503,6 +505,15 @@ export class LikeEventService implements OnModuleInit {
                 return;
             }
 
+            // 사용자의 tokenAmount에서 실제로 차감
+            try {
+                await this.userService.deductTokens(user, amountNumber);
+                this.logger.log(`User token amount deducted: ${user} -${amountNumber} EXP`);
+            } catch (deductError) {
+                this.logger.error(`Failed to deduct tokens from user: ${deductError.message}`);
+                return; // 토큰 차감 실패 시 처리 중단
+            }
+
             // post_like 테이블에 좋아요 기록 생성
             try {
                 await this.postLikeService.processLikeTokenDeduction(
@@ -518,9 +529,10 @@ export class LikeEventService implements OnModuleInit {
 
             // token_tx 테이블에 LIKE_DEDUCT 기록
             try {
-                // 트랜잭션 발생 시점의 잔액 기준으로 계산
-                const balanceBefore = Number(userEntity.tokenAmount || 0); // 트랜잭션 발생 시점의 잔액
-                const balanceAfter = Number((balanceBefore + (-amountNumber)).toFixed(8)); // amount는 음수이므로 차감
+                // 토큰 차감 후 업데이트된 사용자 정보 조회
+                const updatedUser = await this.userService.findByWalletAddress(user);
+                const balanceBefore = Number(userEntity.tokenAmount || 0); // 차감 전 잔액
+                const balanceAfter = Number(updatedUser?.tokenAmount || 0); // 차감 후 잔액
 
                 const transactionDto: CreateTransactionDto = {
                     userId: userEntity.id,
@@ -590,11 +602,22 @@ export class LikeEventService implements OnModuleInit {
                 return;
             }
 
-            // 트랜잭션 발생 시점의 잔액 기준으로 계산
-            const balanceBefore = Number(userEntity.availableToken || 0); // 트랜잭션 발생 시점의 availableToken
-            const balanceAfter = Number((balanceBefore + amountNumber).toFixed(8)); // amount는 양수이므로 증가
+            // 1. 사용자의 availableToken을 0으로 설정하고, tokenAmount에 클레임한 토큰 추가
+            let updatedUser;
+            try {
+                // syncTokenAmount를 사용하여 availableToken을 0으로 설정하고 tokenAmount에 추가
+                updatedUser = await this.userService.syncTokenAmount(to, amountNumber);
+                this.logger.log(`User token synchronized: ${to} +${amountNumber} EXP to tokenAmount, availableToken set to 0`);
+            } catch (syncError) {
+                this.logger.error(`Failed to sync user token amount: ${syncError.message}`);
+                return; // 토큰 동기화 실패 시 처리 중단
+            }
 
-            // token_tx 테이블에 토큰 주입 기록
+            // 2. 트랜잭션 발생 시점의 잔액 기준으로 계산
+            const balanceBefore = Number(userEntity.tokenAmount || 0); // 증가 전 잔액
+            const balanceAfter = Number(updatedUser?.tokenAmount || 0); // 증가 후 잔액
+
+            // 3. token_tx 테이블에 토큰 주입 기록
             try {
                 const transactionDto: CreateTransactionDto = {
                     userId: userEntity.id,
@@ -608,17 +631,28 @@ export class LikeEventService implements OnModuleInit {
                     metadata: {
                         postId: postIdNumber,
                         action: 'claim',
-                        blockchainEvent: 'TokensClaimed'
+                        blockchainEvent: 'TokensClaimed',
+                        availableTokenBefore: userEntity.availableToken || 0,
+                        availableTokenAfter: 0 // 클레임 후 availableToken은 0
                     },
                     referenceId: postIdNumber.toString(),
                     referenceType: 'post_like'
                 };
 
                 await this.tokenTransactionService.createTransaction(transactionDto);
-                this.logger.log(`Token transaction recorded for claim: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber} (${balanceBefore} → ${balanceAfter})`);
+                this.logger.log(`Token transaction recorded for claim: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber} (${balanceBefore} → ${balanceAfter}), availableToken: ${userEntity.availableToken || 0} → 0`);
             } catch (txError) {
                 this.logger.error(`Failed to record like token claim transaction: ${txError.message}`);
             }
+
+            // 클레임 완료 시 token_accumulation 상태 업데이트
+            try {
+                await this.tokenAccumulationService.markLikeRewardAsClaimed(to, postIdNumber, transactionHash);
+                this.logger.log(`Token accumulation updated for user ${to}, post ${postIdNumber}, amount ${amountNumber}`);
+            } catch (updateError) {
+                this.logger.error(`Failed to update token accumulation: ${updateError.message}`);
+            }
+
         } catch (error) {
             this.logger.error(`Failed to process TokensClaimed: ${(error as Error).message}`);
         }

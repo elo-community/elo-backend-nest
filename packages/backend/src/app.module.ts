@@ -46,6 +46,7 @@ import { Post, PostType } from './entities/post.entity';
 import { Reply } from './entities/reply.entity';
 import { SportCategory } from './entities/sport-category.entity';
 import { TempImage } from './entities/temp-image.entity';
+import { TokenAccumulation } from './entities/token-accumulation.entity';
 import { TokenTransaction } from './entities/token-transaction.entity';
 import { UserElo } from './entities/user-elo.entity';
 import { User } from './entities/user.entity';
@@ -56,17 +57,20 @@ import { HotPostsScheduler } from './schedulers/hot-posts.scheduler';
 import { MatchResultScheduler } from './schedulers/match-result.scheduler';
 import { RealTimeHotPostsScheduler } from './schedulers/real-time-hot-posts.scheduler';
 import { TempImageCleanupScheduler } from './schedulers/temp-image-cleanup.scheduler';
+import { BlockchainSyncService } from './services/blockchain-sync.service';
 import { CommentLikeService } from './services/comment-like.service';
 import { CommentService } from './services/comment.service';
 import { MatchPostService } from './services/match-post.service';
 import { MatchResultService } from './services/match-result.service';
 import { PostHateService } from './services/post-hate.service';
+import { PostLikeService } from './services/post-like.service';
 import { PostService } from './services/post.service';
 import { ReplyService } from './services/reply.service';
 import { S3Service } from './services/s3.service';
 import { SportCategoryService } from './services/sport-category.service';
 import { SseService } from './services/sse.service';
 import { TempImageService } from './services/temp-image.service';
+import { TokenAccumulationService } from './services/token-accumulation.service';
 import { TokenTransactionService } from './services/token-transaction.service';
 import { UserService } from './services/user.service';
 
@@ -96,7 +100,7 @@ import { UserService } from './services/user.service';
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([
-      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost, HotPostReward, TokenTransaction, ClaimNonce, ClaimRequest, MatchRequest
+      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost, HotPostReward, TokenTransaction, TokenAccumulation, ClaimNonce, ClaimRequest, MatchRequest
     ]),
     AuthModule,
     EloModule,
@@ -107,7 +111,7 @@ import { UserService } from './services/user.service';
     AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, HotPostRewardController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController, MatchPostController, HealthController
   ],
   providers: [
-    PostService, CommentService, ReplyService, SportCategoryService, PostHateService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TokenTransactionService, MatchPostService
+    PostService, CommentService, ReplyService, SportCategoryService, PostHateService, PostLikeService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TokenTransactionService, TokenAccumulationService, BlockchainSyncService, MatchPostService
   ],
 })
 export class AppModule implements OnModuleInit {
@@ -117,6 +121,7 @@ export class AppModule implements OnModuleInit {
     private readonly postService: PostService,
     private readonly matchResultService: MatchResultService,
     private readonly matchPostService: MatchPostService,
+    private readonly blockchainSyncService: BlockchainSyncService,
   ) { }
 
   async onModuleInit() {
@@ -143,6 +148,26 @@ export class AppModule implements OnModuleInit {
     } catch (error) {
       console.warn('⚠️ 토큰 잔액 동기화 실패 (블록체인 네트워크 문제일 수 있음):', error.message);
       console.log('ℹ️ 애플리케이션은 정상적으로 실행됩니다. 토큰 기능은 제한될 수 있습니다.');
+    }
+
+    // 블록체인에서 기존 좋아요 현황 동기화
+    try {
+      console.log('🔄 블록체인에서 기존 좋아요 현황을 동기화하는 중...');
+
+      // 최근 1000블록에서 좋아요 이벤트 검색 (약 1-2일치)
+      const currentBlock = await this.getCurrentBlockNumber();
+      const fromBlock = Math.max(0, currentBlock - 1000);
+
+      const syncResult = await this.blockchainSyncService.syncExistingLikes(fromBlock, currentBlock);
+
+      if (syncResult.totalEvents > 0) {
+        console.log(`✅ 블록체인 동기화 완료: ${syncResult.processedEvents}/${syncResult.totalEvents} 이벤트 처리, ${syncResult.newLikes}개 새 좋아요 추가`);
+      } else {
+        console.log('ℹ️ 동기화할 좋아요 이벤트가 없습니다.');
+      }
+    } catch (error) {
+      console.warn('⚠️ 블록체인 좋아요 동기화 실패 (블록체인 네트워크 문제일 수 있음):', error.message);
+      console.log('ℹ️ 애플리케이션은 정상적으로 실행됩니다. 좋아요 동기화는 제한될 수 있습니다.');
     }
   }
 
@@ -343,5 +368,31 @@ export class AppModule implements OnModuleInit {
     }
 
     console.log('✅ 샘플 매치글 3개가 생성되었습니다.');
+  }
+
+  /**
+   * 현재 블록 번호 조회
+   */
+  private async getCurrentBlockNumber(): Promise<number> {
+    try {
+      // 간단한 RPC 호출로 현재 블록 번호 조회
+      const rpcUrl = process.env.BLOCKCHAIN_AMOY_RPC_URL || 'https://rpc-amoy.polygon.technology/';
+      const response = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_blockNumber',
+          params: [],
+          id: 1
+        })
+      });
+
+      const data = await response.json();
+      return parseInt(data.result, 16);
+    } catch (error) {
+      console.warn('⚠️ 현재 블록 번호 조회 실패, 기본값 사용:', error.message);
+      return 1000; // 기본값
+    }
   }
 }

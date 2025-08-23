@@ -4,6 +4,7 @@ import { ethers } from 'ethers';
 import { ClaimStatus } from '../entities/claim-request.entity';
 import { TransactionType } from '../entities/token-transaction.entity';
 import { ClaimRequestService } from '../services/claim-request.service';
+import { TokenAccumulationService } from '../services/token-accumulation.service';
 import { TokenTransactionService } from '../services/token-transaction.service';
 import { UserService } from '../services/user.service';
 import { TrivusExpService } from './trivus-exp.service';
@@ -33,6 +34,7 @@ export class ClaimEventService implements OnModuleInit {
         private configService: ConfigService,
         private claimRequestService: ClaimRequestService,
         private tokenTransactionService: TokenTransactionService,
+        private tokenAccumulationService: TokenAccumulationService,
         private userService: UserService,
         @Inject(forwardRef(() => TrivusExpService))
         private trivusExpService: TrivusExpService,
@@ -273,6 +275,15 @@ export class ClaimEventService implements OnModuleInit {
                 transactionHash
             );
 
+            // token_accumulation 테이블에서 해당 nonce의 상태를 CLAIMED로 업데이트
+            try {
+                await this.tokenAccumulationService.markByNonceAsClaimed(to, BigInt(nonce), transactionHash);
+                this.logger.log(`Token accumulation marked as claimed for nonce ${nonce}, wallet ${to}`);
+            } catch (accumulationError) {
+                this.logger.error(`Failed to mark token accumulation as claimed: ${accumulationError.message}`);
+                // accumulation 업데이트 실패 시에도 계속 진행 (토큰 트랜잭션은 기록)
+            }
+
             // token_tx 테이블에 토큰 이동 내역 기록
             const user = await this.userService.findByWalletAddress(to);
             if (user) {
@@ -289,11 +300,22 @@ export class ClaimEventService implements OnModuleInit {
                     return;
                 }
 
-                // 트랜잭션 발생 시점의 잔액 기준으로 계산
-                const balanceBefore = Number(user.availableToken || 0); // 트랜잭션 발생 시점의 availableToken
-                const balanceAfter = Number((balanceBefore + amountDecimal).toFixed(8)); // amount는 양수이므로 증가
+                // 1. 사용자의 availableToken을 0으로 설정하고, tokenAmount에 클레임한 토큰 추가
+                let updatedUser;
+                try {
+                    // syncTokenAmount를 사용하여 availableToken을 0으로 설정하고 tokenAmount에 추가
+                    updatedUser = await this.userService.syncTokenAmount(to, amountDecimal);
+                    this.logger.log(`User token synchronized: ${to} +${amountDecimal} EXP to tokenAmount, availableToken set to 0`);
+                } catch (syncError) {
+                    this.logger.error(`Failed to sync user token amount: ${syncError.message}`);
+                    return; // 토큰 동기화 실패 시 처리 중단
+                }
 
-                // 토큰 거래 내역 기록
+                // 2. 트랜잭션 발생 시점의 잔액 기준으로 계산
+                const balanceBefore = Number(user.tokenAmount || 0); // 증가 전 잔액
+                const balanceAfter = Number(updatedUser?.tokenAmount || 0); // 증가 후 잔액
+
+                // 3. 토큰 거래 내역 기록
                 await this.tokenTransactionService.createTransaction({
                     userId: user.id,
                     transactionType: TransactionType.REWARD_CLAIM,
@@ -307,13 +329,15 @@ export class ClaimEventService implements OnModuleInit {
                         nonce: nonce.toString(),
                         claim_type: 'bulk_claim', // 벌크 클레임만 여기서 처리
                         deadline: deadline.toString(),
-                        event_source: 'ClaimExecuted'
+                        event_source: 'ClaimExecuted',
+                        availableTokenBefore: user.availableToken || 0,
+                        availableTokenAfter: 0 // 클레임 후 availableToken은 0
                     },
                     referenceId: nonce.toString(),
                     referenceType: 'claim_request'
                 });
 
-                this.logger.log(`Delayed token transaction recorded for user ${user.id}: ${amountDecimal} EXP claimed`);
+                this.logger.log(`Delayed token transaction recorded for user ${user.id}: ${amountDecimal} EXP claimed, availableToken: ${user.availableToken || 0} → 0`);
             } else {
                 this.logger.warn(`User not found for wallet address: ${to}`);
             }
@@ -464,13 +488,22 @@ export class ClaimEventService implements OnModuleInit {
                     return;
                 }
 
-                // Transfer 이벤트는 이미 발생한 토큰 이동을 감지하는 것이므로
-                // 현재 tokenAmount가 이미 증가된 상태라고 가정
-                const currentBalance = toUser.tokenAmount || 0;
-                const balanceBefore = currentBalance - amountDecimal; // 증가 전 잔액
-                const balanceAfter = currentBalance; // 증가 후 잔액 (현재 상태)
+                // 1. 사용자의 tokenAmount를 실제로 증가시킴 (Transfer는 일반 토큰 이동이므로 availableToken은 건드리지 않음)
+                let updatedToUser;
+                try {
+                    updatedToUser = await this.userService.addTokens(to, amountDecimal);
+                    this.logger.log(`User token amount increased: ${to} +${amountDecimal} EXP`);
+                } catch (addTokensError) {
+                    this.logger.error(`Failed to increase user token amount: ${addTokensError.message}`);
+                    return; // 토큰 증가 실패 시 처리 중단
+                }
 
-                // to 사용자의 토큰 증가 기록
+                // 2. Transfer 이벤트는 이미 발생한 토큰 이동을 감지하는 것이므로
+                // 현재 tokenAmount가 이미 증가된 상태라고 가정
+                const balanceBefore = Number(toUser.tokenAmount || 0); // 증가 전 잔액
+                const balanceAfter = Number(updatedToUser?.tokenAmount || 0); // 증가 후 잔액
+
+                // 3. to 사용자의 토큰 증가 기록
                 await this.tokenTransactionService.createTransaction({
                     userId: toUser.id,
                     transactionType: TransactionType.TRANSFER_IN,
