@@ -31,6 +31,9 @@ export class User {
     @Column({ type: 'decimal', precision: 20, scale: 8, name: 'available_token', nullable: true, default: 0 })
     availableToken!: number;
 
+    @Column({ type: 'timestamp', name: 'last_token_sync_at', nullable: true })
+    lastTokenSyncAt?: Date;
+
     @Column({ type: 'varchar', length: 255, name: 'profile_image_url', nullable: true })
     profileImageUrl?: string;
 

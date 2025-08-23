@@ -53,6 +53,25 @@ export class AuthController {
           walletAddress: walletAddress,
           email: email,
         }, categories);
+
+        // 새로 생성된 사용자는 첫 로그인으로 간주
+        console.log(`[AuthController] New user created: ${walletAddress}, performing initial token sync`);
+      }
+
+      // 첫 로그인 여부 확인 및 토큰 동기화
+      const isFirstLogin = await this.userService.isFirstLogin(walletAddress);
+      if (isFirstLogin) {
+        try {
+          console.log(`[AuthController] First login detected for ${walletAddress}, syncing token balance from blockchain`);
+
+          // 블록체인에서 토큰 잔액 동기화
+          user = await this.userService.syncTokenBalanceFromBlockchain(walletAddress);
+
+          console.log(`[AuthController] Token balance synced for ${walletAddress}: ${user.tokenAmount} EXP`);
+        } catch (syncError) {
+          console.warn(`[AuthController] Token sync failed for ${walletAddress}: ${syncError.message}`);
+          // 토큰 동기화 실패 시에도 로그인은 계속 진행
+        }
       }
 
       return this.authService.login({
@@ -181,5 +200,121 @@ export class AuthController {
       success: true,
       message: 'Token is valid',
     };
+  }
+
+  /**
+   * 사용자의 토큰 잔액을 블록체인에서 동기화 (수동)
+   * @param walletAddress 지갑 주소
+   * @returns 동기화 결과
+   */
+  @Public()
+  @Post('sync-tokens')
+  async syncUserTokens(@Body() body: { walletAddress: string }) {
+    try {
+      const { walletAddress } = body;
+
+      if (!walletAddress) {
+        return {
+          success: false,
+          message: 'Wallet address is required',
+        };
+      }
+
+      // 사용자 존재 여부 확인
+      const user = await this.userService.findByWalletAddress(walletAddress);
+      if (!user) {
+        return {
+          success: false,
+          message: 'User not found',
+        };
+      }
+
+      // 토큰 동기화 전 잔액
+      const balanceBefore = user.tokenAmount || 0;
+
+      // 블록체인에서 토큰 잔액 동기화
+      const updatedUser = await this.userService.syncTokenBalanceFromBlockchain(walletAddress);
+
+      // 동기화 후 잔액
+      const balanceAfter = updatedUser.tokenAmount || 0;
+      const balanceDifference = balanceAfter - balanceBefore;
+
+      return {
+        success: true,
+        data: {
+          walletAddress,
+          balanceBefore,
+          balanceAfter,
+          balanceDifference,
+          lastSyncAt: updatedUser.lastTokenSyncAt,
+          message: balanceDifference !== 0
+            ? `Token balance synced: ${balanceBefore} → ${balanceAfter} (${balanceDifference > 0 ? '+' : ''}${balanceDifference})`
+            : 'Token balance already in sync'
+        },
+        message: 'Token synchronization completed successfully'
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to sync tokens',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * 사용자의 토큰 동기화 상태 확인
+   * @param walletAddress 지갑 주소
+   * @returns 동기화 상태 정보
+   */
+  @Public()
+  @Post('token-sync-status')
+  async getTokenSyncStatus(@Body() body: { walletAddress: string }) {
+    try {
+      const { walletAddress } = body;
+
+      if (!walletAddress) {
+        return {
+          success: false,
+          message: 'Wallet address is required',
+        };
+      }
+
+      // 사용자 존재 여부 확인
+      const user = await this.userService.findByWalletAddress(walletAddress);
+      if (!user) {
+        return {
+          success: false,
+          message: 'User not found',
+        };
+      }
+
+      // 첫 로그인 여부 확인
+      const isFirstLogin = await this.userService.isFirstLogin(walletAddress);
+
+      // 토큰 정보 조회
+      const tokenInfo = await this.userService.getUserTokenInfo(walletAddress);
+
+      return {
+        success: true,
+        data: {
+          walletAddress,
+          isFirstLogin,
+          lastTokenSyncAt: user.lastTokenSyncAt,
+          tokenInfo,
+          syncStatus: isFirstLogin ? 'NEVER_SYNCED' : 'SYNCED',
+          message: isFirstLogin
+            ? 'User has never synced tokens from blockchain'
+            : `Last synced at: ${user.lastTokenSyncAt}`
+        },
+        message: 'Token sync status retrieved successfully'
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to get token sync status',
+        error: error.message
+      };
+    }
   }
 }
