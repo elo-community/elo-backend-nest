@@ -15,7 +15,9 @@ contract TrivusEXP1363 is ERC20, Ownable, ERC165, IERC1363, EIP712, ReentrancyGu
     using ECDSA for bytes32;
 
     // === Nonce ===
-    mapping(address => uint256) public nonces;
+    // 게시글별 nonce 관리: user => postId => nonce
+    mapping(address => mapping(uint256 => uint256)) public userPostNonces;
+    mapping(address => uint256) public nonces; // 기존 전역 nonce는 유지 (다른 용도로 사용 가능)
 
     // === EIP-712 claim ===
     mapping(bytes32 => bool) public usedClaimDigests;
@@ -71,19 +73,10 @@ contract TrivusEXP1363 is ERC20, Ownable, ERC165, IERC1363, EIP712, ReentrancyGu
     }
 
     // ====== 1363 helpers ======
-    // data MUST be abi.encode(expectedNonce, payload) OR abi.encode(postId) for simple cases
-    function _decode(bytes memory data) internal pure returns (uint256 expectedNonce, bytes memory payload) {
-        require(data.length >= 32, "BAD_DATA"); // minimal length for postId or (nonce, payload)
-        
-        if (data.length == 32) {
-            // postId만 전달된 경우 (nonce = 0으로 처리)
-            expectedNonce = 0;
-            payload = data;
-        } else {
-            // (nonce, payload) 형식
-            require(data.length >= 64, "BAD_DATA");
-            (expectedNonce, payload) = abi.decode(data, (uint256, bytes));
-        }
+    // data MUST be abi.encode(nonce, payload) where payload = abi.encode(postId)
+    function _decode(bytes memory data) internal pure returns (uint256 nonce, bytes memory payload) {
+        require(data.length >= 64, "BAD_DATA"); // nonce(32) + payload(32+) 필요
+        (nonce, payload) = abi.decode(data, (uint256, bytes));
     }
 
     // ===== ERC-1363: transferAndCall =====
@@ -95,13 +88,20 @@ contract TrivusEXP1363 is ERC20, Ownable, ERC165, IERC1363, EIP712, ReentrancyGu
     }
 
     function transferAndCall(address to, uint256 value, bytes memory data) public returns (bool) {
-        (uint256 expectedNonce, bytes memory payload) = _decode(data);
-        require(expectedNonce == nonces[_msgSender()], "BAD_NONCE");
+        (uint256 nonce, bytes memory payload) = _decode(data);
+        
+        // payload에서 postId 추출
+        require(payload.length >= 32, "BAD_PAYLOAD");
+        uint256 postId = abi.decode(payload, (uint256));
+        
+        // post-specific nonce 검증
+        require(nonce == userPostNonces[_msgSender()][postId], "BAD_NONCE");
 
         _transfer(_msgSender(), to, value);
         _callOnTransferReceived(_msgSender(), _msgSender(), to, value, payload);
 
-        unchecked { nonces[_msgSender()] += 1; }
+        // post-specific nonce 증가
+        unchecked { userPostNonces[_msgSender()][postId] += 1; }
         return true;
     }
 
@@ -114,14 +114,21 @@ contract TrivusEXP1363 is ERC20, Ownable, ERC165, IERC1363, EIP712, ReentrancyGu
     }
 
     function transferFromAndCall(address from, address to, uint256 value, bytes memory data) public returns (bool) {
-        (uint256 expectedNonce, bytes memory payload) = _decode(data);
-        require(expectedNonce == nonces[from], "BAD_NONCE");
+        (uint256 nonce, bytes memory payload) = _decode(data);
+        
+        // payload에서 postId 추출
+        require(payload.length >= 32, "BAD_PAYLOAD");
+        uint256 postId = abi.decode(payload, (uint256));
+        
+        // post-specific nonce 검증
+        require(nonce == userPostNonces[from][postId], "BAD_NONCE");
 
         _spendAllowance(from, _msgSender(), value);
         _transfer(from, to, value);
         _callOnTransferReceived(_msgSender(), from, to, value, payload);
 
-        unchecked { nonces[from] += 1; }
+        // post-specific nonce 증가
+        unchecked { userPostNonces[from][postId] += 1; }
         return true;
     }
 
