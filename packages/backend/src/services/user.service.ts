@@ -154,6 +154,119 @@ export class UserService {
     }
 
     /**
+     * 블록체인에서 사용자의 토큰 잔액 동기화 (첫 로그인 시)
+     * @param walletAddress 지갑 주소
+     * @returns 동기화된 사용자 정보
+     */
+    async syncTokenBalanceFromBlockchain(walletAddress: string): Promise<User> {
+        const user = await this.findByWalletAddress(walletAddress);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        try {
+            // 블록체인에서 현재 토큰 잔액 조회
+            const blockchainBalance = await this.getBlockchainTokenBalance(walletAddress);
+
+            // 데이터베이스의 토큰 잔액과 비교
+            const currentBalance = user.tokenAmount || 0;
+            const balanceDifference = blockchainBalance - currentBalance;
+
+            if (balanceDifference !== 0) {
+                // 토큰 잔액이 다르면 동기화
+                await this.userRepository.update(user.id, {
+                    tokenAmount: blockchainBalance,
+                    lastTokenSyncAt: new Date()
+                });
+
+                console.log(`[UserService] Token balance synced for ${walletAddress}: ${currentBalance} → ${blockchainBalance} (diff: ${balanceDifference})`);
+            } else {
+                console.log(`[UserService] Token balance already in sync for ${walletAddress}: ${blockchainBalance}`);
+            }
+
+            // 동기화 시간 업데이트
+            await this.userRepository.update(user.id, {
+                lastTokenSyncAt: new Date()
+            });
+
+            const updatedUser = await this.findByWalletAddress(walletAddress);
+            if (!updatedUser) {
+                throw new NotFoundException('User not found after update');
+            }
+
+            return updatedUser;
+
+        } catch (error) {
+            console.error(`[UserService] Failed to sync token balance from blockchain: ${error.message}`);
+            // 블록체인 동기화 실패 시에도 사용자 반환 (기존 잔액 유지)
+            return user;
+        }
+    }
+
+    /**
+     * 사용자가 첫 로그인인지 확인
+     * @param walletAddress 지갑 주소
+     * @returns 첫 로그인 여부
+     */
+    async isFirstLogin(walletAddress: string): Promise<boolean> {
+        const user = await this.findByWalletAddress(walletAddress);
+        if (!user) {
+            return true; // 사용자가 없으면 첫 로그인
+        }
+
+        // lastTokenSyncAt이 없거나 null이면 첫 로그인으로 간주
+        return !user.lastTokenSyncAt;
+    }
+
+    /**
+     * 블록체인에서 사용자의 토큰 잔액 조회
+     * @param walletAddress 지갑 주소
+     * @returns 블록체인상 토큰 잔액
+     */
+    private async getBlockchainTokenBalance(walletAddress: string): Promise<number> {
+        try {
+            // TrivusEXP 컨트랙트에서 balanceOf 호출
+            const rpcUrl = this.configService.get<string>('blockchain.amoy.rpcUrl');
+            const contractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
+
+            if (!rpcUrl || !contractAddress) {
+                throw new Error('Blockchain configuration not found');
+            }
+
+            // ERC-20 balanceOf 함수 호출
+            const response = await fetch(rpcUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    method: 'eth_call',
+                    params: [{
+                        to: contractAddress,
+                        data: `0x70a08231${'0'.repeat(24)}${walletAddress.slice(2)}` // balanceOf(address)
+                    }, 'latest'],
+                    id: 1
+                })
+            });
+
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(`RPC error: ${data.error.message}`);
+            }
+
+            // hex를 decimal로 변환하고 18자리 소수점 제거
+            const balanceHex = data.result;
+            const balanceWei = BigInt(balanceHex);
+            const balanceEth = Number(balanceWei) / Math.pow(10, 18);
+
+            return balanceEth;
+
+        } catch (error) {
+            console.error(`[UserService] Failed to get blockchain token balance: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
      * 사용자의 토큰 정보 조회
      */
     async getUserTokenInfo(walletAddress: string): Promise<{
@@ -375,38 +488,6 @@ export class UserService {
             console.log(`🎉 Token balance sync completed for ${users.length} users`);
         } catch (error) {
             console.error(`❌ Failed to sync all users token amount: ${error.message}`);
-        }
-    }
-
-    /**
-     * 블록체인에서 사용자의 현재 토큰 잔액 조회
-     * 순환 참조 방지를 위해 직접 ethers.js 사용
-     */
-    private async getBlockchainTokenBalance(walletAddress: string): Promise<number> {
-        try {
-            // ConfigService에서 RPC URL과 컨트랙트 주소 가져오기
-            const rpcUrl = this.configService.get<string>('blockchain.amoy.rpcUrl') || 'https://rpc-amoy.polygon.technology';
-            const contractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
-
-            if (!contractAddress) {
-                console.error('❌ TrivusEXP contract address not configured');
-                return 0;
-            }
-
-            // ethers.js로 직접 블록체인 접근
-            const { ethers } = await import('ethers');
-            const provider = new ethers.JsonRpcProvider(rpcUrl);
-
-            // ERC20 balanceOf 함수 호출
-            const contract = new ethers.Contract(contractAddress, [
-                'function balanceOf(address owner) view returns (uint256)'
-            ], provider);
-
-            const balance = await contract.balanceOf(walletAddress);
-            return parseFloat(ethers.formatEther(balance));
-        } catch (error) {
-            console.error(`❌ Failed to get blockchain balance for ${walletAddress}: ${error.message}`);
-            return 0;
         }
     }
 
