@@ -1,6 +1,8 @@
-import { Body, Controller, HttpException, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, HttpException, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/user.decorator';
 import { PostLikeSystemService } from '../blockchain/post-like-system.service';
 import { TrivusExpService } from '../blockchain/trivus-exp.service';
 import { PostService } from '../services/post.service';
@@ -22,17 +24,42 @@ export class PostLikeSignatureController {
     /**
      * 좋아요 데이터 생성 (ERC-1363용, 서명 없음)
      * @param body 게시글 ID
+     * @param currentUser JWT 토큰에서 추출한 사용자 정보
      * @returns 인코딩된 좋아요 데이터
      */
     @Post('likes/data')
-    async createLikeData(@Body() body: { postId: number }) {
+    @UseGuards(JwtAuthGuard)
+    async createLikeData(@Body() body: { postId: number }, @CurrentUser() currentUser: any) {
         try {
             if (body.postId === undefined || body.postId === null || body.postId < 0) {
                 throw new HttpException('Invalid postId', HttpStatus.BAD_REQUEST);
             }
 
-            // PostLikeSystem1363.sol의 data 형식: (postId만)
-            const encodedData = ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [body.postId]);
+            // JWT 토큰에서 사용자 ID 추출
+            const userId = currentUser.sub || currentUser.id;
+            if (!userId) {
+                throw new HttpException('Invalid user token', HttpStatus.UNAUTHORIZED);
+            }
+
+            // 사용자 정보 조회하여 walletAddress 가져오기
+            const user = await this.userService.findOne(userId);
+            if (!user || !user.walletAddress) {
+                throw new HttpException('User not found or no wallet address', HttpStatus.BAD_REQUEST);
+            }
+
+            const userAddress = user.walletAddress;
+
+            // post-specific nonce: 각 게시글마다 0부터 시작
+            const nonce = "0";
+
+            // payload: postId 인코딩
+            const payload = ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [body.postId]);
+
+            // TrivusEXP1363에서 기대하는 형식: (nonce, payload)
+            const encodedData = ethers.AbiCoder.defaultAbiCoder().encode(
+                ['uint256', 'bytes'],
+                [nonce, payload]
+            );
 
             // TrivusEXP1363 토큰 컨트랙트 주소와 ABI 가져오기
             const tokenContractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
@@ -68,20 +95,28 @@ export class PostLikeSignatureController {
      * @returns EIP-712 서명 데이터
      */
     @Post('create')
-    async createLikeSignature(@Body() createLikeSignatureDto: {
-        postId: number;
-        userAddress: string;
-    }) {
+    @UseGuards(JwtAuthGuard)
+    async createLikeSignature(@Body() createLikeSignatureDto: { postId: number }, @CurrentUser() currentUser: any) {
         try {
-            const { postId, userAddress } = createLikeSignatureDto;
+            const { postId } = createLikeSignatureDto;
 
             if (!postId || postId <= 0) {
                 throw new HttpException('Invalid postId', HttpStatus.BAD_REQUEST);
             }
 
-            if (!userAddress || !ethers.isAddress(userAddress)) {
-                throw new HttpException('Invalid userAddress', HttpStatus.BAD_REQUEST);
+            // JWT 토큰에서 사용자 ID 추출
+            const userId = currentUser.sub || currentUser.id;
+            if (!userId) {
+                throw new HttpException('Invalid user token', HttpStatus.UNAUTHORIZED);
             }
+
+            // 사용자 정보 조회하여 walletAddress 가져오기
+            const user = await this.userService.findOne(userId);
+            if (!user || !user.walletAddress) {
+                throw new HttpException('User not found or no wallet address', HttpStatus.BAD_REQUEST);
+            }
+
+            const userAddress = user.walletAddress;
 
             // 1. postId의 author 확인
             const post = await this.postService.findOne(postId);
