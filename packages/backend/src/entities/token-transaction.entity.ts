@@ -4,7 +4,9 @@ import { User } from './user.entity';
 export enum TransactionType {
     LIKE_DEDUCT = 'LIKE_DEDUCT',      // 좋아요 시 토큰 차감
     LIKE_REFUND = 'LIKE_REFUND',      // 좋아요 취소 시 토큰 반환
-    REWARD_CLAIM = 'REWARD_CLAIM',    // 보상 지급
+    REWARD_CLAIM = 'REWARD_CLAIM',    // 보상 지급 (기존 호환성)
+    LIKE_REWARD_CLAIM = 'LIKE_REWARD_CLAIM',    // 좋아요 클레임
+    AVAILABLE_TOKEN_CLAIM = 'AVAILABLE_TOKEN_CLAIM',    // available token 클레임
     TRANSFER_IN = 'TRANSFER_IN',      // 외부에서 토큰 입금
     TRANSFER_OUT = 'TRANSFER_OUT',    // 외부로 토큰 출금
     SYSTEM_ADJUSTMENT = 'SYSTEM_ADJUSTMENT', // 시스템 조정

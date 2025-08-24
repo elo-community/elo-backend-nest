@@ -28,7 +28,7 @@ export class ClaimEventService implements OnModuleInit {
         transactionHash: string;
         timestamp: number;
     }>();
-    private readonly CLAIM_DELAY_MS = 5000; // 5초 지연
+    private readonly CLAIM_DELAY_MS = 1000; // 1초 지연 (빠른 처리)
 
     constructor(
         private configService: ConfigService,
@@ -116,6 +116,10 @@ export class ClaimEventService implements OnModuleInit {
             const fromBlock = Math.max(0, currentBlock - 10); // 최대 10블록 전까지 폴링 (이벤트 놓침 방지)
             const toBlock = currentBlock;
 
+            this.logger.log(`[ClaimEventService] Polling blocks: ${fromBlock} to ${toBlock} (current: ${currentBlock})`);
+            this.logger.log(`[ClaimEventService] Contract address: ${this.trivusExpContract.target}`);
+            this.logger.log(`[ClaimEventService] Provider connected: ${this.provider ? 'Yes' : 'No'}`);
+
             // ClaimExecuted 이벤트 폴링 (TrivusEXP1363 컨트랙트와 일치)
             let claimEvents: any[] = [];
             try {
@@ -149,14 +153,13 @@ export class ClaimEventService implements OnModuleInit {
                     toBlock: toBlock
                 });
 
-                if (transferEvents.length > 0) {
-                    this.logger.log(`Found ${transferEvents.length} Transfer events`);
-                }
+                // Transfer 이벤트 개수는 필요시에만 로깅
             } catch (error) {
                 this.logger.error(`Failed to get logs for Transfer: ${error.message}`);
             }
 
             // 파싱 및 처리
+            // 1. ClaimExecuted 이벤트를 먼저 처리 (지연 처리 큐에 추가)
             for (const log of claimEvents) {
                 try {
                     const parsed = this.trivusExpContract.interface.parseLog(log);
@@ -167,8 +170,6 @@ export class ClaimEventService implements OnModuleInit {
                     const deadline: bigint = parsed.args[2] as bigint;
                     const nonce: string = parsed.args[3] as string; // nonce는 bytes32 타입
 
-                    this.logger.log(`ClaimExecuted event detected: to=${to}, amount=${ethers.formatEther(amount)} EXP, deadline=${deadline}, nonce=${nonce}`);
-
                     // 중복 처리 방지: 이미 처리된 nonce인지 확인
                     const existingClaim = await this.claimRequestService.findByNonce(nonce);
                     if (existingClaim && existingClaim.status === ClaimStatus.EXECUTED) {
@@ -176,7 +177,14 @@ export class ClaimEventService implements OnModuleInit {
                         continue;
                     }
 
-                    // 지연 처리: ClaimExecuted를 큐에 추가하고 일정 시간 후 처리
+                    // 좋아요 클레임인지 확인 - 좋아요 클레임은 ClaimExecuted에서 처리하지 않음
+                    const isLikeClaim = await this.isLikeClaim(nonce);
+                    if (isLikeClaim) {
+                        this.logger.log(`Claim with nonce ${nonce} is a like claim, skipping ClaimExecuted processing (will be handled by TokensClaimed)`);
+                        continue;
+                    }
+
+                    // 토큰 클레임만 큐에 추가
                     this.addToPendingClaimQueue(nonce, {
                         to,
                         amount,
@@ -185,8 +193,6 @@ export class ClaimEventService implements OnModuleInit {
                         transactionHash: log.transactionHash,
                         timestamp: Date.now()
                     });
-
-                    this.logger.log(`ClaimExecuted event added to pending queue for nonce ${nonce}, will be processed in ${this.CLAIM_DELAY_MS}ms`);
                     continue;
 
                 } catch (parseError) {
@@ -194,7 +200,8 @@ export class ClaimEventService implements OnModuleInit {
                 }
             }
 
-            // Transfer 이벤트 처리 (mint, claim 등에서 emit)
+            // 2. Transfer 이벤트 처리 (mint, claim 등에서 emit)
+            // ClaimExecuted와 같은 transactionHash를 가진 Transfer는 스킵
             for (const log of transferEvents) {
                 try {
                     const parsed = this.trivusExpContract.interface.parseLog(log);
@@ -203,6 +210,15 @@ export class ClaimEventService implements OnModuleInit {
                     const from: string = parsed.args[0] as string;
                     const to: string = parsed.args[1] as string;
                     const value: bigint = parsed.args[2] as bigint;
+
+                    // ClaimExecuted와 같은 transactionHash를 가진 Transfer는 스킵
+                    const isClaimRelated = Array.from(this.pendingClaimExecutedQueue.values()).some(
+                        claimData => claimData.transactionHash === log.transactionHash
+                    );
+
+                    if (isClaimRelated) {
+                        continue;
+                    }
 
                     // mint 이벤트 (from이 zero address인 경우)
                     if (from === '0x0000000000000000000000000000000000000000') {
@@ -254,15 +270,7 @@ export class ClaimEventService implements OnModuleInit {
         // 큐에서 제거
         this.pendingClaimExecutedQueue.delete(nonce);
 
-        // 좋아요 클레임인지 벌크 클레임인지 구분
-        const isLikeClaim = await this.isLikeClaim(nonce);
-
-        if (isLikeClaim) {
-            this.logger.log(`Claim with nonce ${nonce} is a like claim, skipping ClaimExecuted processing (will be handled by TokensClaimed)`);
-            return;
-        }
-
-        this.logger.log(`Processing delayed ClaimExecuted event for nonce ${nonce} (bulk claim)`);
+        this.logger.log(`Processing delayed ClaimExecuted event for nonce ${nonce} (available token claim)`);
 
         try {
             const { to, amount, deadline, transactionHash } = claimData;
@@ -276,12 +284,15 @@ export class ClaimEventService implements OnModuleInit {
             );
 
             // token_accumulation 테이블에서 해당 nonce의 상태를 CLAIMED로 업데이트
+            let accumulationUpdated = false;
             try {
-                await this.tokenAccumulationService.markByNonceAsClaimed(to, BigInt(nonce), transactionHash);
+                await this.tokenAccumulationService.markByNonceAsClaimed(to, nonce, transactionHash);
                 this.logger.log(`Token accumulation marked as claimed for nonce ${nonce}, wallet ${to}`);
+                accumulationUpdated = true;
             } catch (accumulationError) {
-                this.logger.error(`Failed to mark token accumulation as claimed: ${accumulationError.message}`);
-                // accumulation 업데이트 실패 시에도 계속 진행 (토큰 트랜잭션은 기록)
+                this.logger.warn(`Token accumulation not found for nonce ${nonce}, wallet ${to}: ${accumulationError.message}`);
+                this.logger.log(`Will proceed with direct availableToken reduction`);
+                // accumulation을 찾을 수 없어도 계속 진행 (availableToken 직접 감소)
             }
 
             // token_tx 테이블에 토큰 이동 내역 기록
@@ -300,49 +311,108 @@ export class ClaimEventService implements OnModuleInit {
                     return;
                 }
 
-                // 1. 사용자의 availableToken을 0으로 설정하고, tokenAmount에 클레임한 토큰 추가
-                let updatedUser;
-                try {
-                    // syncTokenAmount를 사용하여 availableToken을 0으로 설정하고 tokenAmount에 추가
-                    updatedUser = await this.userService.syncTokenAmount(to, amountDecimal);
-                    this.logger.log(`User token synchronized: ${to} +${amountDecimal} EXP to tokenAmount, availableToken set to 0`);
-                } catch (syncError) {
-                    this.logger.error(`Failed to sync user token amount: ${syncError.message}`);
-                    return; // 토큰 동기화 실패 시 처리 중단
+                // claim 종류에 따라 처리 분기
+                let updatedUser: any;
+                const isLikeClaimResult = await this.isLikeClaim(nonce);
+
+                if (isLikeClaimResult) {
+                    // 1. 좋아요 클레임: availableToken 변화 없음, tokenAmount만 증가
+                    try {
+                        // tokenAmount만 증가 (availableToken은 변화 없음)
+                        updatedUser = await this.userService.addTokens(to, amountDecimal);
+                        this.logger.log(`[ClaimEventService] Like claim: ${to} +${amountDecimal} EXP, availableToken unchanged`);
+                    } catch (addError) {
+                        this.logger.error(`Failed to increase user token amount: ${addError.message}`);
+                        return; // 토큰 증가 실패 시 처리 중단
+                    }
+                } else {
+                    // 2. 토큰 클레임: availableToken 감소, tokenAmount 증가
+                    try {
+                        if (accumulationUpdated) {
+                            // token_accumulation이 있는 경우: syncTokenAmount 사용
+                            updatedUser = await this.userService.syncTokenAmount(to, amountDecimal);
+                            this.logger.log(`[ClaimEventService] Token claim via syncTokenAmount: ${to} +${amountDecimal} EXP`);
+                        } else {
+                            // token_accumulation이 없는 경우: availableToken 직접 감소 + tokenAmount 증가
+                            const newAvailableToken = Math.max(0, (user.availableToken || 0) - amountDecimal);
+
+                            // 1. availableToken 감소
+                            await this.userService.updateAvailableTokenDirectly(to, newAvailableToken);
+
+                            // 2. tokenAmount 증가
+                            updatedUser = await this.userService.addTokens(to, amountDecimal);
+
+                            this.logger.log(`[ClaimEventService] Token claim via direct update: ${to} +${amountDecimal} EXP`);
+                        }
+                    } catch (syncError) {
+                        this.logger.error(`Failed to update user token: ${syncError.message}`);
+                        return; // 토큰 업데이트 실패 시 처리 중단
+                    }
                 }
 
                 // 2. 트랜잭션 발생 시점의 잔액 기준으로 계산
                 const balanceBefore = Number(user.tokenAmount || 0); // 증가 전 잔액
-                const balanceAfter = Number(updatedUser?.tokenAmount || 0); // 증가 후 잔액
 
-                // 3. 토큰 거래 내역 기록
+                // DB에서 최신 값을 다시 조회하여 balanceAfter 계산
+                const latestUser = await this.userService.findByWalletAddress(to);
+                let balanceAfter = Number(latestUser?.tokenAmount || 0); // 증가 후 잔액
+
+                // balanceAfter가 0이거나 balanceBefore와 같다면 수동으로 계산
+                if (!latestUser || balanceAfter <= 0 || balanceAfter === balanceBefore) {
+                    balanceAfter = balanceBefore + amountDecimal;
+                }
+
+                // updatedUser를 최신 DB 값으로 업데이트
+                updatedUser = latestUser;
+
+                // 4. 토큰 거래 내역 기록
+                // claim 종류에 따라 description 구분
+                const claimType = isLikeClaimResult ? 'like_claim' : 'available_token_claim';
+                const claimDescription = isLikeClaimResult
+                    ? `Like reward claim executed for nonce ${nonce}`
+                    : `Available token claim executed for nonce ${nonce}`;
+
+                // claim 종류에 따라 TransactionType 구분
+                const transactionType = isLikeClaimResult ? TransactionType.LIKE_REWARD_CLAIM : TransactionType.AVAILABLE_TOKEN_CLAIM;
+
                 await this.tokenTransactionService.createTransaction({
                     userId: user.id,
-                    transactionType: TransactionType.REWARD_CLAIM,
+                    transactionType: transactionType,
                     amount: amountDecimal,
                     balanceBefore: balanceBefore,
                     balanceAfter: balanceAfter,
                     transactionHash: transactionHash,
                     blockchainAddress: to,
-                    description: `Token claim executed for nonce ${nonce}`,
+                    description: claimDescription,
                     metadata: {
                         nonce: nonce.toString(),
-                        claim_type: 'bulk_claim', // 벌크 클레임만 여기서 처리
+                        claim_type: claimType,
                         deadline: deadline.toString(),
                         event_source: 'ClaimExecuted',
                         availableTokenBefore: user.availableToken || 0,
-                        availableTokenAfter: 0 // 클레임 후 availableToken은 0
+                        availableTokenAfter: isLikeClaimResult ? (user.availableToken || 0) : 0 // 좋아요 클레임은 availableToken 변화 없음
                     },
                     referenceId: nonce.toString(),
                     referenceType: 'claim_request'
                 });
 
-                this.logger.log(`Delayed token transaction recorded for user ${user.id}: ${amountDecimal} EXP claimed, availableToken: ${user.availableToken || 0} → 0`);
+                this.logger.log(`Available token claim recorded: user ${user.id}, ${amountDecimal} EXP claimed`);
+
+                // 4. 사용자의 모든 pending 상태인 token_accumulation을 CLAIMED로 업데이트
+                if (!isLikeClaimResult) {
+                    try {
+                        const updatedCount = await this.tokenAccumulationService.markAllPendingAsClaimed(to, transactionHash);
+                        this.logger.log(`Token accumulations updated: ${updatedCount} records marked as claimed`);
+                    } catch (accumulationError) {
+                        this.logger.error(`Failed to mark all pending accumulations as claimed: ${accumulationError.message}`);
+                        // accumulation 업데이트 실패는 전체 처리에 영향을 주지 않도록 함
+                    }
+                }
             } else {
                 this.logger.warn(`User not found for wallet address: ${to}`);
             }
 
-            this.logger.log(`Delayed claim request status updated for ${to} with nonce ${nonce}`);
+            this.logger.log(`Claim request status updated for ${to} with nonce ${nonce}`);
         } catch (error) {
             this.logger.error(`Failed to process delayed claim: ${error.message}`);
         }
@@ -392,11 +462,9 @@ export class ClaimEventService implements OnModuleInit {
             const balanceBefore = user.tokenAmount || 0;
 
             // user.token_amount 업데이트
-            this.logger.log(`Updating user token_amount: ${to} +${amountDecimal} EXP`);
             let updatedUser;
             try {
                 updatedUser = await this.userService.addTokens(to, amountDecimal);
-                this.logger.log(`User token_amount updated successfully: ${updatedUser.tokenAmount} EXP (was: ${balanceBefore} EXP)`);
             } catch (addTokensError) {
                 this.logger.error(`Failed to update user token_amount: ${addTokensError.message}`);
                 throw addTokensError; // 에러 발생 시 전체 처리 중단
@@ -423,7 +491,7 @@ export class ClaimEventService implements OnModuleInit {
                 referenceType: 'mint'
             });
 
-            this.logger.log(`Mint transaction recorded for user ${user.id}: ${amountDecimal} EXP minted, token_amount updated`);
+            this.logger.log(`Mint transaction recorded: user ${user.id}, ${amountDecimal} EXP minted`);
         } catch (error) {
             this.logger.error(`Failed to handle mint event: ${(error as Error).message}`);
         }
@@ -436,8 +504,25 @@ export class ClaimEventService implements OnModuleInit {
         try {
             const amountDecimal = parseFloat(ethers.formatEther(value));
 
-            // PostLikeSystem으로의 전송인지 확인 (좋아요 관련 전송은 PostLiked 이벤트에서 처리)
+            // 1. 컨트랙트 주소로 claim 종류 구분
+            const trivusExpAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
             const postLikeSystemAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
+
+            if (from === trivusExpAddress) {
+                // 토큰 클레임으로 인한 transfer
+                this.logger.log(`Token claim transfer detected: ${amountDecimal} EXP from TrivusEXP to ${to}`);
+                this.logger.log(`Skipping Transfer event - ClaimExecuted will handle available_token reduction`);
+                return;
+            }
+
+            if (from === postLikeSystemAddress) {
+                // 좋아요 클레임으로 인한 transfer
+                this.logger.log(`Like claim transfer detected: ${amountDecimal} EXP from PostLikeSystem to ${to}`);
+                this.logger.log(`Skipping Transfer event - TokensClaimed will handle this`);
+                return;
+            }
+
+            // PostLikeSystem으로의 전송인지 확인 (좋아요 관련 전송은 PostLiked 이벤트에서 처리)
             if (to === postLikeSystemAddress) {
                 this.logger.log(`PostLikeSystem transfer detected in ClaimEventService: ${amountDecimal} EXP from ${from} to ${to}`);
                 this.logger.log(`Skipping TRANSFER_OUT record - PostLiked event will handle this`);
@@ -477,16 +562,6 @@ export class ClaimEventService implements OnModuleInit {
             // to 주소의 사용자 조회
             const toUser = await this.userService.findByWalletAddress(to);
             if (toUser) {
-                // 중복 기록 방지: 같은 transactionHash로 REWARD_CLAIM이 이미 기록되었는지 확인
-                const existingRewardClaim = await this.tokenTransactionService.getTransactionByHashAndType(
-                    transactionHash,
-                    TransactionType.REWARD_CLAIM
-                );
-
-                if (existingRewardClaim) {
-                    this.logger.log(`REWARD_CLAIM already recorded for hash ${transactionHash}, skipping TRANSFER_IN to avoid duplicate`);
-                    return;
-                }
 
                 // 1. 사용자의 tokenAmount를 실제로 증가시킴 (Transfer는 일반 토큰 이동이므로 availableToken은 건드리지 않음)
                 let updatedToUser;
@@ -504,24 +579,35 @@ export class ClaimEventService implements OnModuleInit {
                 const balanceAfter = Number(updatedToUser?.tokenAmount || 0); // 증가 후 잔액
 
                 // 3. to 사용자의 토큰 증가 기록
-                await this.tokenTransactionService.createTransaction({
-                    userId: toUser.id,
-                    transactionType: TransactionType.TRANSFER_IN,
-                    amount: amountDecimal,
-                    balanceBefore: balanceBefore,
-                    balanceAfter: balanceAfter,
+                // REWARD_CLAIM이 이미 기록되었는지 확인
+                const existingRewardClaim = await this.tokenTransactionService.getTransactionByHashAndType(
                     transactionHash,
-                    blockchainAddress: to,
-                    description: `Token received: ${amountDecimal} EXP from ${from}`,
-                    metadata: {
-                        event_source: 'Transfer',
-                        action: 'transfer_in',
-                        from: from
-                    },
-                    referenceType: 'transfer'
-                });
+                    TransactionType.REWARD_CLAIM
+                );
 
-                this.logger.log(`Transfer in recorded for user ${toUser.id}: ${amountDecimal} EXP received (${balanceBefore} → ${balanceAfter})`);
+                if (existingRewardClaim) {
+                    this.logger.log(`REWARD_CLAIM already recorded for hash ${transactionHash}, skipping TRANSFER_IN to avoid duplicate`);
+                } else {
+                    // REWARD_CLAIM이 없는 경우 TRANSFER_IN 기록
+                    await this.tokenTransactionService.createTransaction({
+                        userId: toUser.id,
+                        transactionType: TransactionType.TRANSFER_IN,
+                        amount: amountDecimal,
+                        balanceBefore: balanceBefore,
+                        balanceAfter: balanceAfter,
+                        transactionHash,
+                        blockchainAddress: to,
+                        description: `Token received: ${amountDecimal} EXP from ${from}`,
+                        metadata: {
+                            event_source: 'Transfer',
+                            action: 'transfer_in',
+                            from: from
+                        },
+                        referenceType: 'transfer'
+                    });
+
+                    this.logger.log(`Transfer in recorded for user ${toUser.id}: ${amountDecimal} EXP received (${balanceBefore} → ${balanceAfter})`);
+                }
             }
         } catch (error) {
             this.logger.error(`Failed to handle transfer event: ${(error as Error).message}`);

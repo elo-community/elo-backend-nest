@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AccumulationStatus, AccumulationType, TokenAccumulation } from '../entities/token-accumulation.entity';
+import { ClaimNonceService } from './claim-nonce.service';
 
 export interface CreateAccumulationDto {
     walletAddress: string;
@@ -24,18 +25,15 @@ export class TokenAccumulationService {
     constructor(
         @InjectRepository(TokenAccumulation)
         private readonly tokenAccumulationRepository: Repository<TokenAccumulation>,
+        private readonly claimNonceService: ClaimNonceService,
     ) { }
 
     /**
      * 사용자별 다음 nonce 조회
      */
     async getNextNonce(walletAddress: string): Promise<string> {
-        const lastAccumulation = await this.tokenAccumulationRepository.findOne({
-            where: { walletAddress },
-            order: { nonce: 'DESC' }
-        });
-
-        return (lastAccumulation ? lastAccumulation.nonce + 1n : 0n).toString();
+        // claim-nonce.service.ts와 동일한 nonce 생성 방식 사용
+        return await this.claimNonceService.getNextNonce(walletAddress);
     }
 
     /**
@@ -47,7 +45,7 @@ export class TokenAccumulationService {
         const accumulation = this.tokenAccumulationRepository.create({
             ...dto,
             amount: BigInt(dto.amount),
-            nonce: BigInt(nonce), // string을 BigInt로 변환
+            nonce: nonce, // string으로 저장
             status: AccumulationStatus.PENDING,
             expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24시간 후 만료
         });
@@ -184,7 +182,7 @@ export class TokenAccumulationService {
     async prepareClaimRequest(dto: ClaimRequestDto): Promise<{
         to: string;
         amount: bigint;
-        nonce: bigint;
+        nonce: string;
         deadline: number;
         accumulations: TokenAccumulation[];
     }> {
@@ -202,9 +200,9 @@ export class TokenAccumulationService {
             throw new Error(`Insufficient tokens. Available: ${totalAmount}, Requested: ${requestedAmount}`);
         }
 
-        // 가장 낮은 nonce부터 사용
+        // 가장 낮은 nonce부터 사용 (string 비교)
         const targetAccumulations = claimableTokens
-            .sort((a, b) => Number(a.nonce - b.nonce))
+            .sort((a, b) => a.nonce.localeCompare(b.nonce))
             .slice(0, Math.ceil(Number(requestedAmount)));
 
         const deadline = Math.floor(Date.now() / 1000) + 3600; // 1시간 후 만료
@@ -223,7 +221,7 @@ export class TokenAccumulationService {
      */
     async markAsClaimed(
         walletAddress: string,
-        nonce: bigint,
+        nonce: string,
         txHash: string
     ): Promise<void> {
         const accumulation = await this.tokenAccumulationRepository.findOne({
@@ -303,7 +301,7 @@ export class TokenAccumulationService {
      */
     async markByNonceAsClaimed(
         walletAddress: string,
-        nonce: bigint,
+        nonce: string,
         txHash: string
     ): Promise<void> {
         const accumulation = await this.tokenAccumulationRepository.findOne({
@@ -321,5 +319,31 @@ export class TokenAccumulationService {
 
         await this.tokenAccumulationRepository.save(accumulation);
         this.logger.log(`Accumulation marked as claimed: ${walletAddress}, nonce ${nonce}, tx: ${txHash}`);
+    }
+
+    /**
+     * 사용자의 모든 pending 상태인 token_accumulation을 CLAIMED로 업데이트
+     * (벌크 클레임 완료 시 사용)
+     */
+    async markAllPendingAsClaimed(
+        walletAddress: string,
+        txHash: string
+    ): Promise<number> {
+        const result = await this.tokenAccumulationRepository.update(
+            {
+                walletAddress,
+                status: AccumulationStatus.PENDING
+            },
+            {
+                status: AccumulationStatus.CLAIMED,
+                claimTxHash: txHash,
+                claimedAt: new Date()
+            }
+        );
+
+        const updatedCount = result.affected || 0;
+        this.logger.log(`All pending accumulations marked as claimed: ${walletAddress}, count: ${updatedCount}, tx: ${txHash}`);
+
+        return updatedCount;
     }
 }
