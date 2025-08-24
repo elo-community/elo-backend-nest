@@ -602,20 +602,25 @@ export class LikeEventService implements OnModuleInit {
                 return;
             }
 
-            // 1. 사용자의 availableToken을 0으로 설정하고, tokenAmount에 클레임한 토큰 추가
+            // 1. 좋아요 클레임: availableToken은 변화 없음, tokenAmount만 증가
             let updatedUser;
             try {
-                // syncTokenAmount를 사용하여 availableToken을 0으로 설정하고 tokenAmount에 추가
-                updatedUser = await this.userService.syncTokenAmount(to, amountNumber);
-                this.logger.log(`User token synchronized: ${to} +${amountNumber} EXP to tokenAmount, availableToken set to 0`);
-            } catch (syncError) {
-                this.logger.error(`Failed to sync user token amount: ${syncError.message}`);
-                return; // 토큰 동기화 실패 시 처리 중단
+                // addTokens를 사용하여 tokenAmount만 증가 (availableToken은 변화 없음)
+                updatedUser = await this.userService.addTokens(to, amountNumber);
+                this.logger.log(`Like claim: ${to} +${amountNumber} EXP, availableToken unchanged`);
+            } catch (addError) {
+                this.logger.error(`Failed to increase user token amount: ${addError.message}`);
+                return; // 토큰 증가 실패 시 처리 중단
             }
 
             // 2. 트랜잭션 발생 시점의 잔액 기준으로 계산
             const balanceBefore = Number(userEntity.tokenAmount || 0); // 증가 전 잔액
-            const balanceAfter = Number(updatedUser?.tokenAmount || 0); // 증가 후 잔액
+            let balanceAfter = Number(updatedUser?.tokenAmount || 0); // 증가 후 잔액
+
+            // balanceAfter가 0이거나 balanceBefore와 같다면 수동으로 계산
+            if (balanceAfter <= 0 || balanceAfter === balanceBefore) {
+                balanceAfter = balanceBefore + amountNumber;
+            }
 
             // 3. token_tx 테이블에 토큰 주입 기록
             try {
@@ -627,20 +632,21 @@ export class LikeEventService implements OnModuleInit {
                     balanceAfter: balanceAfter,
                     transactionHash,
                     blockchainAddress: to,
-                    description: `Like token claim for post ${postIdNumber}`,
+                    description: `Like reward claim executed for post ${postIdNumber}`,
                     metadata: {
                         postId: postIdNumber,
                         action: 'claim',
+                        claim_type: 'like_claim',
                         blockchainEvent: 'TokensClaimed',
                         availableTokenBefore: userEntity.availableToken || 0,
-                        availableTokenAfter: 0 // 클레임 후 availableToken은 0
+                        availableTokenAfter: userEntity.availableToken || 0 // 좋아요 클레임은 availableToken 변화 없음
                     },
                     referenceId: postIdNumber.toString(),
                     referenceType: 'post_like'
                 };
 
                 await this.tokenTransactionService.createTransaction(transactionDto);
-                this.logger.log(`Token transaction recorded for claim: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber} (${balanceBefore} → ${balanceAfter}), availableToken: ${userEntity.availableToken || 0} → 0`);
+                this.logger.log(`Token transaction recorded for claim: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber} (${balanceBefore} → ${balanceAfter}), availableToken: ${userEntity.availableToken || 0} → ${userEntity.availableToken || 0} (unchanged)`);
             } catch (txError) {
                 this.logger.error(`Failed to record like token claim transaction: ${txError.message}`);
             }

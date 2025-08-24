@@ -4,6 +4,7 @@ import { ethers } from 'ethers';
 import { ClaimNonceService } from '../services/claim-nonce.service';
 import { ClaimRequestService } from '../services/claim-request.service';
 import { UserService } from '../services/user.service';
+import { ERROR_CODES, ERROR_MESSAGES } from '../shared/error-codes';
 import { ClaimEventService } from './claim-event.service';
 
 export interface TokenClaimRequest {
@@ -984,7 +985,9 @@ export class TrivusExpService {
             const availableAmount = tokenInfo.availableTokens;
 
             if (availableAmount <= 0) {
-                throw new Error('No available tokens to claim');
+                const error = new Error(ERROR_MESSAGES[ERROR_CODES.NO_ACCUMULATED_TOKENS]);
+                (error as any).code = ERROR_CODES.NO_ACCUMULATED_TOKENS;
+                throw error;
             }
 
             // EIP-712 도메인 설정

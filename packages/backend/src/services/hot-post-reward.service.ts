@@ -113,7 +113,7 @@ export class HotPostRewardService {
             accumulation.reason = reason;
             accumulation.amount = BigInt(Math.floor(amount * 1e18)); // EXP를 wei로 변환
             accumulation.type = AccumulationType.HOT_POST_REWARD;
-            accumulation.nonce = BigInt(nonce);
+            accumulation.nonce = nonce;
             accumulation.status = AccumulationStatus.PENDING;
 
             await this.tokenAccumulationRepository.save(accumulation);

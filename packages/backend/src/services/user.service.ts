@@ -135,21 +135,59 @@ export class UserService {
             throw new NotFoundException('User not found');
         }
 
-        // tokenAmount에 수확한 토큰 추가
-        const newTokenAmount = (user.tokenAmount || 0) + claimedAmount;
+        // tokenAmount에 수확한 토큰 추가 (명시적으로 숫자로 변환)
+        const currentTokenAmount = parseFloat(user.tokenAmount?.toString() || '0');
+        const newTokenAmount = currentTokenAmount + claimedAmount;
 
-        // availableToken에서 수확한 토큰 차감
-        const newAvailableToken = Math.max(0, (user.availableToken || 0) - claimedAmount);
+        // availableToken에서 수확한 토큰 차감 (명시적으로 숫자로 변환)
+        const currentAvailableToken = parseFloat(user.availableToken?.toString() || '0');
+        const newAvailableToken = Math.max(0, currentAvailableToken - claimedAmount);
 
-        await this.userRepository.update(user.id, {
-            tokenAmount: newTokenAmount,
-            availableToken: newAvailableToken
+        // 트랜잭션을 명시적으로 관리
+        await this.userRepository.manager.transaction(async (transactionalEntityManager) => {
+            await transactionalEntityManager.update(User, user.id, {
+                tokenAmount: newTokenAmount,
+                availableToken: newAvailableToken
+            });
         });
+
+        // 업데이트 후 잠시 대기 후 조회 (DB 반영 시간 고려)
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         const updatedUser = await this.findByWalletAddress(walletAddress);
         if (!updatedUser) {
             throw new NotFoundException('User not found after update');
         }
+
+        console.log(`[UserService] Token synchronized: ${walletAddress} +${claimedAmount} EXP`);
+
+        return updatedUser;
+    }
+
+    /**
+     * 사용자의 availableToken을 직접 설정 (claim 처리 시 사용)
+     */
+    async updateAvailableTokenDirectly(walletAddress: string, newAvailableToken: number): Promise<User> {
+        const user = await this.findByWalletAddress(walletAddress);
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        // 트랜잭션을 명시적으로 관리
+        await this.userRepository.manager.transaction(async (transactionalEntityManager) => {
+            await transactionalEntityManager.update(User, user.id, {
+                availableToken: newAvailableToken
+            });
+        });
+
+        // 업데이트 후 잠시 대기 후 조회 (DB 반영 시간 고려)
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const updatedUser = await this.findByWalletAddress(walletAddress);
+        if (!updatedUser) {
+            throw new NotFoundException('User not found after update');
+        }
+
         return updatedUser;
     }
 
@@ -320,38 +358,31 @@ export class UserService {
      * 토큰 추가 (좋아요 취소, 보상 등에서 토큰 반환)
      */
     async addTokens(walletAddress: string, amount: number): Promise<User> {
-        console.log(`[UserService] addTokens called: ${walletAddress} +${amount} EXP`);
-        console.log(`[UserService] Amount type: ${typeof amount}, value: ${amount}`);
-
         const user = await this.findByWalletAddress(walletAddress);
         if (!user) {
-            console.error(`[UserService] User not found for wallet: ${walletAddress}`);
             throw new NotFoundException('User not found');
         }
 
-        console.log(`[UserService] Current user.tokenAmount: ${user.tokenAmount || 0}`);
-        console.log(`[UserService] Current user.tokenAmount type: ${typeof (user.tokenAmount || 0)}`);
-
         // 문자열을 숫자로 명시적 변환
         const currentTokenAmount = parseFloat(user.tokenAmount?.toString() || '0');
-        console.log(`[UserService] Parsed current tokenAmount: ${currentTokenAmount}`);
-
         const newTokenAmount = currentTokenAmount + amount;
-        console.log(`[UserService] New tokenAmount will be: ${newTokenAmount}`);
-        console.log(`[UserService] New tokenAmount type: ${typeof newTokenAmount}`);
 
-        console.log(`[UserService] Updating user ${user.id} with new tokenAmount: ${newTokenAmount}`);
-        await this.userRepository.update(user.id, {
-            tokenAmount: newTokenAmount
+        // 트랜잭션을 명시적으로 관리
+        await this.userRepository.manager.transaction(async (transactionalEntityManager) => {
+            await transactionalEntityManager.update(User, user.id, {
+                tokenAmount: newTokenAmount
+            });
         });
+
+        // 업데이트 후 잠시 대기 후 조회 (DB 반영 시간 고려)
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         const updatedUser = await this.findByWalletAddress(walletAddress);
         if (!updatedUser) {
-            console.error(`[UserService] User not found after update for wallet: ${walletAddress}`);
             throw new NotFoundException('User not found after update');
         }
 
-        console.log(`[UserService] User updated successfully. New tokenAmount: ${updatedUser.tokenAmount}`);
+        console.log(`[UserService] Tokens added: ${walletAddress} +${amount} EXP`);
         return updatedUser;
     }
 

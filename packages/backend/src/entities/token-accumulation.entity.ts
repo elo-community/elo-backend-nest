@@ -36,8 +36,8 @@ export class TokenAccumulation {
     })
     type: AccumulationType;
 
-    @Column('bigint')
-    nonce: bigint; // 사용자별 고유 nonce (순차 증가)
+    @Column('varchar', { length: 66 })
+    nonce: string; // 사용자별 고유 nonce (32바이트 해시값)
 
     @Column({
         type: 'enum',

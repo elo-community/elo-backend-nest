@@ -140,12 +140,18 @@ export class PostService {
         // 사용되지 않은 임시 이미지들 정리
         await this.tempImageService.cleanupUnusedImages(usedImageUrls, user.id);
 
-        // 첫글 작성 시 튜토리얼 완료 체크 및 토큰 지급
+        // 첫글 작성 시 튜토리얼 완료 체크 및 토큰 지급 (아직 완료되지 않은 경우에만)
         try {
-            await this.userService.completeTutorialFirstPost(user.id);
+            // 사용자가 이미 튜토리얼을 완료했는지 먼저 확인
+            const userWithTutorial = await this.userService.findById(user.id);
+            if (userWithTutorial && !userWithTutorial.tutorialFirstPostCompleted) {
+                await this.userService.completeTutorialFirstPost(user.id);
+            }
         } catch (error) {
-            // 이미 완료된 경우나 다른 오류는 무시 (로그만 남김)
-            console.log(`Tutorial first post check failed for user ${user.id}: ${error.message}`);
+            // 튜토리얼 완료 체크 중 오류 발생 시만 로그 (중복 시도는 로그하지 않음)
+            if (!error.message.includes('already completed')) {
+                console.log(`Tutorial first post check failed for user ${user.id}: ${error.message}`);
+            }
         }
 
         return savedPost;

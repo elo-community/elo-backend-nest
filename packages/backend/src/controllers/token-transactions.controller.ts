@@ -1,4 +1,4 @@
-import { Controller, DefaultValuePipe, Get, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Controller, DefaultValuePipe, Get, HttpException, HttpStatus, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
@@ -158,7 +158,7 @@ export class TokenTransactionsController {
             const userTokenInfo = await this.userService.getUserTokenInfo(user.walletAddress);
 
             if (!userTokenInfo.availableTokens || userTokenInfo.availableTokens <= 0) {
-                return {
+                throw new HttpException({
                     success: false,
                     data: null,
                     error: {
@@ -169,7 +169,7 @@ export class TokenTransactionsController {
                             action: 'claim_all_accumulated'
                         }
                     }
-                };
+                }, HttpStatus.BAD_REQUEST);
             }
 
             // 2. 사용자의 모든 누적 토큰을 한번에 수확하는 서명 생성
@@ -202,7 +202,23 @@ export class TokenTransactionsController {
                 message: 'Token claim signature generated successfully'
             };
         } catch (error) {
-            return {
+            // NO_ACCUMULATED_TOKENS 에러인 경우 적절한 HTTP 상태 코드로 응답
+            if ((error as any).code === ERROR_CODES.NO_ACCUMULATED_TOKENS) {
+                throw new HttpException({
+                    success: false,
+                    data: null,
+                    error: {
+                        code: ERROR_CODES.NO_ACCUMULATED_TOKENS,
+                        message: ERROR_MESSAGES[ERROR_CODES.NO_ACCUMULATED_TOKENS],
+                        details: {
+                            action: 'claim_all_accumulated'
+                        }
+                    }
+                }, HttpStatus.BAD_REQUEST);
+            }
+
+            // 기타 에러는 500 Internal Server Error로 응답
+            throw new HttpException({
                 success: false,
                 data: null,
                 error: {
@@ -212,7 +228,7 @@ export class TokenTransactionsController {
                         action: 'claim_all_accumulated'
                     }
                 }
-            };
+            }, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }

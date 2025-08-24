@@ -58,6 +58,7 @@ import { MatchResultScheduler } from './schedulers/match-result.scheduler';
 import { RealTimeHotPostsScheduler } from './schedulers/real-time-hot-posts.scheduler';
 import { TempImageCleanupScheduler } from './schedulers/temp-image-cleanup.scheduler';
 import { BlockchainSyncService } from './services/blockchain-sync.service';
+import { ClaimNonceService } from './services/claim-nonce.service';
 import { CommentLikeService } from './services/comment-like.service';
 import { CommentService } from './services/comment.service';
 import { MatchPostService } from './services/match-post.service';
@@ -111,7 +112,7 @@ import { UserService } from './services/user.service';
     AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, HotPostRewardController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController, MatchPostController, HealthController
   ],
   providers: [
-    PostService, CommentService, ReplyService, SportCategoryService, PostHateService, PostLikeService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TokenTransactionService, TokenAccumulationService, BlockchainSyncService, MatchPostService
+    PostService, CommentService, ReplyService, SportCategoryService, PostHateService, PostLikeService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TokenTransactionService, TokenAccumulationService, BlockchainSyncService, MatchPostService, ClaimNonceService
   ],
 })
 export class AppModule implements OnModuleInit {
