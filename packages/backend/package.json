@@ -25,9 +25,9 @@
         "setup:env": "node scripts/setup-env.js",
         "setup:env:all": "node scripts/setup-env.js",
         "setup:env:amoy:local": "node scripts/setup-env.js amoy local",
-        "setup:env:amoy:deploy": "node scripts/setup-env.js amoy deploy",
+        "setup:env:amoy:production": "node scripts/setup-env.js amoy production",
         "setup:env:very:local": "node scripts/setup-env.js very local",
-        "setup:env:very:deploy": "node scripts/setup-env.js very deploy"
+        "setup:env:very:production": "node scripts/setup-env.js very production"
     },
     "dependencies": {
         "@aws-sdk/client-s3": "^3.859.0",

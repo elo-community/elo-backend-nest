@@ -53,7 +53,7 @@ COPY --from=backend-builder /app/packages/backend/src/shared ./src/shared
 
 # Set production environment
 ENV NODE_ENV=production
-ENV ACTIVE_NETWORK=amoy
+ENV NETWORK=very
 
 # Verify build output
 RUN ls -la dist/ && \

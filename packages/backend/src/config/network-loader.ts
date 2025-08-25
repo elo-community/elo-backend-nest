@@ -151,13 +151,13 @@ export class NetworkLoader {
      * 환경 변경 (런타임에 동적으로 변경 가능)
      */
     public switchEnvironment(environment: string): void {
-        if (['local', 'deploy'].includes(environment)) {
+        if (['local', 'production'].includes(environment)) {
             this.currentEnvironment = environment;
             process.env.NODE_ENV = environment;
             console.log(`🔄 환경 변경됨: ${environment.toUpperCase()}`);
             this.loadNetworkConfig(); // 새로운 환경 설정 로드
         } else {
-            throw new Error(`지원하지 않는 환경: ${environment}. 지원 환경: local, deploy`);
+            throw new Error(`지원하지 않는 환경: ${environment}. 지원 환경: local, production`);
         }
     }
 

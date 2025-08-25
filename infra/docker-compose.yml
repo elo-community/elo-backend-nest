@@ -35,7 +35,8 @@ services:
     env_file:
       - .env
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=deploy
+      - NETWORK=very
       - HEALTH_PATH=/api/v1/health
     healthcheck:
       test: [ "CMD", "node", "-e", "http=require('http');p=process.env.HEALTH_PATH||'/health';req=http.request({host:'127.0.0.1',port:3000,path:p,timeout:5000},r=>process.exit(r.statusCode===200?0:1));req.on('error',()=>process.exit(1));req.end()" ]

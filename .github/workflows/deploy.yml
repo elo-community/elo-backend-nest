@@ -50,7 +50,7 @@ jobs:
           push: true
           build-args: |
             NODE_ENV=deploy
-            ACTIVE_NETWORK=amoy
+            NETWORK=very
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/elo-community:latest
             ${{ secrets.DOCKER_USERNAME }}/elo-community:${{ github.sha }}

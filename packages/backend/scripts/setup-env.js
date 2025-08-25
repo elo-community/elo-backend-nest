@@ -10,17 +10,17 @@ const path = require('path');
  */
 
 const NETWORKS = ['amoy', 'very'];
-const ENVIRONMENTS = ['local', 'deploy'];
+const ENVIRONMENTS = ['local', 'production'];
 
 function printUsage() {
     console.log('\n🔧 환경변수 파일 자동 설정 스크립트');
     console.log('\n사용법:');
     console.log('  node scripts/setup-env.js [network] [environment]');
     console.log('\n예시:');
-    console.log('  node scripts/setup-env.js amoy local    # Polygon Amoy 로컬 개발용');
-    console.log('  node scripts/setup-env.js amoy deploy   # Polygon Amoy 배포용');
-    console.log('  node scripts/setup-env.js very local    # Very 로컬 개발용');
-    console.log('  node scripts/setup-env.js very deploy   # Very 배포용');
+    console.log('  node scripts/setup-env.js amoy local      # Polygon Amoy 로컬 개발용');
+    console.log('  node scripts/setup-env.js amoy production # Polygon Amoy 배포용');
+    console.log('  node scripts/setup-env.js very local      # Very 로컬 개발용');
+    console.log('  node scripts/setup-env.js very production # Very 배포용');
     console.log('\n지원 네트워크:', NETWORKS.join(', '));
     console.log('지원 환경:', ENVIRONMENTS.join(', '));
 }
