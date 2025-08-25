@@ -49,8 +49,11 @@ export class ClaimEventService implements OnModuleInit {
 
     private async initializeBlockchainConnection() {
         try {
-            const rpcUrl = this.configService.get<string>('blockchain.amoy.rpcUrl');
-            const trivusExpContractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
+            // 현재 활성 네트워크 가져오기
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+
+            const rpcUrl = this.configService.get<string>(`blockchain.${activeNetwork}.rpcUrl`);
+            const trivusExpContractAddress = this.configService.get<string>(`blockchain.contracts.trivusExp.${activeNetwork}`);
 
             if (!rpcUrl || !trivusExpContractAddress) {
                 this.logger.warn('Blockchain configuration incomplete - ClaimEventService will not start');
@@ -505,8 +508,9 @@ export class ClaimEventService implements OnModuleInit {
             const amountDecimal = parseFloat(ethers.formatEther(value));
 
             // 1. 컨트랙트 주소로 claim 종류 구분
-            const trivusExpAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
-            const postLikeSystemAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+            const trivusExpAddress = this.configService.get<string>(`blockchain.contracts.trivusExp.${activeNetwork}`);
+            const postLikeSystemAddress = this.configService.get<string>(`blockchain.contracts.postLikeSystem.${activeNetwork}`);
 
             if (from === trivusExpAddress) {
                 // 토큰 클레임으로 인한 transfer

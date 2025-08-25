@@ -97,10 +97,10 @@ export class PostLikeSignatureController {
             );
 
             // TrivusEXP1363 토큰 컨트랙트 주소와 ABI 가져오기
-            const tokenContractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
 
-            // PostLikeSystem1363 컨트랙트 주소 가져오기
-            const postLikeSystemAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
+            const tokenContractAddress = this.configService.get<string>(`blockchain.contracts.trivusExp.${activeNetwork}`);
+            const postLikeSystemAddress = this.configService.get<string>(`blockchain.contracts.postLikeSystem.${activeNetwork}`);
 
             // TrivusExpService에서 실제 컨트랙트 ABI 가져오기
             const contractABI = this.trivusExpService.getContractAbi();
@@ -196,7 +196,8 @@ export class PostLikeSignatureController {
             );
 
             // PostLikeSystem1363 컨트랙트 주소 가져오기
-            const postLikeSystemAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+            const postLikeSystemAddress = this.configService.get<string>(`blockchain.contracts.postLikeSystem.${activeNetwork}`);
 
             return {
                 success: true,
@@ -243,7 +244,8 @@ export class PostLikeSignatureController {
             });
 
             // TrivusEXP1363 컨트랙트 주소 가져오기
-            const trivusExpAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+            const trivusExpAddress = this.configService.get<string>(`blockchain.contracts.trivusExp.${activeNetwork}`);
 
             return {
                 success: true,
@@ -583,7 +585,10 @@ export class PostLikeSignatureController {
      */
     private async getCurrentBlockNumber(): Promise<number> {
         try {
-            const rpcUrl = this.configService.get<string>('blockchain.amoy.rpcUrl');
+            // 현재 활성 네트워크 가져오기
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+
+            const rpcUrl = this.configService.get<string>(`blockchain.${activeNetwork}.rpcUrl`);
             if (!rpcUrl) {
                 throw new Error('RPC URL not configured');
             }

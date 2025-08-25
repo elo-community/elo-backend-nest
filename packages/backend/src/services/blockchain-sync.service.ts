@@ -25,8 +25,11 @@ export class BlockchainSyncService {
 
     private async initializeBlockchainConnection() {
         try {
-            const rpcUrl = this.configService.get<string>('blockchain.amoy.rpcUrl');
-            const postLikeContractAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
+            // 현재 활성 네트워크 가져오기
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+
+            const rpcUrl = this.configService.get<string>(`blockchain.${activeNetwork}.rpcUrl`);
+            const postLikeContractAddress = this.configService.get<string>(`blockchain.contracts.postLikeSystem.${activeNetwork}`);
 
             if (!rpcUrl || !postLikeContractAddress) {
                 this.logger.warn('Blockchain configuration incomplete - BlockchainSyncService will not start');

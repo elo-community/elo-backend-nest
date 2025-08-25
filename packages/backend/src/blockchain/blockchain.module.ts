@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ClaimNonce } from '../entities/claim-nonce.entity';
@@ -51,7 +51,9 @@ import { TrivusExpService } from './trivus-exp.service';
         {
             provide: 'AMOY_PROVIDER',
             useFactory: (configService: ConfigService) => {
-                const config = configService.get('blockchain.amoy');
+                // 현재 활성 네트워크 가져오기
+                const activeNetwork = configService.get<string>('blockchain.activeNetwork');
+                const config = configService.get(`blockchain.${activeNetwork}`);
                 // 환경변수가 설정되지 않은 경우 기본값 사용 (개발/테스트 환경)
                 const rpcUrl = config?.rpcUrl || 'https://rpc-amoy.polygon.technology';
                 const chainId = config?.chainId || 80002;

@@ -188,7 +188,7 @@ export class NetworkLoader {
                 rpc: process.env.RPC_VERY,
                 chainId: process.env.CHAIN_VERY_ID,
                 contracts: {
-                    trivusExp: process.env.TRIVUS_EXP_VERY,
+                    trivusExp: process.env.TRIVUS_EXP_1363_VERY,
                     postLikeSystem: process.env.POST_LIKE_SYSTEM_VERY
                 }
             }
@@ -212,23 +212,6 @@ export class NetworkLoader {
         console.log('');
     }
 
-    /**
-     * 사용 가능한 환경 파일 목록 출력
-     */
-    public listAvailableEnvironments(): void {
-        console.log(`\n📁 사용 가능한 환경변수 파일들:`);
-        console.log(`   로컬 개발:`);
-        console.log(`     .env.amoy.local     - Polygon Amoy 로컬 개발`);
-        console.log(`     .env.very.local     - Very 로컬 개발`);
-        console.log(`   배포:`);
-        console.log(`     .env.amoy.deploy    - Polygon Amoy 배포`);
-        console.log(`     .env.very.deploy    - Very 배포`);
-        console.log(`   폴백:`);
-        console.log(`     .env.amoy           - Polygon Amoy 기본`);
-        console.log(`     .env.very           - Very 기본`);
-        console.log(`     .env                - 기본 환경변수`);
-        console.log('');
-    }
 
     /**
      * 환경변수 파일 존재 여부 확인
@@ -263,5 +246,4 @@ export function initializeNetwork(): void {
     const loader = NetworkLoader.getInstance();
     loader.loadNetworkConfig();
     loader.checkEnvironmentFiles();
-    loader.listAvailableEnvironments();
 }

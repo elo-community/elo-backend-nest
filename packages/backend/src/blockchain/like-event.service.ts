@@ -48,9 +48,12 @@ export class LikeEventService implements OnModuleInit {
 
     private async initializeBlockchainConnection() {
         try {
-            const rpcUrl = this.configService.get<string>('blockchain.amoy.rpcUrl');
-            const postLikeContractAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
-            const trivusExpContractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
+            // 현재 활성 네트워크 가져오기
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+
+            const rpcUrl = this.configService.get<string>(`blockchain.${activeNetwork}.rpcUrl`);
+            const postLikeContractAddress = this.configService.get<string>(`blockchain.contracts.postLikeSystem.${activeNetwork}`);
+            const trivusExpContractAddress = this.configService.get<string>(`blockchain.contracts.trivusExp.${activeNetwork}`);
 
             if (!rpcUrl || !postLikeContractAddress || !trivusExpContractAddress) {
                 this.logger.warn('Blockchain configuration incomplete - LikeEventService will not start');
@@ -696,7 +699,8 @@ export class LikeEventService implements OnModuleInit {
 
     private isLikeRelatedTransfer(from: string, to: string, amount: string): boolean {
         // PostLikeSystem 컨트랙트 주소 확인
-        const postLikeSystemAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
+        const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+        const postLikeSystemAddress = this.configService.get<string>(`blockchain.contracts.postLikeSystem.${activeNetwork}`);
 
         // PostLikeSystem 컨트랙트로의 토큰 이동인지 확인
         if (to === postLikeSystemAddress) {

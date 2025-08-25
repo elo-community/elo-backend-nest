@@ -263,9 +263,11 @@ export class UserService {
      */
     private async getBlockchainTokenBalance(walletAddress: string): Promise<number> {
         try {
-            // TrivusEXP 컨트랙트에서 balanceOf 호출
-            const rpcUrl = this.configService.get<string>('blockchain.amoy.rpcUrl');
-            const contractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
+            // 현재 활성 네트워크 가져오기
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+
+            const rpcUrl = this.configService.get<string>(`blockchain.${activeNetwork}.rpcUrl`);
+            const contractAddress = this.configService.get<string>(`blockchain.contracts.trivusExp.${activeNetwork}`);
 
             if (!rpcUrl || !contractAddress) {
                 throw new Error('Blockchain configuration not found');

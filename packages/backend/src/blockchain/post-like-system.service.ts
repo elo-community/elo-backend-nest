@@ -22,8 +22,11 @@ export class PostLikeSystemService {
 
     private async initializeBlockchainConnection() {
         try {
-            const rpcUrl = this.configService.get<string>('blockchain.amoy.rpcUrl');
-            const postLikeContractAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
+            // 현재 활성 네트워크 가져오기
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+
+            const rpcUrl = this.configService.get<string>(`blockchain.${activeNetwork}.rpcUrl`);
+            const postLikeContractAddress = this.configService.get<string>(`blockchain.contracts.postLikeSystem.${activeNetwork}`);
             const trustedSignerPrivateKey = this.configService.get<string>('blockchain.trustedSigner.privateKey');
 
             if (!rpcUrl || !postLikeContractAddress || !trustedSignerPrivateKey) {
@@ -893,8 +896,9 @@ export class PostLikeSystemService {
             const nonce = '0x' + randomNonce.toString('hex');
 
             // 5. EIP-712 도메인 설정
-            const chainId = this.configService.get<number>('blockchain.amoy.chainId');
-            const postLikeContractAddress = this.configService.get<string>('blockchain.contracts.postLikeSystem.amoy');
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+            const chainId = this.configService.get<number>(`blockchain.${activeNetwork}.chainId`);
+            const postLikeContractAddress = this.configService.get<string>(`blockchain.contracts.postLikeSystem.${activeNetwork}`);
             const domain = {
                 name: 'PostLikeSystem1363',
                 version: '1',

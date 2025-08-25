@@ -73,26 +73,14 @@ export const blockchainConfig = registerAs('blockchain', () => ({
         // 토큰 컨트랙트
         trivusExp: {
             amoy: process.env.TRIVUS_EXP_1363_AMOY,
-            very: process.env.TRIVUS_EXP_VERY,
+            very: process.env.TRIVUS_EXP_1363_VERY,
         },
 
         // 좋아요 시스템 컨트랙트
         postLikeSystem: {
             amoy: process.env.POST_LIKE_SYSTEM_AMOY,
             very: process.env.POST_LIKE_SYSTEM_VERY,
-        },
-
-        // 분배자 컨트랙트
-        distributor: {
-            amoy: process.env.DISTRIBUTOR_AMOY,
-            very: process.env.DISTRIBUTOR_VERY,
-        },
-
-        // 리워드 풀 컨트랙트
-        rewardPool: {
-            amoy: process.env.REWARD_POOL_AMOY,
-            very: process.env.REWARD_POOL_VERY,
-        },
+        }
     },
 
     // 네트워크별 설정

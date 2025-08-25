@@ -37,17 +37,21 @@ export class TrivusExpService {
         @Inject(forwardRef(() => UserService))
         private userService: UserService
     ) {
-        // Polygon Amoy 네트워크 설정
-        const rpcUrl = this.configService.get<string>('blockchain.amoy.rpcUrl');
+        // 현재 활성 네트워크 가져오기
+        const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+
+        // 네트워크별 동적 설정
+        const rpcUrl = this.configService.get<string>(`blockchain.${activeNetwork}.rpcUrl`);
         const trustedSignerKey = this.configService.get<string>('blockchain.trustedSigner.privateKey');
         const normalizedSignerKey = trustedSignerKey && !trustedSignerKey.startsWith('0x')
             ? `0x${trustedSignerKey}`
             : trustedSignerKey;
 
         this.logger.log(`[DEBUG] Environment variables:`);
+        this.logger.log(`[DEBUG] Active Network: ${activeNetwork}`);
         this.logger.log(`[DEBUG] RPC_URL: ${rpcUrl}`);
         this.logger.log(`[DEBUG] TRUSTED_SIGNER_KEY: ${trustedSignerKey ? 'SET' : 'NOT SET'}`);
-        this.logger.log(`[DEBUG] CONTRACT_ADDRESS: ${this.configService.get<string>('blockchain.contracts.trivusExp.amoy')}`);
+        this.logger.log(`[DEBUG] CONTRACT_ADDRESS: ${this.configService.get<string>(`blockchain.contracts.trivusExp.${activeNetwork}`)}`);
 
         if (!rpcUrl || !normalizedSignerKey) {
             this.logger.warn('Blockchain configuration not complete - TrivusExpService will be limited');
@@ -65,7 +69,7 @@ export class TrivusExpService {
             this.trustedSigner = new ethers.Wallet(normalizedSignerKey, this.provider);
             this.logger.log(`[DEBUG] Wallet created successfully, address: ${this.trustedSigner.address}`);
 
-            this.contractAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy') || '';
+            this.contractAddress = this.configService.get<string>(`blockchain.contracts.trivusExp.${activeNetwork}`) || '';
             this.logger.log(`[DEBUG] Contract address: ${this.contractAddress}`);
 
             // 컨트랙트 ABI (새로운 TrivusEXP1363와 일치)
@@ -991,7 +995,8 @@ export class TrivusExpService {
             }
 
             // EIP-712 도메인 설정
-            const chainId = this.configService.get<number>('blockchain.amoy.chainId');
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+            const chainId = this.configService.get<number>(`blockchain.${activeNetwork}.chainId`);
             const domain = {
                 name: 'TrivusEXP1363',
                 version: '1',
@@ -1137,7 +1142,8 @@ export class TrivusExpService {
             this.logger.log(`[DEBUG] Signature not expired, proceeding with verification`);
 
             // EIP-712 서명 검증 (새로운 컨트랙트와 일치)
-            const chainId = this.configService.get<number>('blockchain.amoy.chainId');
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+            const chainId = this.configService.get<number>(`blockchain.${activeNetwork}.chainId`);
             const domain = {
                 name: 'TrivusEXP1363',
                 version: '1',

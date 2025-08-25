@@ -19,11 +19,14 @@ export class TrivusExpController {
     @Public()
     async debugEnvironmentVariables() {
         const configService = this.trivusExpService['configService'];
+        // 현재 활성 네트워크 가져오기
+        const activeNetwork = configService.get<string>('blockchain.activeNetwork');
+
         return {
-            rpcUrl: configService.get<string>('blockchain.amoy.rpcUrl'),
-            chainId: configService.get<string>('blockchain.amoy.chainId'),
+            rpcUrl: configService.get<string>(`blockchain.${activeNetwork}.rpcUrl`),
+            chainId: configService.get<string>(`blockchain.${activeNetwork}.chainId`),
             trustedSignerKey: configService.get<string>('blockchain.trustedSigner.privateKey') ? 'SET' : 'NOT SET',
-            contractAddress: configService.get<string>('blockchain.contracts.trivusExp.amoy'),
+            contractAddress: configService.get<string>(`blockchain.contracts.trivusExp.${activeNetwork}`),
             envFilePath: process.env.NODE_ENV === 'development' ? '../../.env' : '.env'
         };
     }

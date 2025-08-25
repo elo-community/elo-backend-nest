@@ -178,8 +178,10 @@ export class TokenTransactionsController {
                 reason: 'bulk_claim_accumulated_tokens'
             });
 
-            // TrivusEXP1363 컨트랙트 주소 가져오기
-            const trivusExpAddress = this.configService.get<string>('blockchain.contracts.trivusExp.amoy');
+            // 현재 활성 네트워크 가져오기
+            const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
+
+            const trivusExpAddress = this.configService.get<string>(`blockchain.contracts.trivusExp.${activeNetwork}`);
 
             // 서명만 반환하고 DB 기록은 ClaimExecuted 이벤트 감지 시 처리
             return {
