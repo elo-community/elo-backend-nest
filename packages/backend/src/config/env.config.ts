@@ -22,7 +22,7 @@ export const awsConfig = registerAs('aws', () => ({
 
 export const blockchainConfig = registerAs('blockchain', () => ({
     // 현재 활성화된 네트워크 (기본값: amoy)
-    activeNetwork: process.env.ACTIVE_NETWORK || 'amoy',
+    activeNetwork: process.env.NETWORK || 'amoy',
 
     // Polygon Amoy Testnet
     amoy: {

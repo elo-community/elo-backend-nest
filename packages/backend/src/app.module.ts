@@ -80,7 +80,7 @@ import { UserService } from './services/user.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '../../.env',
+      // envFilePath 제거 - network-loader에서 자동으로 로드
       load: [databaseConfig, jwtConfig, awsConfig, blockchainConfig, appConfig],
     }),
     ScheduleModule.forRoot(),
