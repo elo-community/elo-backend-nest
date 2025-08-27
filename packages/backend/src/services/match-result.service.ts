@@ -64,9 +64,9 @@ export class MatchResultService {
             throw new Error('Cannot create match with yourself');
         }
 
-        // 만료 시간 설정 (2분 후)
+        // 만료 시간 설정 (12시간 후)
         const expiredTime = new Date();
-        expiredTime.setMinutes(expiredTime.getMinutes() + 2);
+        expiredTime.setHours(expiredTime.getHours() + 12);
 
         // playedAt을 Date 객체로 변환하고 유효성 검사
         let playedAtDate: Date;
