@@ -1,5 +1,5 @@
 # Backend Architecture
-![[elo-시스템디자인.drawio.png]]
+![](https://github.com/elo-community/elo-backend-nest/blob/main/docs/trivus-backend-system-design.drawio.png?raw=true)
 
 - Application Server: nest.js(node js), TypeORM
 - Web Server: nginx
