@@ -1,4 +1,6 @@
 # Trivus Backend
+<img src="https://github.com/elo-community/elo-backend-nest/blob/main/docs/trivus_logo.png" width="100" height="200"/>
+
 
 ## 개요
 Trivus는 스포츠 커뮤니티 플랫폼으로, 사용자들이 스포츠 관련 게시글을 작성하고, 매치 결과를 공유하며, 블록체인 기반의 토큰 시스템을 통해 보상을 받을 수 있는 서비스입니다.
