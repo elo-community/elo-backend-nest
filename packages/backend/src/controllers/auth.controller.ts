@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { jwtDecode } from 'jwt-decode';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -6,6 +7,7 @@ import { Public } from '../auth/public.decorator';
 import { SportCategoryService } from '../services/sport-category.service';
 import { UserService } from '../services/user.service';
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -90,6 +92,7 @@ export class AuthController {
 
   @Public()
   @Post('sample-login')
+
   async sampleLogin(
     @Body() loginDto: { userType: 'sample-user' | 'table-tennis-user' },
   ) {

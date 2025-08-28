@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Request, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Put, Query, Request, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Public } from 'src/auth/public.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
@@ -13,6 +14,7 @@ import { PostService } from '../services/post.service';
 import { SportCategoryService } from '../services/sport-category.service';
 import { UserService } from '../services/user.service';
 
+@ApiTags('users')
 @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
@@ -24,6 +26,7 @@ export class UsersController {
     ) { }
 
     @Get()
+    @ApiExcludeEndpoint()
     async findAll() {
         const users = await this.userService.findAll();
         return {
@@ -185,19 +188,6 @@ export class UsersController {
         }
     }
 
-    @Post()
-    async create(@Body() createUserDto: CreateUserDto) {
-        const categories = await this.sportCategoryService.findAll();
-        const user = await this.userService.createWithDefaultElos({
-            ...createUserDto,
-            nickname: createUserDto.nickname || `user${Date.now()}`,
-        }, categories);
-        return {
-            success: true,
-            data: new UserResponseDto(user),
-            message: 'User created successfully'
-        };
-    }
 
     @Put('me/nickname')
     async updateNickname(@Body() createUserDto: CreateUserDto, @CurrentUser() currentUser: JwtUser) {
@@ -219,6 +209,7 @@ export class UsersController {
     }
 
     @Put(':id')
+    @ApiExcludeEndpoint()
     async update(@Param('id') id: number, @Body() updateUserDto: UpdateUserDto) {
         const user = await this.userService.update(id, updateUserDto);
         if (!user) {
@@ -259,6 +250,7 @@ export class UsersController {
     }
 
     @Delete(':id')
+    @ApiExcludeEndpoint()
     async remove(@Param('id') id: number) {
         const result = await this.userService.remove(id);
         return {

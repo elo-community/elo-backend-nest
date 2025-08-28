@@ -1,7 +1,7 @@
-# ELO Community Backend NestJS
+# Trivus Backend
 
 ## 개요
-ELO Community는 스포츠 커뮤니티 플랫폼으로, 사용자들이 스포츠 관련 게시글을 작성하고, 매치 결과를 공유하며, 블록체인 기반의 토큰 시스템을 통해 보상을 받을 수 있는 서비스입니다.
+Trivus는 스포츠 커뮤니티 플랫폼으로, 사용자들이 스포츠 관련 게시글을 작성하고, 매치 결과를 공유하며, 블록체인 기반의 토큰 시스템을 통해 보상을 받을 수 있는 서비스입니다.
 
 ## 주요 기능
 
@@ -77,6 +77,15 @@ elo-community-backend-nest/
 └── nginx/                     # 로컬 Nginx 설정
 ```
 
+### 주요 API 엔드포인트
+- **인증**: `/api/v1/auth/*` - 로그인, 사용자 인증
+- **사용자**: `/api/v1/users/*` - 사용자 관리, 프로필
+- **게시글**: `/api/v1/posts/*` - 게시글 CRUD
+- **댓글**: `/api/v1/comments/*` - 댓글 및 답글
+- **ELO**: `/api/v1/elo/*` - ELO 점수 시스템
+- **블록체인**: `/api/v1/blockchain/*` - 블록체인 연동
+- **보상**: `/api/v1/rewards/*` - 토큰 보상 시스템
+
 ## 빠른 시작
 
 ### 1. 환경 설정
@@ -112,7 +121,7 @@ NETWORK=amoy
 NODE_ENV=local
 DB_PASSWORD=your_actual_password
 ADMIN_PRIV_KEY=your_actual_private_key
-TRIVUS_EXP_1363_AMOY=0x5BF617D9d68868414611618336603B37f8061819
+TRIVUS_EXP_1363_AMOY=0x01234...
 ```
 
 **참고**: 환경변수는 다음 우선순위로 자동 로드됩니다:
@@ -202,13 +211,11 @@ http://localhost:3000/api/v1
 
 #### 토큰
 - `GET /post-like-signature/user/tokens` - 사용자 토큰 정보
-- `POST /post-like-signature/token-claim/create` - 토큰 클레임 서명 생성
+- `POST /token-transactions/claim-all-accumulated` - 토큰 클레임 서명 생성
+- `POST /post-like-signature/likes/data` - 좋아요 call에 사용할 데이터 생성
+- `POST /post-like-signature/create` - 좋아요 클레임 서명 생성
 
-### Swagger 문서
-개발 모드에서 Swagger UI 접근:
-```
-http://localhost:3000/api
-```
+
 
 ## 블록체인 연동
 
@@ -350,79 +357,16 @@ ADMIN_PRIV_KEY=production_private_key
 - `log`: 정보 + 경고 + 에러 (기본값)
 - `debug`: 모든 로그
 
-### 데이터베이스 모니터링
-```sql
--- 사용자 ELO 점수 현황
-SELECT 
-    u.wallet_address,
-    ue.sport_category,
-    ue.elo_score,
-    ue.matches_played
-FROM user u
-JOIN user_elo ue ON u.id = ue.user_id
-ORDER BY ue.elo_score DESC;
-
--- 토큰 적립 현황
-SELECT 
-    type, 
-    COUNT(*) as count, 
-    SUM(amount) as total_amount
-FROM token_accumulations 
-GROUP BY type;
-```
-
-## 문제 해결
-
-### 일반적인 문제
-
-#### 환경변수가 로드되지 않는 경우
-1. 파일 경로 확인: `packages/backend/` 디렉토리에 있는지 확인
-2. 파일명 확인: `.env.{network}.{environment}` 형식인지 확인
-3. 권한 확인: 파일 읽기 권한이 있는지 확인
-
-#### 네트워크 전환이 안 되는 경우
-1. `NETWORK` 환경변수 확인
-2. `NODE_ENV` 환경변수 확인
-3. 서버 재시작 필요할 수 있음
-
-#### 데이터베이스 연결 실패
-1. PostgreSQL 서비스 상태 확인
-2. 환경변수의 데이터베이스 설정 확인
-3. 방화벽 및 네트워크 설정 확인
-
-### 디버깅 방법
-1. 로그 확인
-2. 환경변수 상태 확인
-3. 데이터베이스 연결 상태 확인
-4. API 응답 확인
-
-## 기여 가이드
-
-### 개발 환경 설정
-1. 프로젝트 포크
-2. 로컬 환경 설정
-3. 기능 브랜치 생성
-4. 코드 작성 및 테스트
-5. Pull Request 생성
-
-### 코드 스타일
-- TypeScript 사용
-- ESLint + Prettier 준수
-- NestJS 아키텍처 패턴 준수
-- JSDoc 주석 작성
-
-### 테스트 작성
-- 단위 테스트 필수
-- API 테스트 작성
-- 테스트 커버리지 유지
 
 ## 라이선스
 
-이 프로젝트는 UNLICENSED 라이선스 하에 있습니다.
+© 2025 Trivus. All rights reserved.
 
 ## 연락처
 
 프로젝트 관련 문의사항이 있으시면 이슈를 생성해 주세요.
+
+구현: @dhrgodms123
 
 ## 변경 이력
 

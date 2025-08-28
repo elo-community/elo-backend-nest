@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { CommentResponseDto } from 'src/dtos/comment-response.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -13,6 +14,7 @@ import { CommentService } from '../services/comment.service';
 import { MatchPostService } from '../services/match-post.service';
 import { PostService } from '../services/post.service';
 
+@ApiTags('posts')
 @UseGuards(OptionalJwtAuthGuard)
 @Controller('posts')
 export class PostsController {
@@ -23,6 +25,11 @@ export class PostsController {
     ) { }
 
     @Get()
+    @ApiOperation({ summary: '게시글 목록 조회', description: '페이지네이션을 지원하는 게시글 목록을 조회합니다.' })
+    @ApiQuery({ name: 'page', required: false, description: '페이지 번호' })
+    @ApiQuery({ name: 'limit', required: false, description: '페이지당 게시글 수' })
+    @ApiQuery({ name: 'categoryId', required: false, description: '스포츠 카테고리 ID' })
+    @ApiResponse({ status: 200, description: '게시글 목록 조회 성공' })
     async findAll(@Query() query: PostQueryDto, @CurrentUser() user?: JwtUser) {
         const paginatedPosts = await this.postService.findAll(query);
 
@@ -191,6 +198,45 @@ export class PostsController {
 
     @UseGuards(JwtAuthGuard)
     @Post()
+    @ApiOperation({ summary: '게시글 생성', description: '새로운 게시글을 생성합니다.' })
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                title: {
+                    type: 'string',
+                    description: '게시글 제목',
+                    example: '탁구 대회 후기'
+                },
+                content: {
+                    type: 'string',
+                    description: '게시글 내용',
+                    example: '오늘 탁구 대회에서 정말 재미있게 놀았습니다...'
+                },
+                categoryId: {
+                    type: 'number',
+                    description: '스포츠 카테고리 ID',
+                    example: 1
+                },
+                type: {
+                    type: 'string',
+                    enum: ['general', 'match'],
+                    description: '게시글 타입',
+                    example: 'general'
+                },
+                imageUrls: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: '이미지 URL 배열',
+                    example: ['https://example.com/image1.jpg']
+                }
+            },
+            required: ['title', 'content', 'categoryId']
+        }
+    })
+    @ApiResponse({ status: 201, description: '게시글 생성 성공' })
+    @ApiResponse({ status: 400, description: '잘못된 요청 데이터' })
+    @ApiResponse({ status: 401, description: '인증 실패' })
     async create(@Body() createPostDto: CreatePostDto, @CurrentUser() user: JwtUser) {
         const post = await this.postService.create(createPostDto, user);
         return {
