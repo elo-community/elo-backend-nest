@@ -169,7 +169,7 @@ export class MatchPostService {
             throw new NotFoundException('User not found');
         }
 
-        // 해당 스포츠의 Elo 조회
+        // 해당 스포츠의 Elo 조회 (없으면 undefined)
         const userElo = userEntity.userElos?.find(elo => elo.sportCategory.id === post.sportCategory?.id)?.eloPoint;
 
         // 매치 신청 생성

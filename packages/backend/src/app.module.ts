@@ -95,7 +95,7 @@ import { UserService } from './services/user.service';
         database: configService.get('database.database'),
         autoLoadEntities: true,
         synchronize: true,
-        dropSchema: false,
+        dropSchema: true,
         logging: false,
       }),
       inject: [ConfigService],
@@ -175,7 +175,7 @@ export class AppModule implements OnModuleInit {
   private async createSampleUsers() {
     // 환경변수에서 지갑 주소 가져오기
     const sampleUserWallet = process.env.SAMPLE_USER_ADDRESS || 'sample-user-wallet';
-    const takkuKingWallet = process.env.TABLE_TENNIS_USER_ADDRESS || '0x8313F74e78a2E1D7D6Bb27176100d88EE4028516';
+    const takkuKingWallet = process.env.TABLE_TENNIS_USER_ADDRESS || 'table-tennis-user';
 
     // 기존 샘플 사용자가 있는지 확인
     let mainUser = await this.userService.findByWalletAddress(sampleUserWallet);
@@ -184,21 +184,21 @@ export class AppModule implements OnModuleInit {
     const categories = await this.sportCategoryService.findAll();
 
     if (!mainUser) {
-      mainUser = await this.userService.createWithDefaultElos({
+      mainUser = await this.userService.create({
         walletUserId: 'sample-user',
         walletAddress: sampleUserWallet,
         nickname: '샘플유저',
         email: 'sample@example.com',
-      }, categories);
+      });
     }
 
     if (!tableTennisUser) {
-      tableTennisUser = await this.userService.createWithDefaultElos({
+      tableTennisUser = await this.userService.create({
         walletUserId: 'table-tennis-user',
         walletAddress: takkuKingWallet,
         nickname: '탁구왕민수',
         email: 'tabletennis@example.com',
-      }, categories);
+      });
     }
 
     return {
