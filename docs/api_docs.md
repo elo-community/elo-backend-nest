@@ -230,7 +230,7 @@ https://localhost:3000/api/v1/users/1/match-results
 # <mark style="background: #ABF7F7A6;">SportsCategories</mark>
 - 종목 카테고리
 
-### `GET /api/v1/sports-categories
+### `GET /api/v1/sports-categories
 - 스포츠 종목 카테고리 Id, Name, 정렬 순서 조회
 
 #### Request URL 예시
@@ -355,7 +355,7 @@ http://localhost:3000/api/v1/sports-categories
 
 <br><br>
 
-### `GET /api/v1/match-results/{match-result-id}`
+### `GET /api/v1/match-results/{match-result-id}`
 - 상대방의 경기 결과 등록 단일 조회
 
 #### Request URL 예시
@@ -547,7 +547,95 @@ http://localhost:3000/api/v1/match-results/1
 <br><br>
 
 ---
-# <mark style="background: #ABF7F7A6;">MatchPosts</mark>
+# <mark style="background: #ABF7F7A6;">TokenTransactions</mark>
+- token transaction 내역 조회
+
+### `GET /api/v1/token-transactions`
+- token(EXP)를 주고 받은 이력을 조회
+- Bearer 토큰 필요
+
+#### Request body 예시
+```
+http://localhost:3000/api/v1/token-transactions
+```
+
+- `page`: 페이지 번호(기본값:1)
+- `limit`: 페이지 당 가져올 개수(기본값:20)
+
+#### Response 예시
+```json
+{
+    "message": "User token transactions retrieved successfully",
+    "data": {
+        "transactions": [
+            {
+                "id": 2,
+                "user": {
+                    "id": 1,
+                    "nickname": "샘플유저",
+                    "walletAddress": "0x0123.."
+                },
+                "transactionType": "INITIAL_SYNC",
+                "status": "COMPLETED",
+                "transactionHash": null,
+                "description": "Initial token balance sync: 0.00000000 → 109 EXP",
+                "metadata": {
+                    "action": "initial_sync",
+                    "source": "system",
+                    "context": "initial_sync",
+                    "reference_id": null,
+                    "reference_type": "initial_sync",
+                    "balance_before": "0.00000000",
+                    "balance_after": 109,
+                    "available_token_before": "3.00000000",
+                    "available_token_after": "3.00000000",
+                    "sync_type": "initial_server_startup",
+                    "change_amount": 109,
+                    "current_balance": 109,
+                    "previous_balance": "0.00000000"
+                },
+                "processedAt": "2025-08-29T01:12:04.814Z",
+                "summary": {
+                    "action": "초기 동기화",
+                    "target": "블록체인",
+                    "reason": "서버 시작 시 토큰 잔액 동기화",
+                    "amount": "109 EXP",
+                    "direction": "earned",
+                    "timestamp": "2025. 8. 29. 오전 10:12:04"
+                }
+            }
+        ],
+        "user": {
+            "id": 1,
+            "walletUserId": "sample-user",
+            "walletAddress": "0x0123..",
+            "nickname": "샘플유저",
+            "email": "sample@example.com",
+            "createdAt": "2025-08-29T01:12:03.851Z",
+            "tokenAmount": "109.00000000",
+            "availableToken": "3.00000000",
+            "lastTokenSyncAt": "2025-08-29T01:12:04.812Z",
+            "profileImageUrl": null,
+            "tutorialFirstPostCompleted": true,
+            "tutorialFirstMatchCompleted": false,
+            "tutorialFirstPostCompletedAt": "2025-08-29T01:12:03.890Z",
+            "tutorialFirstMatchCompletedAt": null
+        },
+        "total": 1,
+        "page": 1,
+        "limit": 20,
+        "totalPages": 1
+    }
+}
+```
+
+- `referenceId`: 연관 게시글 id
+
+
+<br><br>
+
+---
+# <mark style="background: #ABF7F7A6;">MatchPosts</mark>
 - 매칭 글 조회/작성
 
 ### `POST /api/v1/match-posts`
@@ -883,8 +971,8 @@ http://localhost:3000/api/v1/posts?categoryId=2&limit=3&page=1
 ```
 <br><br>
 
-### `POST /api/v1/posts`
-- 게시글 작성(생성)
+### `POST /api/v1/posts`
+- 게시글 작성(생성)
 
 #### Request Body 예시
 ```json
@@ -931,7 +1019,7 @@ http://localhost:3000/api/v1/posts?categoryId=2&limit=3&page=1
 <br><br>
 
 
-### `GET /api/v1/posts/hot`
+### `GET /api/v1/posts/hot`
 - 전체 인기글 조회
 - popularityScore를 계산하여 높은 순서대로 조회
 	- realtime 인기글 주기: 1시간
@@ -975,7 +1063,7 @@ http://localhost:3000/api/v1/posts/hot
 ```
 <br><br>
 
-### `GET /api/v1/posts/hot/realtime`
+### `GET /api/v1/posts/hot/realtime`
 - 최근 1시간 동안의 인기 게시글 조회
 - popularityScore를 계산하여 순서대로 측정
 	- 주기: 1시간
@@ -1056,7 +1144,7 @@ http://localhost:3000/api/v1/posts/hot/realtime
 <br><br>
 
 
-### `GET /api/v1/posts/hot/stored`
+### `GET /api/v1/posts/hot/stored`
 - 24시간 기준으로 계산한 보상 대상 게시글
 - popularityScore를 계산하여 순서대로 측정
 	- 주기: 24시간
@@ -1101,7 +1189,7 @@ http://localhost:3000/api/v1/posts/hot/stored
 ```
 
 
-### `GET /api/v1/posts/{post-id}`
+### `GET /api/v1/posts/{post-id}`
 - 게시글 단일 조회
 
 #### Request Body 예시

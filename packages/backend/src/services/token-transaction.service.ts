@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { mapTransactionToResponseDto, StandardTransactionMetadata, TransactionResponseDto } from '../dtos/transaction-response.dto';
 import { TokenTransaction, TransactionStatus, TransactionType } from '../entities/token-transaction.entity';
 import { User } from '../entities/user.entity';
 
@@ -18,6 +19,71 @@ export interface CreateTransactionDto {
     referenceType?: string;
 }
 
+/**
+ * 표준화된 메타데이터 생성 유틸리티
+ */
+export function createStandardMetadata(
+    transactionType: TransactionType,
+    customMetadata: Record<string, any> = {}
+): StandardTransactionMetadata {
+    const baseMetadata: StandardTransactionMetadata = {
+        action: getActionFromType(transactionType),
+        source: getSourceFromType(transactionType),
+        ...customMetadata
+    };
+
+    return baseMetadata;
+}
+
+/**
+ * 트랜잭션 타입에 따른 액션 반환
+ */
+function getActionFromType(transactionType: TransactionType): StandardTransactionMetadata['action'] {
+    switch (transactionType) {
+        case TransactionType.LIKE_DEDUCT:
+            return 'like_deduct';
+        case TransactionType.LIKE_REFUND:
+            return 'like_refund';
+        case TransactionType.LIKE_REWARD_CLAIM:
+            return 'like_reward_claim';
+        case TransactionType.AVAILABLE_TOKEN_CLAIM:
+            return 'available_token_claim';
+        case TransactionType.REWARD_CLAIM:
+            return 'reward_claim';
+        case TransactionType.TRANSFER_IN:
+            return 'transfer_in';
+        case TransactionType.TRANSFER_OUT:
+            return 'transfer_out';
+        case TransactionType.SYSTEM_ADJUSTMENT:
+            return 'system_adjustment';
+        case TransactionType.INITIAL_SYNC:
+            return 'initial_sync';
+        default:
+            return 'unknown';
+    }
+}
+
+/**
+ * 트랜잭션 타입에 따른 소스 반환
+ */
+function getSourceFromType(transactionType: TransactionType): string {
+    switch (transactionType) {
+        case TransactionType.LIKE_REWARD_CLAIM:
+        case TransactionType.AVAILABLE_TOKEN_CLAIM:
+        case TransactionType.TRANSFER_IN:
+        case TransactionType.TRANSFER_OUT:
+        case TransactionType.REWARD_CLAIM:
+            return 'blockchain';
+        case TransactionType.LIKE_DEDUCT:
+        case TransactionType.LIKE_REFUND:
+        case TransactionType.SYSTEM_ADJUSTMENT:
+        case TransactionType.INITIAL_SYNC:
+            return 'system';
+        default:
+            return 'system';
+    }
+}
+
 @Injectable()
 export class TokenTransactionService {
     constructor(
@@ -28,7 +94,7 @@ export class TokenTransactionService {
     ) { }
 
     /**
-     * 새로운 토큰 거래 내역 생성
+     * 새로운 토큰 거래 내역 생성 (표준화된 메타데이터 포함)
      */
     async createTransaction(createDto: CreateTransactionDto): Promise<TokenTransaction> {
         // userId로 사용자 조회
@@ -46,6 +112,17 @@ export class TokenTransactionService {
             balanceAfter = balanceBefore + createDto.amount;
         }
 
+        // 표준화된 메타데이터 생성
+        const standardMetadata = createStandardMetadata(createDto.transactionType, {
+            ...createDto.metadata,
+            balance_before: balanceBefore,
+            balance_after: balanceAfter,
+            available_token_before: user.availableToken || 0,
+            available_token_after: user.availableToken || 0,
+            reference_id: createDto.referenceId,
+            reference_type: createDto.referenceType,
+        });
+
         const transaction = this.tokenTransactionRepository.create({
             ...createDto,
             balanceBefore,
@@ -53,6 +130,7 @@ export class TokenTransactionService {
             user: user, // user 관계 설정
             status: TransactionStatus.COMPLETED,
             processedAt: new Date(),
+            metadata: standardMetadata,
         });
 
         return await this.tokenTransactionRepository.save(transaction);
@@ -66,24 +144,37 @@ export class TokenTransactionService {
         page: number = 1,
         limit: number = 20,
     ): Promise<{
-        transactions: TokenTransaction[];
+        transactions: TransactionResponseDto[];
+        user: User;
         total: number;
         page: number;
         limit: number;
         totalPages: number;
     }> {
+        // 사용자 정보는 한 번만 조회
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        // 트랜잭션은 user relations 없이 조회
         const [transactions, total] = await this.tokenTransactionRepository.findAndCount({
             where: { user: { id: userId } },
             order: { createdAt: 'DESC' },
             skip: (page - 1) * limit,
             take: limit,
-            relations: ['user'],
         });
+
+        // DTO로 변환
+        const transactionDtos = transactions.map(transaction =>
+            mapTransactionToResponseDto(transaction, user)
+        );
 
         const totalPages = Math.ceil(total / limit);
 
         return {
-            transactions,
+            transactions: transactionDtos,
+            user,
             total,
             page,
             limit,
@@ -97,7 +188,6 @@ export class TokenTransactionService {
     async getAllTransactions(): Promise<TokenTransaction[]> {
         return await this.tokenTransactionRepository.find({
             order: { createdAt: 'DESC' },
-            relations: ['user'],
             take: 50, // 최근 50개만 조회
         });
     }
@@ -111,12 +201,19 @@ export class TokenTransactionService {
         page: number = 1,
         limit: number = 20,
     ): Promise<{
-        transactions: TokenTransaction[];
+        transactions: TransactionResponseDto[];
+        user: User;
         total: number;
         page: number;
         limit: number;
         totalPages: number;
     }> {
+        // 사용자 정보는 한 번만 조회
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new Error('User not found');
+        }
+
         const [transactions, total] = await this.tokenTransactionRepository.findAndCount({
             where: {
                 user: { id: userId },
@@ -125,13 +222,18 @@ export class TokenTransactionService {
             order: { createdAt: 'DESC' },
             skip: (page - 1) * limit,
             take: limit,
-            relations: ['user'],
         });
+
+        // DTO로 변환
+        const transactionDtos = transactions.map(transaction =>
+            mapTransactionToResponseDto(transaction, user)
+        );
 
         const totalPages = Math.ceil(total / limit);
 
         return {
-            transactions,
+            transactions: transactionDtos,
+            user,
             total,
             page,
             limit,
@@ -178,12 +280,19 @@ export class TokenTransactionService {
         page: number = 1,
         limit: number = 20,
     ): Promise<{
-        transactions: TokenTransaction[];
+        transactions: TransactionResponseDto[];
+        user: User;
         total: number;
         page: number;
         limit: number;
         totalPages: number;
     }> {
+        // 사용자 정보는 한 번만 조회
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new Error('User not found');
+        }
+
         const [transactions, total] = await this.tokenTransactionRepository.findAndCount({
             where: {
                 user: { id: userId },
@@ -192,13 +301,18 @@ export class TokenTransactionService {
             order: { createdAt: 'DESC' },
             skip: (page - 1) * limit,
             take: limit,
-            relations: ['user'],
         });
+
+        // DTO로 변환
+        const transactionDtos = transactions.map(transaction =>
+            mapTransactionToResponseDto(transaction, user)
+        );
 
         const totalPages = Math.ceil(total / limit);
 
         return {
-            transactions,
+            transactions: transactionDtos,
+            user,
             total,
             page,
             limit,
@@ -212,7 +326,6 @@ export class TokenTransactionService {
     async getTransactionByHash(transactionHash: string): Promise<TokenTransaction | null> {
         return await this.tokenTransactionRepository.findOne({
             where: { transactionHash },
-            relations: ['user'],
         });
     }
 
@@ -225,7 +338,6 @@ export class TokenTransactionService {
                 transactionHash,
                 transactionType
             },
-            relations: ['user'],
         });
     }
 
@@ -267,12 +379,19 @@ export class TokenTransactionService {
         page: number = 1,
         limit: number = 20,
     ): Promise<{
-        transactions: TokenTransaction[];
+        transactions: TransactionResponseDto[];
+        user: User;
         total: number;
         page: number;
         limit: number;
         totalPages: number;
     }> {
+        // 사용자 정보는 한 번만 조회
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new Error('User not found');
+        }
+
         const [transactions, total] = await this.tokenTransactionRepository.findAndCount({
             where: {
                 user: { id: userId },
@@ -284,13 +403,18 @@ export class TokenTransactionService {
             order: { createdAt: 'DESC' },
             skip: (page - 1) * limit,
             take: limit,
-            relations: ['user'],
         });
+
+        // DTO로 변환
+        const transactionDtos = transactions.map(transaction =>
+            mapTransactionToResponseDto(transaction, user)
+        );
 
         const totalPages = Math.ceil(total / limit);
 
         return {
-            transactions,
+            transactions: transactionDtos,
+            user,
             total,
             page,
             limit,
