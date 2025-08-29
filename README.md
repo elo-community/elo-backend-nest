@@ -99,6 +99,13 @@ elo-community-backend-nest/
 
 ### 1. 환경 설정
 
+아래 example을 참고하여 네트워크 환경에 따라 반영
+
+- [env.example.very](https://github.com/elo-community/elo-backend-nest/blob/main/docs/env.example.very)
+- [env.example.amoy](https://github.com/elo-community/elo-backend-nest/blob/main/docs/env.example.amoy)
+
+
+
 #### 자동 환경변수 설정 (권장)
 ```bash
 cd packages/backend
