@@ -5,6 +5,9 @@
 ## 개요
 Trivus는 스포츠 커뮤니티 플랫폼으로, 사용자들이 스포츠 관련 게시글을 작성하고, 매치 결과를 공유하며, 블록체인 기반의 토큰 시스템을 통해 보상을 받을 수 있는 서비스입니다.
 
+<br><br>
+
+
 ## 주요 기능
 
 ### 🏆 ELO 시스템
@@ -29,7 +32,11 @@ Trivus는 스포츠 커뮤니티 플랫폼으로, 사용자들이 스포츠 관�
 - 지갑 주소 기반 사용자 식별
 - EIP-712 서명 기반 보안
 
-## 기술 스택
+<br><br>
+
+
+## 백엔드 아키텍처
+![](https://github.com/elo-community/elo-backend-nest/blob/main/docs/trivus-backend-system-design.drawio.png?raw=true)
 
 ### Backend
 - **Framework**: NestJS 10.x
@@ -91,6 +98,13 @@ elo-community-backend-nest/
 ## 빠른 시작
 
 ### 1. 환경 설정
+
+아래 example을 참고하여 네트워크 환경에 따라 반영
+
+- [env.example.very](https://github.com/elo-community/elo-backend-nest/blob/main/docs/env.example.very)
+- [env.example.amoy](https://github.com/elo-community/elo-backend-nest/blob/main/docs/env.example.amoy)
+
+
 
 #### 자동 환경변수 설정 (권장)
 ```bash

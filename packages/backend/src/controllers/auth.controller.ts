@@ -49,12 +49,11 @@ export class AuthController {
 
       // 사용자가 없으면 새로 생성
       if (!user) {
-        const categories = await this.sportCategoryService.findAll();
-        user = await this.userService.createWithDefaultElos({
+        user = await this.userService.create({
           walletUserId: walletUserId,
           walletAddress: walletAddress,
           email: email,
-        }, categories);
+        });
 
         // 새로 생성된 사용자는 첫 로그인으로 간주
         console.log(`[AuthController] New user created: ${walletAddress}, performing initial token sync`);

@@ -395,8 +395,8 @@ export class MatchResultService {
 
             // Elo 계산
             const eloResult = this.eloService.calculateMatch(
-                ratingA?.eloPoint || 1400, // 기본값 설정
-                ratingB?.eloPoint || 1400, // 기본값 설정
+                ratingA?.eloPoint || this.eloService.getInitialRating(), // 기본값 설정
+                ratingB?.eloPoint || this.eloService.getInitialRating(), // 기본값 설정
                 result,
                 isHandicap,
                 h2hGap
@@ -416,18 +416,18 @@ export class MatchResultService {
                 ratingA.totalMatches += 1;
                 await this.userEloRepository.save(ratingA);
             } else {
-                // 새로운 UserElo 생성
-                const newUserEloA = this.userEloRepository.create({
-                    user: { id: userId },
-                    sportCategory: { id: sportCategoryId },
-                    eloPoint: Math.round(eloResult.aNew),
-                    tier: 'BRONZE', // 기본 티어
-                    percentile: 50.00, // 기본 퍼센타일
-                    wins: result === 'win' ? 1 : 0,
-                    losses: result === 'lose' ? 1 : 0,
-                    draws: result === 'draw' ? 1 : 0,
-                    totalMatches: 1
-                });
+                // 새로운 UserElo 생성 (UserService 사용)
+                const newUserEloA = await this.userService.createUserElo(userId, sportCategoryId);
+                newUserEloA.eloPoint = Math.round(eloResult.aNew);
+                // 승패 기록 업데이트
+                if (result === 'win') {
+                    newUserEloA.wins = 1;
+                } else if (result === 'lose') {
+                    newUserEloA.losses = 1;
+                } else {
+                    newUserEloA.draws = 1;
+                }
+                newUserEloA.totalMatches = 1;
                 await this.userEloRepository.save(newUserEloA);
             }
 
@@ -444,18 +444,18 @@ export class MatchResultService {
                 ratingB.totalMatches += 1;
                 await this.userEloRepository.save(ratingB);
             } else {
-                // 새로운 UserElo 생성
-                const newUserEloB = this.userEloRepository.create({
-                    user: { id: partnerId },
-                    sportCategory: { id: sportCategoryId },
-                    eloPoint: Math.round(eloResult.bNew),
-                    tier: 'BRONZE', // 기본 티어
-                    percentile: 50.00, // 기본 퍼센타일
-                    wins: result === 'win' ? 0 : (result === 'lose' ? 1 : 0),
-                    losses: result === 'win' ? 1 : (result === 'lose' ? 0 : 0),
-                    draws: result === 'draw' ? 1 : 0,
-                    totalMatches: 1
-                });
+                // 새로운 UserElo 생성 (UserService 사용)
+                const newUserEloB = await this.userService.createUserElo(partnerId, sportCategoryId);
+                newUserEloB.eloPoint = Math.round(eloResult.bNew);
+                // 승패 기록 업데이트 (B의 결과는 A의 반대)
+                if (result === 'win') {
+                    newUserEloB.losses = 1;
+                } else if (result === 'lose') {
+                    newUserEloB.wins = 1;
+                } else {
+                    newUserEloB.draws = 1;
+                }
+                newUserEloB.totalMatches = 1;
                 await this.userEloRepository.save(newUserEloB);
             }
 
@@ -556,28 +556,28 @@ export class MatchResultService {
 
             if (isUserCreator) {
                 // 사용자가 매치 생성자인 경우
-                elo_before = match.eloBefore || 1400;
-                elo_after = match.eloAfter || 1400;
+                elo_before = match.eloBefore || this.eloService.getInitialRating();
+                elo_after = match.eloAfter || this.eloService.getInitialRating();
                 elo_delta = match.eloDelta || 0;
 
                 // 상대방의 Elo 정보
-                partner_elo_before = match.partnerEloBefore || 1400;
-                partner_elo_after = match.partnerEloAfter || 1400;
+                partner_elo_before = match.partnerEloBefore || this.eloService.getInitialRating();
+                partner_elo_after = match.partnerEloAfter || this.eloService.getInitialRating();
                 partner_elo_delta = match.partnerEloDelta || 0;
             } else {
                 // 사용자가 파트너인 경우
-                elo_before = match.partnerEloBefore || 1400;
-                elo_after = match.partnerEloAfter || 1400;
+                elo_before = match.partnerEloBefore || this.eloService.getInitialRating();
+                elo_after = match.partnerEloAfter || this.eloService.getInitialRating();
                 elo_delta = match.partnerEloDelta || 0;
 
                 // 상대방의 Elo 정보
-                partner_elo_before = match.eloBefore || 1400;
-                partner_elo_after = match.eloAfter || 1400;
+                partner_elo_before = match.eloBefore || this.eloService.getInitialRating();
+                partner_elo_after = match.eloAfter || this.eloService.getInitialRating();
                 partner_elo_delta = match.eloDelta || 0;
             }
 
             // 상대방의 현재 Elo 점수 조회
-            let partnerCurrentElo = 1400;
+            let partnerCurrentElo = this.eloService.getInitialRating();
             let partnerWins = 0, partnerLosses = 0, partnerDraws = 0, partnerTotalMatches = 0;
             try {
                 const partnerElo = await this.userEloRepository.findOne({
@@ -586,7 +586,7 @@ export class MatchResultService {
                         sportCategory: { id: match.sportCategory.id }
                     }
                 });
-                partnerCurrentElo = partnerElo?.eloPoint || 1400;
+                partnerCurrentElo = partnerElo?.eloPoint || this.eloService.getInitialRating();
                 partnerWins = partnerElo?.wins || 0;
                 partnerLosses = partnerElo?.losses || 0;
                 partnerDraws = partnerElo?.draws || 0;

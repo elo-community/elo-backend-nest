@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -64,8 +64,8 @@ export class EloController {
 
             // Elo 계산
             const eloResult = this.eloService.calculateMatch(
-                ratingA?.eloPoint || 1400,
-                ratingB?.eloPoint || 1400,
+                ratingA?.eloPoint || this.eloService.getInitialRating(),
+                ratingB?.eloPoint || this.eloService.getInitialRating(),
                 result,
                 isHandicap,
                 h2hGap
@@ -81,6 +81,71 @@ export class EloController {
                 success: false,
                 data: null,
                 message: `Error calculating Elo: ${error.message}`,
+            };
+        }
+    }
+
+    @Get('user/:userId/sport/:sportCategoryId')
+    @ApiOperation({
+        summary: 'Get user Elo for specific sport',
+        description: 'Get user Elo rating for a specific sport category. Returns null if not found.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'User Elo information or null',
+        schema: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean' },
+                data: {
+                    oneOf: [
+                        {
+                            type: 'object',
+                            properties: {
+                                id: { type: 'number' },
+                                eloPoint: { type: 'number' },
+                                tier: { type: 'string' },
+                                percentile: { type: 'number' },
+                                wins: { type: 'number' },
+                                losses: { type: 'number' },
+                                draws: { type: 'number' },
+                                totalMatches: { type: 'number' },
+                                sportCategory: {
+                                    type: 'object',
+                                    properties: {
+                                        id: { type: 'number' },
+                                        name: { type: 'string' }
+                                    }
+                                }
+                            }
+                        },
+                        { type: 'null' }
+                    ]
+                },
+                message: { type: 'string' },
+            },
+        },
+    })
+    async getUserElo(
+        @Param('userId', ParseIntPipe) userId: number,
+        @Param('sportCategoryId', ParseIntPipe) sportCategoryId: number
+    ) {
+        try {
+            const userElo = await this.userEloRepository.findOne({
+                where: { user: { id: userId }, sportCategory: { id: sportCategoryId } },
+                relations: ['sportCategory']
+            });
+
+            return {
+                success: true,
+                data: userElo,
+                message: userElo ? 'User Elo found' : 'User Elo not found for this sport',
+            };
+        } catch (error) {
+            return {
+                success: false,
+                data: null,
+                message: `Error getting user Elo: ${error.message}`,
             };
         }
     }

@@ -49,21 +49,7 @@ export class UserService {
 
     async createWithDefaultElos(data: Partial<User>, sportCategories: SportCategory[]): Promise<User> {
         const user = await this.create(data);
-        const sports = ['테니스', '배드민턴', '탁구', '당구', '바둑', '체스'];
-        const userElos = sportCategories
-            .filter(cat => sports.includes(cat.name || ''))
-            .map(cat => this.userEloRepository.create({
-                user,
-                sportCategory: cat,
-                eloPoint: 1400,
-                tier: 'BRONZE',
-                percentile: 50.0,
-                wins: 0,
-                losses: 0,
-                draws: 0,
-                totalMatches: 0
-            }));
-        await this.userEloRepository.save(userElos);
+        // 더 이상 기본 elo를 생성하지 않음
         return user;
     }
 
@@ -94,6 +80,54 @@ export class UserService {
             user,
             userElos: user.userElos || []
         };
+    }
+
+    /**
+     * 사용자의 특정 스포츠 Elo 조회 (없으면 null 반환)
+     */
+    async findUserElo(userId: number, sportCategoryId: number): Promise<UserElo | null> {
+        return this.userEloRepository.findOne({
+            where: { user: { id: userId }, sportCategory: { id: sportCategoryId } },
+            relations: ['sportCategory']
+        });
+    }
+
+    /**
+ * 사용자의 특정 스포츠 Elo 생성 (초기값 1400)
+ */
+    async createUserElo(userId: number, sportCategoryId: number): Promise<UserElo> {
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const userElo = this.userEloRepository.create({
+            user,
+            sportCategory: { id: sportCategoryId },
+            eloPoint: 1400,
+            tier: 'BRONZE',
+            percentile: 50.0,
+            wins: 0,
+            losses: 0,
+            draws: 0,
+            totalMatches: 0
+        });
+
+        return this.userEloRepository.save(userElo);
+    }
+
+    /**
+     * 사용자의 특정 스포츠 Elo 조회 또는 생성 (초기값 1400)
+     */
+    async findOrCreateUserElo(userId: number, sportCategoryId: number): Promise<UserElo> {
+        let userElo = await this.findUserElo(userId, sportCategoryId);
+
+        if (!userElo) {
+            userElo = await this.createUserElo(userId, sportCategoryId);
+        }
+
+        return userElo;
     }
 
     /**
@@ -503,8 +537,11 @@ export class UserService {
                         const currentBalance = await this.getBlockchainTokenBalance(user.walletAddress);
                         const previousBalance = user.tokenAmount || 0;
 
-                        // DB 업데이트
-                        await this.userRepository.update(user.id, { tokenAmount: currentBalance });
+                        // DB 업데이트 (토큰 잔액과 동기화 시간)
+                        await this.userRepository.update(user.id, {
+                            tokenAmount: currentBalance,
+                            lastTokenSyncAt: new Date()
+                        });
 
                         // 초기 동기화 시 token_tx에 기록 (변경사항이 있을 때만)
                         if (Math.abs(currentBalance - previousBalance) > 0.000001) { // 부동소수점 오차 고려
