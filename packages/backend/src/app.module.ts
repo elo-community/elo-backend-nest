@@ -96,7 +96,7 @@ import { UserService } from './services/user.service';
         database: configService.get('database.database'),
         autoLoadEntities: true,
         synchronize: true,
-        dropSchema: true,
+        dropSchema: false,
         logging: false,
       }),
       inject: [ConfigService],
