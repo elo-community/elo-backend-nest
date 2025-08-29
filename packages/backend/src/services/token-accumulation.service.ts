@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { TokenAccumulationResponseDto, TokenAccumulationSummaryDto, createAccumulationSummaryResponse, mapAccumulationToResponseDto } from '../dtos/token-accumulation-response.dto';
 import { AccumulationStatus, AccumulationType, TokenAccumulation } from '../entities/token-accumulation.entity';
 import { ClaimNonceService } from './claim-nonce.service';
 
@@ -262,6 +263,143 @@ export class TokenAccumulationService {
             .getRawOne();
 
         return BigInt(result?.total || 0).toString();
+    }
+
+    /**
+     * 사용자별 적립 내역 조회 (페이지네이션)
+     */
+    async getUserAccumulations(
+        walletAddress: string,
+        page: number = 1,
+        limit: number = 20,
+        status?: AccumulationStatus
+    ): Promise<{
+        accumulations: TokenAccumulationResponseDto[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+        summary: {
+            totalPending: number;
+            totalClaimed: number;
+            totalExpired: number;
+            totalAmount: number;
+        };
+    }> {
+        // 기본 쿼리 빌더
+        const queryBuilder = this.tokenAccumulationRepository
+            .createQueryBuilder('acc')
+            .where('acc.walletAddress = :walletAddress', { walletAddress });
+
+        // 상태별 필터링
+        if (status) {
+            queryBuilder.andWhere('acc.status = :status', { status });
+        }
+
+        // 전체 개수 조회
+        const total = await queryBuilder.getCount();
+
+        // 페이지네이션 적용하여 데이터 조회
+        const accumulations = await queryBuilder
+            .orderBy('acc.createdAt', 'DESC')
+            .skip((page - 1) * limit)
+            .take(limit)
+            .getMany();
+
+        // 요약 정보 조회
+        const summaryResult = await this.tokenAccumulationRepository
+            .createQueryBuilder('acc')
+            .select([
+                'SUM(CASE WHEN acc.status = :pending THEN acc.amount ELSE 0 END) as totalPending',
+                'SUM(CASE WHEN acc.status = :claimed THEN acc.amount ELSE 0 END) as totalClaimed',
+                'SUM(CASE WHEN acc.status = :expired THEN acc.amount ELSE 0 END) as totalExpired',
+                'SUM(acc.amount) as totalAmount'
+            ])
+            .where('acc.walletAddress = :walletAddress', { walletAddress })
+            .setParameters({
+                pending: AccumulationStatus.PENDING,
+                claimed: AccumulationStatus.CLAIMED,
+                expired: AccumulationStatus.EXPIRED,
+                walletAddress
+            })
+            .getRawOne();
+
+        const summary = {
+            totalPending: Number(BigInt(summaryResult?.totalPending || 0)),
+            totalClaimed: Number(BigInt(summaryResult?.totalClaimed || 0)),
+            totalExpired: Number(BigInt(summaryResult?.totalExpired || 0)),
+            totalAmount: Number(BigInt(summaryResult?.totalAmount || 0))
+        };
+
+        // DTO로 변환
+        const accumulationDtos = accumulations.map(accumulation =>
+            mapAccumulationToResponseDto(accumulation)
+        );
+
+        const totalPages = Math.ceil(total / limit);
+
+        return {
+            accumulations: accumulationDtos,
+            total,
+            page,
+            limit,
+            totalPages,
+            summary
+        };
+    }
+
+    /**
+     * 사용자별 적립 내역 요약 조회
+     */
+    async getUserAccumulationSummary(walletAddress: string): Promise<TokenAccumulationSummaryDto> {
+        const [summaryResult, countsResult] = await Promise.all([
+            // 금액 요약
+            this.tokenAccumulationRepository
+                .createQueryBuilder('acc')
+                .select([
+                    'SUM(CASE WHEN acc.status = :pending THEN acc.amount ELSE 0 END) as totalPending',
+                    'SUM(CASE WHEN acc.status = :claimed THEN acc.amount ELSE 0 END) as totalClaimed',
+                    'SUM(CASE WHEN acc.status = :expired THEN acc.amount ELSE 0 END) as totalExpired',
+                    'SUM(acc.amount) as totalAmount'
+                ])
+                .where('acc.walletAddress = :walletAddress', { walletAddress })
+                .setParameters({
+                    pending: AccumulationStatus.PENDING,
+                    claimed: AccumulationStatus.CLAIMED,
+                    expired: AccumulationStatus.EXPIRED,
+                    walletAddress
+                })
+                .getRawOne(),
+
+            // 개수 요약
+            this.tokenAccumulationRepository
+                .createQueryBuilder('acc')
+                .select([
+                    'COUNT(CASE WHEN acc.status = :pending THEN 1 END) as pendingCount',
+                    'COUNT(CASE WHEN acc.status = :claimed THEN 1 END) as claimedCount',
+                    'COUNT(CASE WHEN acc.status = :expired THEN 1 END) as expiredCount'
+                ])
+                .where('acc.walletAddress = :walletAddress', { walletAddress })
+                .setParameters({
+                    pending: AccumulationStatus.PENDING,
+                    claimed: AccumulationStatus.CLAIMED,
+                    expired: AccumulationStatus.EXPIRED,
+                    walletAddress
+                })
+                .getRawOne()
+        ]);
+
+        const summary = {
+            totalPending: Number(BigInt(summaryResult?.totalPending || 0)),
+            totalClaimed: Number(BigInt(summaryResult?.totalClaimed || 0)),
+            totalExpired: Number(BigInt(summaryResult?.totalExpired || 0)),
+            totalAmount: Number(BigInt(summaryResult?.totalAmount || 0)),
+            pendingCount: Number(countsResult?.pendingCount || 0),
+            claimedCount: Number(countsResult?.claimedCount || 0),
+            expiredCount: Number(countsResult?.expiredCount || 0)
+        };
+
+        return createAccumulationSummaryResponse(summary);
     }
 
     /**

@@ -631,6 +631,65 @@ http://localhost:3000/api/v1/token-transactions
 
 - `referenceId`: 연관 게시글 id
 
+<br><br>
+
+### `GET /api/v1/token-accumulations`
+- 인기글 보상이나, 튜토리얼 보상 등으로 쌓인 token(EXP)를 이력을 조회(available_token)
+- Bearer 토큰 필요
+
+#### Request body 예시
+```
+http://localhost:3000/api/v1/token-accumulations
+```
+
+- `page`: 페이지 번호(기본값:1)
+- `limit`: 페이지 당 가져올 개수(기본값:20)
+
+#### Response 예시
+```json
+{
+    "message": "User token accumulations retrieved successfully",
+    "data": {
+        "accumulations": [
+            {
+                "id": 1,
+                "walletAddress": "0x0123...",
+                "reason": "Tutorial: First post reward",
+                "amount": 3,
+                "type": "tutorial_first_post",
+                "nonce": "0x01234..",
+                "status": "pending",
+                "claimTxHash": null,
+                "claimedAt": null,
+                "createdAt": "2025-08-29T01:43:13.693Z",
+                "updatedAt": "2025-08-29T01:43:13.693Z",
+                "metadata": {
+                    "tutorial_type": "first_post"
+                },
+                "summary": {
+                    "action": "튜토리얼 첫 게시글",
+                    "source": "튜토리얼",
+                    "reason": "Tutorial: First post reward",
+                    "amount": "3 EXP",
+                    "status": "대기 중",
+                    "canClaim": true
+                }
+            }
+        ],
+        "total": 1,
+        "page": 1,
+        "limit": 20,
+        "totalPages": 1,
+        "summary": {
+            "totalPending": 0,
+            "totalClaimed": 0,
+            "totalExpired": 0,
+            "totalAmount": 0
+        }
+    }
+}
+```
+
 
 <br><br>
 

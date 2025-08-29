@@ -26,6 +26,7 @@ import { PostsController } from './controllers/posts.controller';
 import { RepliesController } from './controllers/replies.controller';
 import { SportCategoriesController } from './controllers/sport-categories.controller';
 import { SseController } from './controllers/sse.controller';
+import { TokenAccumulationController } from './controllers/token-accumulation.controller';
 import { TokenTransactionsController } from './controllers/token-transactions.controller';
 import { TrivusExpController } from './controllers/trivus-exp.controller';
 import { UsersController } from './controllers/users.controller';
@@ -109,7 +110,7 @@ import { UserService } from './services/user.service';
     RewardsModule,
   ],
   controllers: [
-    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, HotPostRewardController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController, MatchPostController, HealthController
+    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, HotPostRewardController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController, TokenAccumulationController, MatchPostController, HealthController
   ],
   providers: [
     PostService, CommentService, ReplyService, SportCategoryService, PostHateService, PostLikeService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TokenTransactionService, TokenAccumulationService, BlockchainSyncService, MatchPostService, ClaimNonceService
