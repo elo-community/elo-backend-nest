@@ -95,6 +95,13 @@ elo-community-backend-nest/
 - **블록체인**: `/api/v1/blockchain/*` - 블록체인 연동
 - **보상**: `/api/v1/rewards/*` - 토큰 보상 시스템
 
+### API Documentation
+👉 [Trivus API Docs](https://github.com/elo-community/elo-backend-nest/blob/main/docs/api_docs.md)
+
+
+
+<br><br>
+
 ## 빠른 시작
 
 ### 1. 환경 설정
