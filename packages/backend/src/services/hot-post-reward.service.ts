@@ -61,7 +61,7 @@ export class HotPostRewardService {
 
             // 100토큰을 좋아요를 누른 사람 수로 나누기
             const totalReward = 100; // 총 보상 토큰
-            const rewardPerUser = totalReward / postLikes.length;
+            const rewardPerUser = Math.floor(totalReward / postLikes.length); // 정수로 변환
 
             this.logger.log(`Distributing ${totalReward} tokens among ${postLikes.length} users. Reward per user: ${rewardPerUser}`);
 
@@ -111,7 +111,7 @@ export class HotPostRewardService {
             const accumulation = new TokenAccumulation();
             accumulation.walletAddress = user.walletAddress;
             accumulation.reason = reason;
-            accumulation.amount = BigInt(Math.floor(amount * 1e18)); // EXP를 wei로 변환
+            accumulation.amount = BigInt(amount); // ETH 단위로 저장 (wei 변환 제거)
             accumulation.type = AccumulationType.HOT_POST_REWARD;
             accumulation.nonce = nonce;
             accumulation.status = AccumulationStatus.PENDING;
@@ -170,4 +170,17 @@ export class HotPostRewardService {
 
         this.logger.log(`Reward ${rewardId} claimed with tx hash: ${txHash}`);
     }
+
+    /**
+     * 특정 날짜의 인기글들 조회
+     */
+    async getHotPostsByDate(date: Date): Promise<HotPost[]> {
+        return await this.hotPostRepository.find({
+            where: { selectionDate: date },
+            relations: ['post'],
+            order: { rank: 'ASC' }
+        });
+    }
+
+
 }

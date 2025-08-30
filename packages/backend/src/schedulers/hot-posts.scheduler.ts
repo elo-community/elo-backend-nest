@@ -49,52 +49,68 @@ export class HotPostsScheduler {
             const postsWithScore: any[] = [];
 
             for (const post of allPosts) {
-                if (!post.sportCategory) continue;
+                if (!post.sportCategory) {
+                    this.logger.debug(`Skipping post ${post.id} - no sport category`);
+                    continue;
+                }
 
-                // 좋아요 수 조회 (어제 하루 동안)
-                const likeCount = await this.postRepository
-                    .createQueryBuilder('post')
-                    .leftJoin('post.likes', 'like')
-                    .where('post.id = :postId', { postId: post.id })
-                    .andWhere('like.isLiked = :isLiked', { isLiked: true })
-                    .andWhere('like.created_at >= :yesterday', { yesterday })
-                    .andWhere('like.created_at < :today', { today })
-                    .getCount();
+                try {
+                    // 좋아요 수 조회 (어제 하루 동안)
+                    const likeCount = await this.postRepository
+                        .createQueryBuilder('post')
+                        .leftJoin('post.likes', 'like')
+                        .where('post.id = :postId', { postId: post.id })
+                        .andWhere('like.isLiked = :isLiked', { isLiked: true })
+                        .andWhere('like.created_at >= :yesterday', { yesterday })
+                        .andWhere('like.created_at < :today', { today })
+                        .getCount();
 
-                // 댓글 수 조회 (어제 하루 동안)
-                const commentCount = await this.postRepository
-                    .createQueryBuilder('post')
-                    .leftJoin('post.comments', 'comment')
-                    .where('post.id = :postId', { postId: post.id })
-                    .andWhere('comment.created_at >= :yesterday', { yesterday })
-                    .andWhere('comment.created_at < :today', { today })
-                    .getCount();
+                    // 댓글 수 조회 (어제 하루 동안)
+                    const commentCount = await this.postRepository
+                        .createQueryBuilder('post')
+                        .leftJoin('post.comments', 'comment')
+                        .where('post.id = :postId', { postId: post.id })
+                        .andWhere('comment.created_at >= :yesterday', { yesterday })
+                        .andWhere('comment.created_at < :today', { today })
+                        .getCount();
 
-                // 싫어요 수 조회 (어제 하루 동안)
-                const hateCount = await this.postRepository
-                    .createQueryBuilder('post')
-                    .leftJoin('post.hates', 'hate')
-                    .where('post.id = :postId', { postId: post.id })
-                    .andWhere('hate.isHated = :isHated', { isHated: true })
-                    .andWhere('hate.created_at >= :yesterday', { yesterday })
-                    .andWhere('hate.created_at < :today', { today })
-                    .getCount();
+                    // 싫어요 수 조회 (어제 하루 동안)
+                    const hateCount = await this.postRepository
+                        .createQueryBuilder('post')
+                        .leftJoin('post.hates', 'hate')
+                        .where('post.id = :postId', { postId: post.id })
+                        .andWhere('hate.isHated = :isHated', { isHated: true })
+                        .andWhere('hate.created_at >= :yesterday', { yesterday })
+                        .andWhere('hate.created_at < :today', { today })
+                        .getCount();
 
-                // 인기점수 계산
-                const popularityScore = (likeCount * 2) + (commentCount * 1) - (hateCount * 0.5);
+                    // 인기점수 계산
+                    const popularityScore = (likeCount * 2) + (commentCount * 1) - (hateCount * 0.5);
 
-                postsWithScore.push({
-                    ...post,
-                    popularityScore,
-                    likeCount,
-                    commentCount,
-                    hateCount
-                });
+                    postsWithScore.push({
+                        ...post,
+                        popularityScore,
+                        likeCount,
+                        commentCount,
+                        hateCount
+                    });
+
+                    this.logger.debug(`Post ${post.id}: Score=${popularityScore}, Likes=${likeCount}, Comments=${commentCount}, Hates=${hateCount}`);
+                } catch (error) {
+                    this.logger.error(`Error calculating score for post ${post.id}:`, error);
+                    // 개별 게시글 에러는 건너뛰고 계속 진행
+                    continue;
+                }
             }
 
             // 3. 전체 게시글을 인기점수 순으로 정렬하고 상위 3개 선정
             postsWithScore.sort((a, b) => b.popularityScore - a.popularityScore);
             const topPosts = postsWithScore.slice(0, 3);
+
+            if (topPosts.length === 0) {
+                this.logger.warn('No posts found for hot post selection');
+                return;
+            }
 
             this.logger.log(`Top 3 posts selected:`);
             for (const post of topPosts) {
@@ -120,18 +136,26 @@ export class HotPostsScheduler {
             this.logger.log(`Saved ${savedHotPosts.length} hot posts to database`);
 
             // 6. 각 인기글에 대해 보상 지급 (최초 선정 시에만)
+            let rewardSuccessCount = 0;
+            let rewardFailureCount = 0;
+
             for (const savedHotPost of savedHotPosts) {
                 try {
                     await this.hotPostRewardService.distributeHotPostRewards(savedHotPost.id);
                     this.logger.log(`Rewards distributed for HotPost ${savedHotPost.id}`);
+                    rewardSuccessCount++;
                 } catch (error) {
                     this.logger.error(`Failed to distribute rewards for HotPost ${savedHotPost.id}:`, error);
+                    rewardFailureCount++;
+                    // 보상 분배 실패해도 다른 인기글 처리는 계속 진행
                 }
             }
 
+            this.logger.log(`Hot posts selection completed: ${savedHotPosts.length} posts selected, ${rewardSuccessCount} rewards distributed successfully, ${rewardFailureCount} rewards failed`);
             this.logger.log(`Hot posts selection and storage completed successfully for ${today.toDateString()}`);
         } catch (error) {
             this.logger.error('Failed to select hot posts', error);
+            throw error; // 상위 레벨에서 에러 처리할 수 있도록 재발생
         }
     }
 } 

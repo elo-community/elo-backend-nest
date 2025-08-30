@@ -280,6 +280,7 @@ export class PostService {
 
     /**
      * 전체 인기글 조회 (최근 24시간 반응 기준)
+     * 스케줄러와 동일한 로직을 사용하여 일관성 유지
      */
     async getHotPosts(): Promise<any[]> {
         const oneDayAgo = new Date();
@@ -296,41 +297,52 @@ export class PostService {
             const postsWithScore: any[] = [];
 
             for (const post of allPosts) {
-                if (!post.sportCategory) continue;
+                if (!post.sportCategory) {
+                    continue;
+                }
 
-                // 좋아요 수 조회
-                const likeCount = await this.postRepository
-                    .createQueryBuilder('post')
-                    .leftJoin('post.likes', 'like')
-                    .where('post.id = :postId', { postId: post.id })
-                    .andWhere('like.isLiked = :isLiked', { isLiked: true })
-                    .andWhere('like.created_at >= :oneDayAgo', { oneDayAgo })
-                    .getCount();
+                try {
+                    // 좋아요 수 조회 (최근 24시간)
+                    const likeCount = await this.postRepository
+                        .createQueryBuilder('post')
+                        .leftJoin('post.likes', 'like')
+                        .where('post.id = :postId', { postId: post.id })
+                        .andWhere('like.isLiked = :isLiked', { isLiked: true })
+                        .andWhere('like.created_at >= :oneDayAgo', { oneDayAgo })
+                        .getCount();
 
-                // 댓글 수 조회
-                const commentCount = await this.postRepository
-                    .createQueryBuilder('post')
-                    .leftJoin('post.comments', 'comment')
-                    .where('post.id = :postId', { postId: post.id })
-                    .andWhere('comment.created_at >= :oneDayAgo', { oneDayAgo })
-                    .getCount();
+                    // 댓글 수 조회 (최근 24시간)
+                    const commentCount = await this.postRepository
+                        .createQueryBuilder('post')
+                        .leftJoin('post.comments', 'comment')
+                        .where('post.id = :postId', { postId: post.id })
+                        .andWhere('comment.created_at >= :oneDayAgo', { oneDayAgo })
+                        .getCount();
 
-                // 싫어요 수 조회
-                const hateCount = await this.postRepository
-                    .createQueryBuilder('post')
-                    .leftJoin('post.hates', 'hate')
-                    .where('post.id = :postId', { postId: post.id })
-                    .andWhere('hate.isHated = :isHated', { isHated: true })
-                    .andWhere('hate.created_at >= :oneDayAgo', { oneDayAgo })
-                    .getCount();
+                    // 싫어요 수 조회 (최근 24시간)
+                    const hateCount = await this.postRepository
+                        .createQueryBuilder('post')
+                        .leftJoin('post.hates', 'hate')
+                        .where('post.id = :postId', { postId: post.id })
+                        .andWhere('hate.isHated = :isHated', { isHated: true })
+                        .andWhere('hate.created_at >= :oneDayAgo', { oneDayAgo })
+                        .getCount();
 
-                // 인기점수 계산
-                const popularityScore = (likeCount * 2) + (commentCount * 1) - (hateCount * 0.5);
+                    // 인기점수 계산 (스케줄러와 동일한 공식)
+                    const popularityScore = (likeCount * 2) + (commentCount * 1) - (hateCount * 0.5);
 
-                postsWithScore.push({
-                    ...post,
-                    popularityScore
-                });
+                    postsWithScore.push({
+                        ...post,
+                        popularityScore,
+                        likeCount,
+                        commentCount,
+                        hateCount
+                    });
+                } catch (error) {
+                    console.error(`Error calculating score for post ${post.id}:`, error);
+                    // 개별 게시글 에러는 건너뛰고 계속 진행
+                    continue;
+                }
             }
 
             // 3. 전체 게시글을 인기점수 순으로 정렬하고 상위 3개만 유지
@@ -355,6 +367,9 @@ export class PostService {
                             name: category.name
                         },
                         popularityScore: post.popularityScore,
+                        likeCount: post.likeCount,
+                        commentCount: post.commentCount,
+                        hateCount: post.hateCount,
                         createdAt: post.createdAt,
                         viewCount: post.viewCount
                     });

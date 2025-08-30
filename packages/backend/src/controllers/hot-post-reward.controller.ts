@@ -11,11 +11,13 @@ interface ClaimRewardDto {
 @Controller('hot-post-rewards')
 @UseGuards(JwtAuthGuard)
 export class HotPostRewardController {
-    constructor(private readonly hotPostRewardService: HotPostRewardService) { }
+    constructor(
+        private readonly hotPostRewardService: HotPostRewardService
+    ) { }
 
     /**
-     * 사용자의 인기글 보상 현황 조회
-     */
+ * 사용자의 인기글 보상 현황 조회
+ */
     @Get('my-rewards')
     async getMyRewards(@CurrentUser() user: any) {
         return await this.hotPostRewardService.getUserHotPostRewards(user.id);
