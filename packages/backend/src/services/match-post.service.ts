@@ -299,7 +299,7 @@ export class MatchPostService {
     }
 
     /**
-     * Elo 기반 추천 매치글 조회
+     * Elo 기반 추천 매치글 조회 (등록 종목 우선 + 다른 종목도 포함)
      */
     async getRecommendedMatchPosts(userId: number, limit: number = 3): Promise<Post[]> {
         console.log(`🔍 [MatchPostService] 추천 매치글 조회 시작 - userId: ${userId}, limit: ${limit}`);
@@ -318,63 +318,105 @@ export class MatchPostService {
 
         // 사용자의 모든 스포츠 Elo 정보
         const userElos = user.userElos || [];
+        const recommendedPosts: Post[] = [];
 
-        if (userElos.length === 0) {
-            console.log(`⚠️ [MatchPostService] 사용자 Elo 정보 없음 - 최근 매치글 ${limit}개 반환`);
-            // Elo 정보가 없으면 최근 매치글 3개 반환
-            const recentPosts = await this.postRepository.find({
-                where: { type: PostType.MATCH, matchStatus: '대기중' },
-                relations: ['author', 'sportCategory'],
-                order: { createdAt: 'DESC' },
-                take: limit
-            });
-            console.log(`📝 [MatchPostService] 최근 매치글 ${recentPosts.length}개 조회됨`);
-            return recentPosts;
+        if (userElos.length > 0) {
+            // 1단계: 등록한 종목에서 우선 추천 (Elo 기반)
+            const registeredCategoryPosts: Post[] = [];
+            const postsPerCategory = Math.ceil(limit * 0.7 / userElos.length); // 등록 종목에 70% 할당
+
+            console.log(`🎯 [MatchPostService] ${userElos.length}개 등록 종목에서 우선 추천 매치글 조회 시작`);
+
+            for (const userElo of userElos) {
+                console.log(`🏓 [MatchPostService] ${userElo.sportCategory.name} 카테고리 처리 - Elo: ${userElo.eloPoint}`);
+
+                const categoryPosts = await this.postRepository
+                    .createQueryBuilder('post')
+                    .leftJoinAndSelect('post.author', 'author')
+                    .leftJoinAndSelect('post.sportCategory', 'sportCategory')
+                    .where('post.type = :type', { type: PostType.MATCH })
+                    .andWhere('post.matchStatus = :status', { status: '대기중' })
+                    .andWhere('post.sportCategory.id = :categoryId', { categoryId: userElo.sportCategory.id })
+                    .andWhere('post.author.id != :userId', { userId: user.id }) // 자기 자신의 글 제외
+                    .orderBy('post.createdAt', 'DESC') // 최신 순
+                    .take(postsPerCategory)
+                    .getMany();
+
+                console.log(`📊 [MatchPostService] ${userElo.sportCategory.name}에서 ${categoryPosts.length}개 매치글 조회됨`);
+                registeredCategoryPosts.push(...categoryPosts);
+            }
+
+            // 등록 종목에서 Elo 차이가 가장 적은 순으로 정렬
+            const sortedRegisteredPosts = registeredCategoryPosts
+                .sort((a, b) => {
+                    const userElo = userElos.find(ue => ue.sportCategory.id === a.sportCategory?.id)?.eloPoint || 1400;
+                    const aDiff = Math.abs((a.myElo || 1400) - userElo);
+                    const bDiff = Math.abs((b.myElo || 1400) - userElo);
+                    return aDiff - bDiff;
+                });
+
+            recommendedPosts.push(...sortedRegisteredPosts);
+            console.log(`✅ [MatchPostService] 등록 종목에서 ${sortedRegisteredPosts.length}개 매치글 수집 완료`);
         }
 
-        // 각 스포츠별로 추천 매치글 조회
-        const recommendedPosts: Post[] = [];
-        const postsPerCategory = Math.ceil(limit / userElos.length);
+        // 2단계: 다른 종목에서 추가 추천 (최신순)
+        const remainingLimit = limit - recommendedPosts.length;
+        if (remainingLimit > 0) {
+            console.log(`🌍 [MatchPostService] 다른 종목에서 ${remainingLimit}개 추가 매치글 조회 시작`);
 
-        console.log(`🎯 [MatchPostService] ${userElos.length}개 스포츠에서 추천 매치글 조회 시작`);
+            // 사용자가 등록하지 않은 종목들의 ID 목록
+            const registeredCategoryIds = userElos.map(ue => ue.sportCategory.id);
 
-        for (const userElo of userElos) {
-            console.log(`🏓 [MatchPostService] ${userElo.sportCategory.name} 카테고리 처리 - Elo: ${userElo.eloPoint}`);
-
-            const categoryPosts = await this.postRepository
+            const otherCategoryPosts = await this.postRepository
                 .createQueryBuilder('post')
                 .leftJoinAndSelect('post.author', 'author')
                 .leftJoinAndSelect('post.sportCategory', 'sportCategory')
                 .where('post.type = :type', { type: PostType.MATCH })
                 .andWhere('post.matchStatus = :status', { status: '대기중' })
-                .andWhere('post.sportCategory.id = :categoryId', { categoryId: userElo.sportCategory.id })
                 .andWhere('post.author.id != :userId', { userId: user.id }) // 자기 자신의 글 제외
                 .orderBy('post.createdAt', 'DESC') // 최신 순
-                .setParameter('userElo', userElo.eloPoint)
-                .take(postsPerCategory)
+                .take(remainingLimit)
                 .getMany();
 
-            console.log(`📊 [MatchPostService] ${userElo.sportCategory.name}에서 ${categoryPosts.length}개 매치글 조회됨`);
-            recommendedPosts.push(...categoryPosts);
+            // 등록하지 않은 종목만 필터링
+            const filteredOtherPosts = otherCategoryPosts.filter(post =>
+                post.sportCategory && !registeredCategoryIds.includes(post.sportCategory.id)
+            );
+
+            console.log(`📊 [MatchPostService] 다른 종목에서 ${filteredOtherPosts.length}개 매치글 조회됨`);
+            recommendedPosts.push(...filteredOtherPosts);
         }
 
-        console.log(`🎉 [MatchPostService] 총 ${recommendedPosts.length}개 매치글 수집 완료`);
+        // 3단계: 등록 종목이 없거나 부족한 경우 전체에서 최신순으로 보충
+        if (recommendedPosts.length < limit) {
+            const additionalLimit = limit - recommendedPosts.length;
+            console.log(`🔄 [MatchPostService] 전체 종목에서 ${additionalLimit}개 추가 매치글 조회 시작`);
 
-        // 전체에서 Elo 차이가 가장 적은 순으로 정렬하고 limit만큼 반환
-        const sortedPosts = recommendedPosts
-            .sort((a, b) => {
-                const userElo = userElos.find(ue => ue.sportCategory.id === a.sportCategory?.id)?.eloPoint || 1400;
-                const aDiff = Math.abs((a.myElo || 1400) - userElo);
-                const bDiff = Math.abs((b.myElo || 1400) - userElo);
-                return aDiff - bDiff;
-            })
-            .slice(0, limit);
+            const additionalPosts = await this.postRepository
+                .createQueryBuilder('post')
+                .leftJoinAndSelect('post.author', 'author')
+                .leftJoinAndSelect('post.sportCategory', 'sportCategory')
+                .where('post.type = :type', { type: PostType.MATCH })
+                .andWhere('post.matchStatus = :status', { status: '대기중' })
+                .andWhere('post.author.id != :userId', { userId: user.id }) // 자기 자신의 글 제외
+                .andWhere('post.id NOT IN (:...existingIds)', {
+                    existingIds: recommendedPosts.map(p => p.id).length > 0 ? recommendedPosts.map(p => p.id) : [0]
+                })
+                .orderBy('post.createdAt', 'DESC') // 최신 순
+                .take(additionalLimit)
+                .getMany();
 
-        console.log(`✅ [MatchPostService] 최종 추천 매치글 ${sortedPosts.length}개 반환`);
+            console.log(`📊 [MatchPostService] 전체 종목에서 ${additionalPosts.length}개 추가 매치글 조회됨`);
+            recommendedPosts.push(...additionalPosts);
+        }
+
+        // 최종 결과를 limit만큼만 반환
+        const finalPosts = recommendedPosts.slice(0, limit);
+        console.log(`🎉 [MatchPostService] 최종 추천 매치글 ${finalPosts.length}개 반환`);
 
         // 각 매치글의 참가자 정보 조회
         const postsWithParticipants = await Promise.all(
-            sortedPosts.map(async (post) => {
+            finalPosts.map(async (post) => {
                 const matchRequests = await this.matchRequestRepository.find({
                     where: { post: { id: post.id } },
                     relations: ['user']
