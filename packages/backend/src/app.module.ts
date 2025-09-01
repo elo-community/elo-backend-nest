@@ -19,6 +19,7 @@ import { HotPostRewardController } from './controllers/hot-post-reward.controlle
 import { ImageController } from './controllers/image.controller';
 import { MatchPostController } from './controllers/match-post.controller';
 import { MatchResultsController, UserMatchesController } from './controllers/match-results.controller';
+import { MetricsController } from './controllers/metrics.controller';
 import { PostHatesController } from './controllers/post-hates.controller';
 import { PostLikeSignatureController } from './controllers/post-like-signature.controller';
 import { PostLikesController } from './controllers/post-likes.controller';
@@ -110,7 +111,7 @@ import { UserService } from './services/user.service';
     RewardsModule,
   ],
   controllers: [
-    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, HotPostRewardController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController, TokenAccumulationController, MatchPostController, HealthController
+    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, HotPostRewardController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController, TokenAccumulationController, MatchPostController, HealthController, MetricsController
   ],
   providers: [
     PostService, CommentService, ReplyService, SportCategoryService, PostHateService, PostLikeService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TokenTransactionService, TokenAccumulationService, BlockchainSyncService, MatchPostService, ClaimNonceService

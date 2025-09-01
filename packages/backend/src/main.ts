@@ -67,7 +67,9 @@ async function bootstrap() {
     optionsSuccessStatus: 204
   });
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api/v1', {
+    exclude: ['/metrics']
+  });
 
   const port = configService.get('app.port');
   await app.listen(port);

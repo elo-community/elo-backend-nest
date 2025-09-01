@@ -1,65 +1,35 @@
-name: elo
-
-networks:
-  app-network:
-    driver: bridge
-
-volumes:
-  grafana-storage:
-
+name: elo-local
 
 services:
-  nginx:
-    image: nginx:latest
-    container_name: nginx-proxy
+  backend:
+    container_name: backend-local
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: elo-community-backend:local
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - /var/lib/letsencrypt:/var/lib/letsencrypt
-    depends_on:
-      backend:
-        condition: service_healthy
-
-  # 1회 발급/수동 갱신용(컨테이너는 실행 후 종료될 수 있음)
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    volumes:
-      - /etc/letsencrypt:/etc/letsencrypt
-      - /var/lib/letsencrypt:/var/lib/letsencrypt
-    entrypoint: >
-      sh -c "certbot certonly --webroot -w /var/lib/letsencrypt --email dhrgodms123@gmail.com --agree-tos --no-eff-email --non-interactive -d api.trivus.net || true"
-
-  backend:
-    container_name: backend
-    image: ${DOCKER_USERNAME}/elo-community:${IMAGE_TAG}
-    restart: always
-    expose:
-      - "3000"
-    env_file:
-      - .env
-    environment:
-      - NODE_ENV=deploy
-      - NETWORK=very
-      - HEALTH_PATH=/api/v1/health
+      - "3000:3000"
     networks:
       - app-network
+    env_file:
+      - ../.env.amoy.local
+    environment:
+      - NODE_ENV=development
+      - NETWORK=amoy
+      - HEALTH_PATH=/api/v1/health
     healthcheck:
       test: [ "CMD", "node", "-e", "http=require('http');p=process.env.HEALTH_PATH||'/health';req=http.request({host:'127.0.0.1',port:3000,path:p,timeout:5000},r=>process.exit(r.statusCode===200?0:1));req.on('error',()=>process.exit(1));req.end()" ]
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 10s
-
+  # 모니터링: 배포 컴포즈 정의 재사용
   prometheus:
     image: prom/prometheus
     container_name: prometheus
     volumes:
-      - ./prometheus/prometheus.deploy.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.local.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
     networks:
@@ -77,7 +47,6 @@ services:
       - GF_FEATURE_TOGGLES_ENABLE=publicDashboards
     volumes:
       - grafana-storage:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
     networks:
       - app-network
 
@@ -93,8 +62,15 @@ services:
     image: prometheuscommunity/postgres-exporter
     container_name: postgres-exporter
     environment:
-      DATA_SOURCE_NAME: "postgresql://postgres:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_DATABASE}?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://postgres:${DB_PASSWORD}@host.docker.internal:5432/elo_community?sslmode=disable"
     ports:
       - "9187:9187"
     networks:
       - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  grafana-storage:

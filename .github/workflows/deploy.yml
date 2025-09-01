@@ -1,138 +1,56 @@
-name: Deploy ELO Community Monorepo
+name: Deploy to Production # Test deployment
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, deploy ]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Install package dependencies
-        run: |
-          npm install --workspace=contracts
-          npm install --workspace=backend
-
-      - name: Create .env file (for build only)
-        run: |
-          echo "${{ secrets.ENV }}" | base64 -d > .env
-
-      - name: Build contracts
-        run: npm run build:contracts
-
-      - name: Build backend
-        run: npm run build:backend
-
-      - name: Verify build outputs
-        run: |
-          test -f packages/backend/dist/main.js
-
-      # ⬇️ 액션 대신 수동 로그인 (post-step 없음)
-      - name: Login to Docker Hub (manual)
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-      - name: Build & Push Docker Image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          build-args: |
-            NODE_ENV=deploy
-            NETWORK=very
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/elo-community:latest
-            ${{ secrets.DOCKER_USERNAME }}/elo-community:${{ github.sha }}
-
-      - name: Install envsubst
-        run: sudo apt-get update && sudo apt-get install -y gettext-base
-
-      - name: Render docker-compose with tag
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: envsubst < infra/docker-compose.yml > infra/docker-compose.rendered.yml
-
-      # ⬇️ ssh-agent 액션 제거, 프라이빗키 파일로 직접 접속
-      - name: Prepare SSH key
-        run: |
-          echo "${{ secrets.EC2_PRIVATE_KEY }}" > key.pem
-          chmod 600 key.pem
-
-      - name: Put .env to EC2
-        run: |
-          ssh -i key.pem -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} 'mkdir -p ~/elo-backend-nest && cat > ~/elo-backend-nest/.env' <<< "$(echo "${{ secrets.ENV }}" | base64 -d)"
-
-      - name: Upload compose + nginx
-        run: |
-          scp -i key.pem -o StrictHostKeyChecking=no infra/docker-compose.rendered.yml \
-            ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/elo-backend-nest/docker-compose.rendered.yml
-          scp -i key.pem -o StrictHostKeyChecking=no -r nginx \
-            ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/elo-backend-nest/
-
-      - name: SSH into EC2 and deploy (quiet & robust)
-        run: |
-          ssh -i key.pem -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} <<'EOSSH'
-            set -e
-            cd ~/elo-backend-nest
-
-            # 조용한 레지스트리 로그인
-            echo "${{ secrets.DOCKER_PASSWORD }}" | sudo docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin >/dev/null 2>&1 || true
-
-            # 렌더링본 적용
-            mv -f docker-compose.rendered.yml docker-compose.yml
-
-            # 이름 충돌 제거 (조용히)
-            sudo docker rm -f backend nginx-proxy certbot elo-backend-1 >/dev/null 2>&1 || true
-
-            PROJECT=elo
-            sudo docker compose -p "$PROJECT" pull >/dev/null
-            sudo docker compose -p "$PROJECT" up -d --pull always --no-deps --force-recreate --remove-orphans backend nginx >/dev/null
-
-            # backend healthy 대기
-            get_backend_cid() {
-              sudo docker ps -q -f "label=com.docker.compose.project=$PROJECT" -f "label=com.docker.compose.service=backend"
-            }
-            for i in $(seq 1 30); do CID="$(get_backend_cid)"; [ -n "$CID" ] && break; sleep 2; done
-            [ -n "$CID" ] || { echo "Backend container not found."; exit 1; }
-
-            get_health() {
-              sudo docker inspect "$CID" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' 2>/dev/null || echo "unknown"
-            }
-            H="$(get_health)"
-            if [ "$H" != "none" ] && [ "$H" != "unknown" ]; then
-              for i in $(seq 1 60); do
-                H="$(get_health)"
-                [ "$H" = "healthy" ] && break
-                [ "$H" = "unhealthy" ] && { echo "Backend unhealthy."; exit 1; }
-                sleep 2
-              done
-              [ "$H" = "healthy" ] || { echo "Backend not healthy in time."; exit 1; }
-            fi
-
-            # nginx 확인 + HTTP 체크 (Host 헤더, 리다이렉트 허용)
-            NGINX_CID="$(sudo docker ps -q -f "label=com.docker.compose.project=$PROJECT" -f "label=com.docker.compose.service=nginx")"
-            [ -n "$NGINX_CID" ] || { echo "nginx container not found."; exit 1; }
-
-            HOST=api.trivus.net
-            ok=false
-            for i in $(seq 1 60); do
-              STATUS="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H "Host: $HOST" http://127.0.0.1/ || true)"
-              case "$STATUS" in 200|301|302|308) ok=true; break;; esac
-              sleep 2
-            done
-            $ok || { echo "Nginx not ready (bad status)."; exit 1; }
-
-            echo "Deploy OK."
-          EOSSH
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/elo-community:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_PRIVATE_KEY }}
+        script: |
+          cd ${{ secrets.PROJECT_PATH || '/home/${{EC2_USERNAME}}/elo-community' }}
+          
+          # Base64로 인코딩된 .env 파일 생성
+          echo '${{ secrets.ENV }}' | base64 -d > .env
+          
+          # .env 파일 권한 설정 (보안)
+          chmod 600 .env
+          
+          # Docker Compose 실행
+          docker compose -f infra/docker-compose.yml down
+          docker compose -f infra/docker-compose.yml pull
+          docker compose -f infra/docker-compose.yml up -d --build
+          
+          # 헬스체크
+          sleep 30
+          curl -f http://localhost:3000/api/v1/health || exit 1
