@@ -1,4 +1,4 @@
-name: Deploy to Production # Test deployment
+name: Deploy to Production
 
 on:
   push:
@@ -8,21 +8,25 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+    - uses: actions/checkout@v4
+    - uses: docker/setup-buildx-action@v3
 
+    # 1) 일관된 태그(날짜+짧은 SHA)
     - name: Set IMAGE_TAG
       run: |
         TZ=Asia/Seoul
         echo "IMAGE_TAG=$(date +%Y%m%d-%H%M)-${GITHUB_SHA::7}" >> $GITHUB_ENV
         echo "CHANNEL_TAG=${GITHUB_REF_NAME}-latest" >> $GITHUB_ENV
 
-      
+    # ✅ 2) Docker Hub 로그인 (쓰기 권한 토큰 사용!)
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}  # 'Access Token(Write)' 권장. 2FA 켠 계정은 반드시 토큰 사용
+
+    # 3) 이미지 빌드 & 푸시 — 위에서 만든 태그로 통일
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
@@ -44,7 +48,7 @@ jobs:
         target: "${{ secrets.PROJECT_PATH }}"
         strip_components: 0
         overwrite: true
-        
+
     - name: Deploy to server
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -54,36 +58,28 @@ jobs:
         script: |
           set -e
           PROJECT_DIR="${{ secrets.PROJECT_PATH }}"
-          echo "📁 PROJECT_DIR=$PROJECT_DIR"
-          mkdir -p "$PROJECT_DIR"
           cd "$PROJECT_DIR"
 
-          echo "🔐 restore .env (base64 from secrets.ENV)"
+          # 루트 .env 복원
           echo '${{ secrets.ENV }}' | base64 -d > .env || true
           chmod 600 .env
 
-          echo "📝 ensure DOCKER_USERNAME / IMAGE_TAG in root .env"
-          if grep -q '^DOCKER_USERNAME=' .env; then
-            sed -i 's/^DOCKER_USERNAME=.*/DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}/' .env
-          else
+          # DOCKER_USERNAME / IMAGE_TAG 주입(없으면 추가, 있으면 교체)
+          grep -q '^DOCKER_USERNAME=' .env && \
+            sed -i 's/^DOCKER_USERNAME=.*/DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}/' .env || \
             echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
-          fi
-          if grep -q '^IMAGE_TAG=' .env; then
-            sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=${{ env.IMAGE_TAG }}/' .env
-          else
+
+          grep -q '^IMAGE_TAG=' .env && \
+            sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=${{ env.IMAGE_TAG }}/' .env || \
             echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" >> .env
-          fi
 
-          # (비공개 레지스트리면 로그인 필요)
-          # echo '${{ secrets.DOCKER_PASSWORD }}' | sudo docker login -u '${{ secrets.DOCKER_USERNAME }}' --password-stdin
-
-          echo "🧪 compose config preview"
+          # 프리뷰
           sudo docker compose --env-file ./.env -f docker-compose.yml config | grep -E 'image:|DOCKER_USERNAME|IMAGE_TAG' || true
 
-          echo "🐳 docker compose up"
+          # 컨테이너 업데이트
           sudo docker compose --env-file ./.env -f docker-compose.yml pull
           sudo docker compose --env-file ./.env -f docker-compose.yml up -d
 
-          echo "🩺 health check"
+          # 헬스체크
           sleep 10
           curl -fsS http://localhost:3000/api/v1/health || (sudo docker compose logs --no-color --tail=200 && exit 1)
