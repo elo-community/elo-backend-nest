@@ -3,7 +3,7 @@ name: Deploy to Production # Test deployment
 on:
   push:
     branches: [ main, deploy ]
-  workflow_dispatch:
+  workflow_dispatch: true
 
 jobs:
   deploy:
@@ -16,7 +16,7 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-     - name: Set IMAGE_TAG
+    - name: Set IMAGE_TAG
       run: |
         TZ=Asia/Seoul
         echo "IMAGE_TAG=$(date +%Y%m%d-%H%M)-${GITHUB_SHA::7}" >> $GITHUB_ENV
