@@ -31,6 +31,17 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
+    - name: Copy code to server
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_PRIVATE_KEY }}
+        source: "."
+        target: "${{ secrets.PROJECT_PATH }}"
+        strip_components: 0
+        overwrite: true
+        
     - name: Deploy to server
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -42,14 +53,32 @@ jobs:
           PROJECT_DIR="${{ secrets.PROJECT_PATH }}"
           echo "📁 프로젝트 경로: $PROJECT_DIR"
           
-          # 프로젝트 디렉토리로 이동
+          # 프로젝트 디렉토리 생성 및 이동
+          mkdir -p "$PROJECT_DIR"
           cd "$PROJECT_DIR"
+          
+          # 현재 디렉토리 확인
+          echo "📍 현재 디렉토리: $(pwd)"
+          echo "📋 디렉토리 내용:"
+          ls -la
           
           # Base64로 인코딩된 .env 파일 생성
           echo '${{ secrets.ENV }}' | base64 -d > .env
           
           # .env 파일 권한 설정 (보안)
           chmod 600 .env
+          
+          # infra 폴더가 있는지 확인
+          if [ ! -d "infra" ]; then
+            echo "❌ infra 폴더가 없습니다. 코드를 복사해야 합니다."
+            echo "📋 현재 디렉토리 내용:"
+            ls -la
+            exit 1
+          fi
+          
+          echo "✅ infra 폴더 확인됨"
+          echo "📋 infra 폴더 내용:"
+          ls -la infra/
           
           # Docker Compose 실행
           docker compose -f infra/docker-compose.yml down
