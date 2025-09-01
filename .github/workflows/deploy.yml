@@ -15,22 +15,25 @@ jobs:
       
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+
+     - name: Set IMAGE_TAG
+      run: |
+        TZ=Asia/Seoul
+        echo "IMAGE_TAG=$(date +%Y%m%d-%H%M)-${GITHUB_SHA::7}" >> $GITHUB_ENV
+        echo "CHANNEL_TAG=${GITHUB_REF_NAME}-latest" >> $GITHUB_ENV
+
       
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-        
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/elo-community:${{ github.sha }}
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/elo-community:${{ env.IMAGE_TAG }}
+          ${{ secrets.DOCKER_USERNAME }}/elo-community:${{ env.CHANNEL_TAG }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        
+
     - name: Copy code to server
       uses: appleboy/scp-action@v0.1.7
       with:
@@ -49,63 +52,38 @@ jobs:
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_PRIVATE_KEY }}
         script: |
-          # 프로젝트 경로 설정 (PROJECT_PATH 우선 사용)
+          set -e
           PROJECT_DIR="${{ secrets.PROJECT_PATH }}"
-          echo "📁 프로젝트 경로: $PROJECT_DIR"
-          
-          # 프로젝트 디렉토리 생성 및 이동
+          echo "📁 PROJECT_DIR=$PROJECT_DIR"
           mkdir -p "$PROJECT_DIR"
           cd "$PROJECT_DIR"
-          
-          # 현재 디렉토리 확인
-          echo "📍 현재 디렉토리: $(pwd)"
-          echo "📋 디렉토리 내용:"
-          ls -la
-          
-          
-          # Base64로 인코딩된 .env 파일 생성 (루트에 생성)
-          echo "🔐 .env 파일 생성 중..."
-          echo '${{ secrets.ENV }}' | base64 -d > .env
-          
-          
-          # .env 파일 권한 설정 (보안)
+
+          echo "🔐 restore .env (base64 from secrets.ENV)"
+          echo '${{ secrets.ENV }}' | base64 -d > .env || true
           chmod 600 .env
-          
-          # .env 파일을 현재 셸 세션에 로드
-          echo "📥 .env 파일을 셸 세션에 로드 중..."
-          export $(cat .env | grep -v '^#' | xargs)
-          
-          # infra 폴더가 있는지 확인
-          if [ ! -d "infra" ]; then
-            echo "❌ infra 폴더가 없습니다. 코드를 복사해야 합니다."
-            echo "📋 현재 디렉토리 내용:"
-            ls -la
-            exit 1
+
+          echo "📝 ensure DOCKER_USERNAME / IMAGE_TAG in root .env"
+          if grep -q '^DOCKER_USERNAME=' .env; then
+            sed -i 's/^DOCKER_USERNAME=.*/DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}/' .env
+          else
+            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
           fi
-          
-          echo "✅ infra 폴더 확인됨"
-          echo "📋 infra 폴더 내용:"
-          ls -la infra/
-          
-          # 환경변수 상태 확인 (민감한 정보 가림)
-          echo "🔍 환경변수 상태 확인:"
-          echo "DB_PASSWORD: ${DB_PASSWORD:+'***'}"
-          echo "DB_HOST: ${DB_HOST:-'설정되지 않음'}"
-          echo "DB_PORT: ${DB_PORT:-'설정되지 않음'}"
-          echo "DB_DATABASE: ${DB_DATABASE:-'설정되지 않음'}"
-          echo "DOCKER_USERNAME: ${DOCKER_USERNAME:-'설정되지 않음'}"
-          echo "IMAGE_TAG: ${IMAGE_TAG:-'설정되지 않음'}"
-          
-          # Docker 서비스 상태 확인 (간단하게)
-          echo "🔧 Docker 서비스 확인 중..."
-          sudo systemctl status docker --no-pager || true
-          
-          # Docker Compose 실행 (--env-file 사용)
-          echo "🐳 Docker Compose 실행 중..."
-          sudo docker compose -f docker-compose.yml --env-file .env down
-          sudo docker compose -f docker-compose.yml --env-file .env pull
-          sudo docker compose -f docker-compose.yml --env-file .env up -d --build
-          
-          # 헬스체크
-          sleep 30
-          curl -f http://localhost:3000/api/v1/health || exit 1
+          if grep -q '^IMAGE_TAG=' .env; then
+            sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=${{ env.IMAGE_TAG }}/' .env
+          else
+            echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" >> .env
+          fi
+
+          # (비공개 레지스트리면 로그인 필요)
+          # echo '${{ secrets.DOCKER_PASSWORD }}' | sudo docker login -u '${{ secrets.DOCKER_USERNAME }}' --password-stdin
+
+          echo "🧪 compose config preview"
+          sudo docker compose --env-file ./.env -f docker-compose.yml config | grep -E 'image:|DOCKER_USERNAME|IMAGE_TAG' || true
+
+          echo "🐳 docker compose up"
+          sudo docker compose --env-file ./.env -f docker-compose.yml pull
+          sudo docker compose --env-file ./.env -f docker-compose.yml up -d
+
+          echo "🩺 health check"
+          sleep 10
+          curl -fsS http://localhost:3000/api/v1/health || (sudo docker compose logs --no-color --tail=200 && exit 1)

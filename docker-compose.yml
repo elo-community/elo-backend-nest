@@ -36,7 +36,7 @@ services:
 
   backend:
     container_name: backend
-    image: ${DOCKER_USERNAME}/elo-community:${IMAGE_TAG}
+    image: ${DOCKER_USERNAME:-local}/elo-community:${IMAGE_TAG:-dev}
     restart: always
     expose:
       - "3000"
