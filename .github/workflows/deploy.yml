@@ -96,6 +96,10 @@ jobs:
           # .env 파일 권한 설정 (보안)
           chmod 600 .env
           
+          # .env 파일을 현재 셸 세션에 로드
+          echo "📥 .env 파일을 셸 세션에 로드 중..."
+          export $(cat .env | grep -v '^#' | xargs)
+          
           # infra 폴더가 있는지 확인
           if [ ! -d "infra" ]; then
             echo "❌ infra 폴더가 없습니다. 코드를 복사해야 합니다."
@@ -121,11 +125,11 @@ jobs:
           echo "🔧 Docker 서비스 확인 중..."
           sudo systemctl status docker --no-pager || true
           
-          # Docker Compose 실행 (sudo로 실행)
+          # Docker Compose 실행 (sudo로 실행, .env 파일 명시)
           echo "🐳 Docker Compose 실행 중..."
-          sudo docker compose -f infra/docker-compose.yml down
-          sudo docker compose -f infra/docker-compose.yml pull
-          sudo docker compose -f infra/docker-compose.yml up -d --build
+          sudo docker compose -f infra/docker-compose.yml --env-file .env down
+          sudo docker compose -f infra/docker-compose.yml --env-file .env pull
+          sudo docker compose -f infra/docker-compose.yml --env-file .env up -d --build
           
           # 헬스체크
           sleep 30
