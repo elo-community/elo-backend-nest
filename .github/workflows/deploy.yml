@@ -62,11 +62,16 @@ jobs:
           echo "📋 디렉토리 내용:"
           ls -la
           
-          # Base64로 인코딩된 .env 파일 생성
+          # Base64로 인코딩된 .env 파일 생성 (루트에 생성)
           echo '${{ secrets.ENV }}' | base64 -d > .env
           
           # .env 파일 권한 설정 (보안)
           chmod 600 .env
+          
+          # .env 파일 내용 확인 (디버깅용)
+          echo "📄 .env 파일 생성 완료"
+          echo "📋 .env 파일 내용 (처음 5줄):"
+          head -5 .env
           
           # infra 폴더가 있는지 확인
           if [ ! -d "infra" ]; then
@@ -80,7 +85,27 @@ jobs:
           echo "📋 infra 폴더 내용:"
           ls -la infra/
           
-          # Docker Compose 실행
+          # Docker 권한 확인 및 수정
+          echo "🔧 Docker 권한 확인 중..."
+          if ! docker info > /dev/null 2>&1; then
+            echo "⚠️ Docker 권한 문제 감지. sudo 사용..."
+            # Docker 그룹에 사용자 추가 (필요시)
+            sudo usermod -aG docker $USER || true
+            # Docker 서비스 재시작
+            sudo systemctl restart docker || true
+            sleep 5
+          fi
+          
+          # Docker 권한 재확인
+          if docker info > /dev/null 2>&1; then
+            echo "✅ Docker 권한 확인됨"
+          else
+            echo "❌ Docker 권한 문제가 지속됩니다"
+            exit 1
+          fi
+          
+          # Docker Compose 실행 (루트에서 실행)
+          echo "🐳 Docker Compose 실행 중..."
           docker compose -f infra/docker-compose.yml down
           docker compose -f infra/docker-compose.yml pull
           docker compose -f infra/docker-compose.yml up -d --build
