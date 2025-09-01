@@ -62,36 +62,11 @@ jobs:
           echo "📋 디렉토리 내용:"
           ls -la
           
-          # .env 파일 경로 확인
-          echo "🔍 .env 파일 경로 확인:"
-          echo "현재 위치: $(pwd)"
-          echo "infra/.env 경로: $(pwd)/infra/.env"
-          echo "../.env 경로: $(dirname $(pwd))/.env"
-          echo "절대 경로: $PROJECT_DIR/.env"
-          
-          # 각 경로에 .env 파일이 있는지 확인
-          echo "📋 .env 파일 존재 여부:"
-          [ -f ".env" ] && echo "✅ ./env: 존재" || echo "❌ ./env: 없음"
-          [ -f "infra/.env" ] && echo "✅ infra/.env: 존재" || echo "❌ infra/.env: 없음"
-          [ -f "../.env" ] && echo "✅ ../.env: 존재" || echo "❌ ../.env: 없음"
-          [ -f "$PROJECT_DIR/.env" ] && echo "✅ $PROJECT_DIR/.env: 존재" || echo "❌ $PROJECT_DIR/.env: 없음"
           
           # Base64로 인코딩된 .env 파일 생성 (루트에 생성)
           echo "🔐 .env 파일 생성 중..."
           echo '${{ secrets.ENV }}' | base64 -d > .env
           
-          # .env 파일 상태 확인
-          echo "📄 .env 파일 상태:"
-          ls -la .env
-          echo "📏 .env 파일 크기: $(wc -c < .env) bytes"
-          
-          # .env 파일 내용 확인 (보안을 위해 민감한 정보 가림)
-          echo "📋 .env 파일 내용 (민감한 정보 가림):"
-          head -10 .env | sed 's/=.*/=***/g'
-          
-          # .env 파일 내용 확인 (마지막 5줄, 민감한 정보 가림)
-          echo "📋 .env 파일 내용 (마지막 5줄, 민감한 정보 가림):"
-          tail -5 .env | sed 's/=.*/=***/g'
           
           # .env 파일 권한 설정 (보안)
           chmod 600 .env
@@ -125,11 +100,20 @@ jobs:
           echo "🔧 Docker 서비스 확인 중..."
           sudo systemctl status docker --no-pager || true
           
-          # Docker Compose 실행 (루트의 docker-compose.yml 사용)
+          # Docker Compose 실행 (루트의 docker-compose.yml 사용, 환경변수 설정)
           echo "🐳 Docker Compose 실행 중..."
-          sudo docker compose -f docker-compose.yml down
-          sudo docker compose -f docker-compose.yml pull
-          sudo docker compose -f docker-compose.yml up -d --build
+          sudo docker compose -f docker-compose.yml \
+            -e DOCKER_USERNAME="${{ secrets.DOCKER_USERNAME }}" \
+            -e IMAGE_TAG="${{ github.sha }}" \
+            down
+          sudo docker compose -f docker-compose.yml \
+            -e DOCKER_USERNAME="${{ secrets.DOCKER_USERNAME }}" \
+            -e IMAGE_TAG="${{ github.sha }}" \
+            pull
+          sudo docker compose -f docker-compose.yml \
+            -e DOCKER_USERNAME="${{ secrets.DOCKER_USERNAME }}" \
+            -e IMAGE_TAG="${{ github.sha }}" \
+            up -d --build
           
           # 헬스체크
           sleep 30
