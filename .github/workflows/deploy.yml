@@ -85,30 +85,15 @@ jobs:
           echo "📋 infra 폴더 내용:"
           ls -la infra/
           
-          # Docker 권한 확인 및 수정
-          echo "🔧 Docker 권한 확인 중..."
-          if ! docker info > /dev/null 2>&1; then
-            echo "⚠️ Docker 권한 문제 감지. sudo 사용..."
-            # Docker 그룹에 사용자 추가 (필요시)
-            sudo usermod -aG docker $USER || true
-            # Docker 서비스 재시작
-            sudo systemctl restart docker || true
-            sleep 5
-          fi
+          # Docker 서비스 상태 확인 (간단하게)
+          echo "🔧 Docker 서비스 확인 중..."
+          sudo systemctl status docker --no-pager || true
           
-          # Docker 권한 재확인
-          if docker info > /dev/null 2>&1; then
-            echo "✅ Docker 권한 확인됨"
-          else
-            echo "❌ Docker 권한 문제가 지속됩니다"
-            exit 1
-          fi
-          
-          # Docker Compose 실행 (루트에서 실행)
+          # Docker Compose 실행 (sudo로 실행)
           echo "🐳 Docker Compose 실행 중..."
-          docker compose -f infra/docker-compose.yml down
-          docker compose -f infra/docker-compose.yml pull
-          docker compose -f infra/docker-compose.yml up -d --build
+          sudo docker compose -f infra/docker-compose.yml down
+          sudo docker compose -f infra/docker-compose.yml pull
+          sudo docker compose -f infra/docker-compose.yml up -d --build
           
           # 헬스체크
           sleep 30
