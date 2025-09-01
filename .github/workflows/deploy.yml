@@ -38,7 +38,12 @@ jobs:
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_PRIVATE_KEY }}
         script: |
-          cd ${{ secrets.PROJECT_PATH || '/home/${{ secrets.EC2_USERNAME }}/elo-community' }}
+          # 프로젝트 경로 설정 (PROJECT_PATH 우선 사용)
+          PROJECT_DIR="${{ secrets.PROJECT_PATH }}"
+          echo "📁 프로젝트 경로: $PROJECT_DIR"
+          
+          # 프로젝트 디렉토리로 이동
+          cd "$PROJECT_DIR"
           
           # Base64로 인코딩된 .env 파일 생성
           echo '${{ secrets.ENV }}' | base64 -d > .env
