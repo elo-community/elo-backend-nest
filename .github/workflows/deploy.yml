@@ -3,7 +3,7 @@ name: Deploy to Production # Test deployment
 on:
   push:
     branches: [ main, deploy ]
-  workflow_dispatch: true
+  workflow_dispatch:
 
 jobs:
   deploy:
