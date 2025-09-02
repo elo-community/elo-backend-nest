@@ -1,0 +1,25 @@
+name: elo
+
+services:
+  backend:
+    container_name: backend
+    image: ${DOCKER_USERNAME}/elo-community:${IMAGE_TAG}
+    platform: linux/amd64
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - ../.env.amoy.local
+    environment:
+      - NODE_ENV=local
+      - NETWORK=amoy
+      - HEALTH_PATH=/api/v1/health
+    healthcheck:
+      test: [ "CMD", "node", "-e", "http=require('http');p=process.env.HEALTH_PATH||'/health';req=http.request({host:'127.0.0.1',port:3000,path:p,timeout:5000},r=>process.exit(r.statusCode===200?0:1));req.on('error',()=>process.exit(1));req.end()" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:

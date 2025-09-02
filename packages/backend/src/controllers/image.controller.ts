@@ -25,7 +25,7 @@ export class ImageController {
     @UseInterceptors(FileInterceptor('image', {
         storage: memoryStorage(),
         limits: {
-            fileSize: 5 * 1024 * 1024, // 5MB
+            fileSize: 10 * 1024 * 1024, // 10MB
         },
     }))
     async uploadImage(
@@ -41,9 +41,9 @@ export class ImageController {
             throw new BadRequestException('File must be an image');
         }
 
-        // 파일 크기 검증 (5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            throw new BadRequestException('File size must be less than 5MB');
+        // 파일 크기 검증 (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            throw new BadRequestException('File size must be less than 10MB');
         }
 
         try {

@@ -58,7 +58,7 @@ export class S3Service {
 
         try {
             await this.s3Client.send(command);
-            const imageUrl = `https://${this.bucketName}.s3.${this.configService.get('s3.region')}.amazonaws.com/${fileName}`;
+            const imageUrl = `https://${this.bucketName}.s3.${this.configService.get('aws.region')}.amazonaws.com/${fileName}`;
             this.logger.log(`Image uploaded successfully: ${imageUrl}`);
             return imageUrl;
         } catch (error) {
