@@ -28,6 +28,9 @@ services:
 
   backend:
     container_name: backend
+    build:
+      context: ..
+      dockerfile: Dockerfile
     image: ${DOCKER_USERNAME}/elo-community:${IMAGE_TAG}
     restart: always
     expose:
