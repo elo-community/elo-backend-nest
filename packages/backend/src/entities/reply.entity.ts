@@ -21,6 +21,6 @@ export class Reply {
     @Column({ type: 'timestamp', name: 'updated_at', nullable: false })
     updatedAt!: Date;
 
-    @Column({ type: 'varchar', length: 255, nullable: true })
+    @Column({ type: 'text', nullable: true })
     content?: string;
 } 

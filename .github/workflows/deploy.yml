@@ -104,6 +104,9 @@ jobs:
             
             # Nginx 설정 리로드 (설정 파일 변경 시)
             sudo docker exec nginx-proxy nginx -s reload >/dev/null 2>&1 || true
+            
+            # 데이터베이스 마이그레이션 (RDS - 컨텐츠 컬럼들을 TEXT로 변경) - 이번 배포 후 삭제 예정
+            PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USERNAME -d $DB_DATABASE -c "ALTER TABLE post ALTER COLUMN content TYPE TEXT; ALTER TABLE comment ALTER COLUMN content TYPE TEXT; ALTER TABLE reply ALTER COLUMN content TYPE TEXT;" >/dev/null 2>&1 || true
 
             # backend healthy 대기
             get_backend_cid() {

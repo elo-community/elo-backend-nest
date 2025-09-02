@@ -19,7 +19,7 @@ export class Post {
     @JoinColumn({ name: 'author_id' })
     author!: User;
 
-    @Column({ type: 'varchar', length: 255, nullable: true })
+    @Column({ type: 'text', nullable: true })
     content?: string;
 
     @CreateDateColumn({ type: 'timestamp', name: 'created_at', nullable: false })
