@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Public } from '../auth/public.decorator';
 import { SportCategoryResponseDto } from '../dtos/sport-category-response.dto';
@@ -105,22 +105,22 @@ export class SportCategoriesController {
         };
     }
 
-    @UseGuards(JwtAuthGuard)
-    @Delete(':id')
-    async remove(@Param('id') id: number) {
-        const existingCategory = await this.sportCategoryService.findOne(id);
-        if (!existingCategory) {
-            return {
-                success: false,
-                message: 'Sport category not found'
-            };
-        }
+    // @UseGuards(JwtAuthGuard)
+    // @Delete(':id')
+    // async remove(@Param('id') id: number) {
+    //     const existingCategory = await this.sportCategoryService.findOne(id);
+    //     if (!existingCategory) {
+    //         return {
+    //             success: false,
+    //             message: 'Sport category not found'
+    //         };
+    //     }
 
-        const result = await this.sportCategoryService.remove(id);
-        return {
-            success: true,
-            data: { deleted: !!result.affected },
-            message: 'Sport category deleted successfully'
-        };
-    }
+    //     const result = await this.sportCategoryService.remove(id);
+    //     return {
+    //         success: true,
+    //         data: { deleted: !!result.affected },
+    //         message: 'Sport category deleted successfully'
+    //     };
+    // }
 } 

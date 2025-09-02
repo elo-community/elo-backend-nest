@@ -3,7 +3,10 @@ name: elo
 services:
   backend:
     container_name: backend
-    image: ${DOCKER_USERNAME}/elo-community:${IMAGE_TAG}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: ${DOCKER_USERNAME}/elo-community:${IMAGE_TAG:-latest}
     platform: linux/amd64
     restart: always
     ports:

@@ -2,7 +2,6 @@ import { Controller, DefaultValuePipe, Get, HttpException, HttpStatus, ParseIntP
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtUser } from '../auth/jwt-user.interface';
-import { Public } from '../auth/public.decorator';
 import { CurrentUser } from '../auth/user.decorator';
 import { TrivusExpService } from '../blockchain/trivus-exp.service';
 import { TransactionType } from '../entities/token-transaction.entity';
@@ -21,26 +20,6 @@ export class TokenTransactionsController {
         private readonly userService: UserService,
         private readonly configService: ConfigService,
     ) { }
-
-    /**
-     * 테스트용: 인증 없이 토큰 거래 내역 조회
-     */
-    @Get('test/public')
-    @Public()
-    async getPublicTransactions() {
-        try {
-            const result = await this.tokenTransactionService.getAllTransactions();
-            return {
-                message: 'Public token transactions retrieved successfully',
-                data: result,
-            };
-        } catch (error) {
-            return {
-                message: 'Failed to retrieve token transactions',
-                error: (error as Error).message,
-            };
-        }
-    }
 
     /**
      * 사용자의 전체 토큰 거래 내역 조회
