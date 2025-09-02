@@ -78,6 +78,8 @@ jobs:
         run: |
           scp -i key.pem -o StrictHostKeyChecking=no infra/docker-compose.rendered.yml \
             ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/elo-backend-nest/docker-compose.rendered.yml
+          # 기존 nginx 디렉토리 삭제 후 새로 업로드
+          ssh -i key.pem -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} 'rm -rf ~/elo-backend-nest/nginx'
           scp -i key.pem -o StrictHostKeyChecking=no -r infra/nginx \
             ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/elo-backend-nest/nginx
 
