@@ -99,6 +99,9 @@ jobs:
             PROJECT=elo
             sudo docker compose -p "$PROJECT" pull >/dev/null
             sudo docker compose -p "$PROJECT" up -d --pull always --no-deps --force-recreate --remove-orphans backend nginx >/dev/null
+            
+            # Nginx 설정 리로드 (설정 파일 변경 시)
+            sudo docker exec nginx-proxy nginx -s reload >/dev/null 2>&1 || true
 
             # backend healthy 대기
             get_backend_cid() {
