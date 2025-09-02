@@ -78,8 +78,8 @@ jobs:
         run: |
           scp -i key.pem -o StrictHostKeyChecking=no infra/docker-compose.rendered.yml \
             ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/elo-backend-nest/docker-compose.rendered.yml
-          scp -i key.pem -o StrictHostKeyChecking=no -r nginx \
-            ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/elo-backend-nest/
+          scp -i key.pem -o StrictHostKeyChecking=no -r infra/nginx \
+            ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/elo-backend-nest/nginx
 
       - name: SSH into EC2 and deploy (quiet & robust)
         run: |
