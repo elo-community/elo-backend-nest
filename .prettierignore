@@ -1,0 +1,10 @@
+node_modules/
+dist/
+packages/*/dist/
+packages/*/node_modules/
+packages/contracts/artifacts/
+packages/contracts/cache/
+packages/contracts/typechain-types/
+*.md
+*.json
+*.js
