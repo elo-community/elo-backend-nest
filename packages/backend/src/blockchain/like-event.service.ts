@@ -1,10 +1,14 @@
 import { Inject, Injectable, Logger, OnModuleInit, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
+import { PostService } from 'src/services/post.service';
 import { TransactionType } from '../entities/token-transaction.entity';
 import { PostLikeService } from '../services/post-like.service';
 import { TokenAccumulationService } from '../services/token-accumulation.service';
-import { CreateTransactionDto, TokenTransactionService } from '../services/token-transaction.service';
+import {
+    CreateTransactionDto,
+    TokenTransactionService,
+} from '../services/token-transaction.service';
 import { UserService } from '../services/user.service';
 import { ClaimEventService } from './claim-event.service';
 import { PostLikeSystemService } from './post-like-system.service';
@@ -35,6 +39,8 @@ export class LikeEventService implements OnModuleInit {
         private postLikeSystemService: PostLikeSystemService, // PostLikeSystemService 주입
         @Inject(forwardRef(() => TrivusExpService))
         private trivusExpService: TrivusExpService, // TrivusExpService 주입
+        @Inject(forwardRef(() => PostService))
+        private postService: PostService
     ) {
         this.instanceId = Math.random().toString(36).substring(2, 15); // 인스턴스 ID 생성
     }
@@ -52,8 +58,12 @@ export class LikeEventService implements OnModuleInit {
             const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
 
             const rpcUrl = this.configService.get<string>(`blockchain.${activeNetwork}.rpcUrl`);
-            const postLikeContractAddress = this.configService.get<string>(`blockchain.contracts.postLikeSystem.${activeNetwork}`);
-            const trivusExpContractAddress = this.configService.get<string>(`blockchain.contracts.trivusExp.${activeNetwork}`);
+            const postLikeContractAddress = this.configService.get<string>(
+                `blockchain.contracts.postLikeSystem.${activeNetwork}`,
+            );
+            const trivusExpContractAddress = this.configService.get<string>(
+                `blockchain.contracts.trivusExp.${activeNetwork}`,
+            );
 
             if (!rpcUrl || !postLikeContractAddress || !trivusExpContractAddress) {
                 this.logger.warn('Blockchain configuration incomplete - LikeEventService will not start');
@@ -72,14 +82,21 @@ export class LikeEventService implements OnModuleInit {
             // TrivusEXP 컨트랙트 ABI는 TrivusExpService에서 가져옴
             const trivusExpContractABI = this.trivusExpService.getContractAbi();
 
-            this.postLikeContract = new ethers.Contract(postLikeContractAddress, postLikeContractABI, this.provider);
-            this.trivusExpContract = new ethers.Contract(trivusExpContractAddress, trivusExpContractABI, this.provider);
+            this.postLikeContract = new ethers.Contract(
+                postLikeContractAddress,
+                postLikeContractABI,
+                this.provider,
+            );
+            this.trivusExpContract = new ethers.Contract(
+                trivusExpContractAddress,
+                trivusExpContractABI,
+                this.provider,
+            );
 
             this.logger.log(`Blockchain connection initialized successfully`);
             this.logger.log(`PostLikeSystem contract: ${postLikeContractAddress}`);
             this.logger.log(`TrivusEXP contract: ${trivusExpContractAddress}`);
             this.logger.log(`RPC URL: ${rpcUrl}`);
-
         } catch (error) {
             this.logger.error(`Failed to initialize blockchain connection: ${(error as Error).message}`);
             this.scheduleReconnect();
@@ -131,7 +148,9 @@ export class LikeEventService implements OnModuleInit {
             }
         }, 10000); // 10초마다 (빠른 감지를 위해)
 
-        this.logger.log(`Event polling started (10 second intervals) - Instance ID: ${this.instanceId}`);
+        this.logger.log(
+            `Event polling started (10 second intervals) - Instance ID: ${this.instanceId}`,
+        );
     }
 
     private async pollRecentEvents() {
@@ -145,7 +164,9 @@ export class LikeEventService implements OnModuleInit {
             this.isProcessing = true; // 처리 시작 플래그 설정
 
             const currentBlock = await this.provider.getBlockNumber();
-            this.logger.log(`🔄 Polling events: currentBlock=${currentBlock}, lastProcessedBlock=${this.lastProcessedBlock}`);
+            this.logger.log(
+                `🔄 Polling events: currentBlock=${currentBlock}, lastProcessedBlock=${this.lastProcessedBlock}`,
+            );
 
             // 이미 처리한 블록은 건너뛰기
             if (this.lastProcessedBlock >= currentBlock) {
@@ -158,15 +179,15 @@ export class LikeEventService implements OnModuleInit {
             const fromBlock = Math.max(this.lastProcessedBlock + 1, currentBlock - searchRange);
             const toBlock = currentBlock;
 
-            this.logger.log(`📊 Block range: ${fromBlock} ~ ${toBlock} (${toBlock - fromBlock + 1} blocks)`);
+            this.logger.log(
+                `📊 Block range: ${fromBlock} ~ ${toBlock} (${toBlock - fromBlock + 1} blocks)`,
+            );
 
             // 블록 범위가 유효하지 않으면 건너뛰기
             if (fromBlock > toBlock) {
                 this.logger.warn(`⚠️ Invalid block range: fromBlock=${fromBlock} > toBlock=${toBlock}`);
                 return;
             }
-
-
 
             // PostLikeEvent는 더 이상 사용되지 않음 - PostLiked 이벤트만 처리
             // let postLikeEvents: any[] = [];
@@ -198,11 +219,9 @@ export class LikeEventService implements OnModuleInit {
 
                 postLikedEvents = await this.provider.getLogs({
                     address: this.postLikeContract.target,
-                    topics: [
-                        ethers.id('PostLiked(uint256,address,uint256,uint256)')
-                    ],
+                    topics: [ethers.id('PostLiked(uint256,address,uint256,uint256)')],
                     fromBlock: fromBlock,
-                    toBlock: toBlock
+                    toBlock: toBlock,
                 });
 
                 if (postLikedEvents.length > 0) {
@@ -223,11 +242,9 @@ export class LikeEventService implements OnModuleInit {
             try {
                 postUnlikedEvents = await this.provider.getLogs({
                     address: this.postLikeContract.target,
-                    topics: [
-                        ethers.id('PostUnliked(address,uint256,uint256,uint256,uint256)')
-                    ],
+                    topics: [ethers.id('PostUnliked(address,uint256,uint256,uint256,uint256)')],
                     fromBlock: fromBlock,
-                    toBlock: toBlock
+                    toBlock: toBlock,
                 });
             } catch (error) {
                 if (error.message && error.message.includes('network does not support ENS')) {
@@ -236,8 +253,6 @@ export class LikeEventService implements OnModuleInit {
                     this.logger.error(`Failed to query PostUnliked: ${error.message}`);
                 }
             }
-
-
 
             // PostLikeEvent는 더 이상 사용되지 않음 - PostLiked 이벤트만 처리
             // for (const event of postLikeEvents) {
@@ -264,14 +279,18 @@ export class LikeEventService implements OnModuleInit {
 
             for (const event of postLikedEvents) {
                 try {
-                    this.logger.log(`📋 Processing PostLiked event: block ${event.blockNumber}, tx ${event.transactionHash}`);
+                    this.logger.log(
+                        `📋 Processing PostLiked event: block ${event.blockNumber}, tx ${event.transactionHash}`,
+                    );
                     this.logger.log(`🔍 Event data: ${JSON.stringify(event)}`);
 
                     const parsedEvent = this.postLikeContract.interface.parseLog(event);
                     this.logger.log(`🔍 Parsed event: ${JSON.stringify(parsedEvent)}`);
 
                     if (parsedEvent && parsedEvent.args) {
-                        this.logger.log(`✅ PostLiked event parsed successfully: postId=${parsedEvent.args[0]}, user=${parsedEvent.args[1]}, amount=${parsedEvent.args[2]}, timestamp=${parsedEvent.args[3]}`);
+                        this.logger.log(
+                            `✅ PostLiked event parsed successfully: postId=${parsedEvent.args[0]}, user=${parsedEvent.args[1]}, amount=${parsedEvent.args[2]}, timestamp=${parsedEvent.args[3]}`,
+                        );
 
                         this.logger.log(`🚀 Calling handlePostLikedEvent...`);
                         await this.handlePostLikedEvent(
@@ -279,7 +298,7 @@ export class LikeEventService implements OnModuleInit {
                             parsedEvent.args[1] as string, // user ✅ (올바름)
                             parsedEvent.args[2] as bigint, // amount ✅ (올바름)
                             parsedEvent.args[3] as bigint, // timestamp ✅ (올바름)
-                            event
+                            event,
                         );
                         this.logger.log(`✅ handlePostLikedEvent completed successfully`);
                     } else {
@@ -302,7 +321,7 @@ export class LikeEventService implements OnModuleInit {
                             parsedEvent.args[2] as bigint, // timestamp
                             parsedEvent.args[3] as bigint, // totalLikes
                             parsedEvent.args[4] as bigint, // totalTokensCollected
-                            event
+                            event,
                         );
                     }
                 } catch (parseError) {
@@ -315,11 +334,9 @@ export class LikeEventService implements OnModuleInit {
             try {
                 tokensClaimedEvents = await this.provider.getLogs({
                     address: this.postLikeContract.target,
-                    topics: [
-                        ethers.id('TokensClaimed(address,uint256,uint256,bytes)')
-                    ],
+                    topics: [ethers.id('TokensClaimed(address,uint256,uint256,bytes)')],
                     fromBlock: fromBlock,
-                    toBlock: toBlock
+                    toBlock: toBlock,
                 });
 
                 if (tokensClaimedEvents.length > 0) {
@@ -343,7 +360,7 @@ export class LikeEventService implements OnModuleInit {
                             parsedEvent.args[1] as bigint, // postId
                             parsedEvent.args[2] as bigint, // amount
                             parsedEvent.args[3] as string, // signature
-                            event
+                            event,
                         );
                     }
                 } catch (parseError) {
@@ -351,18 +368,14 @@ export class LikeEventService implements OnModuleInit {
                 }
             }
 
-
-
             // Transfer 이벤트 폴링 (getLogs 사용)
             let transferEvents: any[] = [];
             try {
                 transferEvents = await this.provider.getLogs({
                     address: this.trivusExpContract.target,
-                    topics: [
-                        ethers.id('Transfer(address,address,uint256)')
-                    ],
+                    topics: [ethers.id('Transfer(address,address,uint256)')],
                     fromBlock: fromBlock,
-                    toBlock: toBlock
+                    toBlock: toBlock,
                 });
             } catch (error) {
                 if (error.message && error.message.includes('network does not support ENS')) {
@@ -381,7 +394,7 @@ export class LikeEventService implements OnModuleInit {
                             parsedEvent.args[0] as string, // from
                             parsedEvent.args[1] as string, // to
                             parsedEvent.args[2] as bigint, // value
-                            event
+                            event,
                         );
                     }
                 } catch (parseError) {
@@ -392,15 +405,12 @@ export class LikeEventService implements OnModuleInit {
             // 마지막 처리 블록 업데이트
             this.lastProcessedBlock = toBlock;
             this.logger.debug(`Updated lastProcessedBlock to ${this.lastProcessedBlock}`);
-
         } catch (error) {
             this.logger.error(`Error in event polling: ${(error as Error).message}`);
         } finally {
             this.isProcessing = false; // 처리 완료 플래그 해제
         }
     }
-
-
 
     private scheduleReconnect() {
         if (this.reconnectInterval) {
@@ -427,12 +437,20 @@ export class LikeEventService implements OnModuleInit {
         }
     }
 
-    private async handlePostLikeEvent(user: string, postId: bigint, amount: bigint, isLike: boolean, event: any) {
+    private async handlePostLikeEvent(
+        user: string,
+        postId: bigint,
+        amount: bigint,
+        isLike: boolean,
+        event: any,
+    ) {
         const postIdNumber = Number(postId);
         const amountNumber = Number(ethers.formatEther(amount));
         const transactionHash = event.transactionHash;
 
-        this.logger.log(`PostLikeEvent detected: user ${user}, postId ${postIdNumber}, amount ${amountNumber}, isLike ${isLike}`);
+        this.logger.log(
+            `PostLikeEvent detected: user ${user}, postId ${postIdNumber}, amount ${amountNumber}, isLike ${isLike}`,
+        );
         this.logger.log(`Transaction hash: ${transactionHash}`);
 
         try {
@@ -452,9 +470,11 @@ export class LikeEventService implements OnModuleInit {
                     userEntity.id,
                     postIdNumber,
                     transactionHash,
-                    amountNumber
+                    amountNumber,
                 );
-                this.logger.log(`Like token deduction processed for user: ${userEntity.id}, post: ${postIdNumber}`);
+                this.logger.log(
+                    `Like token deduction processed for user: ${userEntity.id}, post: ${postIdNumber}`,
+                );
 
                 // token_tx 테이블에 좋아요 토큰 차감 기록
                 try {
@@ -463,35 +483,47 @@ export class LikeEventService implements OnModuleInit {
                         transactionType: TransactionType.LIKE_DEDUCT,
                         amount: -amountNumber, // 차감이므로 음수
                         balanceBefore: Number(userEntity.tokenAmount || 0), // 트랜잭션 발생 시점의 잔액
-                        balanceAfter: Number(((userEntity.tokenAmount || 0) + (-amountNumber)).toFixed(8)), // amount는 음수이므로 차감
+                        balanceAfter: Number(((userEntity.tokenAmount || 0) + -amountNumber).toFixed(8)), // amount는 음수이므로 차감
                         transactionHash,
                         blockchainAddress: user,
                         description: `Like token deduction for post ${postIdNumber}`,
                         metadata: {
                             postId: postIdNumber,
                             action: 'like',
-                            blockchainEvent: 'PostLikeEvent'
+                            blockchainEvent: 'PostLikeEvent',
                         },
                         referenceId: postIdNumber.toString(),
-                        referenceType: 'post_like'
+                        referenceType: 'post_like',
                     };
 
                     await this.tokenTransactionService.createTransaction(transactionDto);
-                    this.logger.log(`Token transaction recorded for like: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber}`);
+                    this.logger.log(
+                        `Token transaction recorded for like: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber}`,
+                    );
                 } catch (txError) {
                     this.logger.error(`Failed to record like token transaction: ${txError.message}`);
                 }
             } else {
                 // 좋아요 취소는 지원하지 않음 (토큰이 걸려있어서 복잡함)
-                this.logger.warn(`Unlike event detected but not processed: user ${user}, post ${postIdNumber}`);
+                this.logger.warn(
+                    `Unlike event detected but not processed: user ${user}, post ${postIdNumber}`,
+                );
             }
         } catch (error) {
             this.logger.error(`Failed to process PostLikeEvent: ${(error as Error).message}`);
         }
     }
 
-    private async handlePostLikedEvent(postId: bigint, user: string, amount: bigint, timestamp: bigint, event: any) {
-        this.logger.log(`PostLiked event detected: postId ${Number(postId)}, user ${user}, amount ${ethers.formatEther(amount)} EXP, timestamp ${Number(timestamp)}`);
+    private async handlePostLikedEvent(
+        postId: bigint,
+        user: string,
+        amount: bigint,
+        timestamp: bigint,
+        event: any,
+    ) {
+        this.logger.log(
+            `PostLiked event detected: postId ${Number(postId)}, user ${user}, amount ${ethers.formatEther(amount)} EXP, timestamp ${Number(timestamp)}`,
+        );
 
         // PostLiked 이벤트 처리 로직 구현
         try {
@@ -499,12 +531,31 @@ export class LikeEventService implements OnModuleInit {
             const amountNumber = Number(ethers.formatEther(amount));
             const transactionHash = event.transactionHash;
 
-            this.logger.log(`Processing PostLiked event: postId=${postIdNumber}, user=${user}, amount=${amountNumber} EXP`);
+            this.logger.log(
+                `Processing PostLiked event: postId=${postIdNumber}, user=${user}, amount=${amountNumber} EXP`,
+            );
 
             // 사용자 정보 조회
             const userEntity = await this.userService.findByWalletAddress(user);
             if (!userEntity) {
                 this.logger.warn(`User not found for wallet address: ${user}`);
+                return;
+            }
+
+            // 게시글 존재 여부 확인
+            const post = await this.postService.findOne(postIdNumber);
+            if (!post) {
+                this.logger.warn(
+                    `Post not found for ID: ${postIdNumber}, skipping PostLiked event processing`,
+                );
+                // 삭제된 게시글에 대한 이벤트는 무시하고 처리 종료
+                // 토큰은 이미 차감되었으므로 환불 처리 필요
+                try {
+                    await this.userService.addTokens(user, amountNumber);
+                    this.logger.log(`Tokens refunded to user ${user}: +${amountNumber} EXP (post deleted)`);
+                } catch (refundError) {
+                    this.logger.error(`Failed to refund tokens to user: ${refundError.message}`);
+                }
                 return;
             }
 
@@ -523,7 +574,7 @@ export class LikeEventService implements OnModuleInit {
                     userEntity.id,
                     postIdNumber,
                     transactionHash,
-                    amountNumber
+                    amountNumber,
                 );
                 this.logger.log(`Post like record created: user ${userEntity.id} -> post ${postIdNumber}`);
             } catch (likeError) {
@@ -549,41 +600,59 @@ export class LikeEventService implements OnModuleInit {
                     metadata: {
                         postId: postIdNumber,
                         action: 'like',
-                        blockchainEvent: 'PostLiked'
+                        blockchainEvent: 'PostLiked',
                     },
                     referenceId: postIdNumber.toString(),
-                    referenceType: 'post_like'
+                    referenceType: 'post_like',
                 };
 
                 await this.tokenTransactionService.createTransaction(transactionDto);
-                this.logger.log(`Like token transaction recorded: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber} EXP (${balanceBefore} → ${balanceAfter})`);
+                this.logger.log(
+                    `Like token transaction recorded: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber} EXP (${balanceBefore} → ${balanceAfter})`,
+                );
             } catch (txError) {
                 this.logger.error(`Failed to record like token transaction: ${txError.message}`);
             }
-
         } catch (error) {
             this.logger.error(`Failed to process PostLiked event: ${(error as Error).message}`);
         }
     }
 
-    private async handlePostUnlikedEvent(user: string, postId: bigint, timestamp: bigint, totalLikes: bigint, totalTokensCollected: bigint, event: any) {
-        this.logger.log(`PostUnliked event detected: user ${user}, postId ${Number(postId)}, totalLikes ${Number(totalLikes)}, totalTokens ${ethers.formatEther(totalTokensCollected)}`);
+    private async handlePostUnlikedEvent(
+        user: string,
+        postId: bigint,
+        timestamp: bigint,
+        totalLikes: bigint,
+        totalTokensCollected: bigint,
+        event: any,
+    ) {
+        this.logger.log(
+            `PostUnliked event detected: user ${user}, postId ${Number(postId)}, totalLikes ${Number(totalLikes)}, totalTokens ${ethers.formatEther(totalTokensCollected)}`,
+        );
 
         // Unlike 기능은 제거됨 - 로그만 남기고 처리하지 않음
-        this.logger.warn(`Unlike functionality has been removed. Skipping processing for user ${user}, post ${Number(postId)}`);
+        this.logger.warn(
+            `Unlike functionality has been removed. Skipping processing for user ${user}, post ${Number(postId)}`,
+        );
     }
-
-
 
     /**
      * TokensClaimed 이벤트 처리 (PostLikeSystem1363의 claimWithSignature에서 emit)
      */
-    private async handleTokensClaimedEvent(to: string, postId: bigint, amount: bigint, signature: string, event: any) {
+    private async handleTokensClaimedEvent(
+        to: string,
+        postId: bigint,
+        amount: bigint,
+        signature: string,
+        event: any,
+    ) {
         const postIdNumber = Number(postId);
         const amountNumber = Number(ethers.formatEther(amount));
         const transactionHash = event.transactionHash;
 
-        this.logger.log(`TokensClaimed event detected: to ${to}, postId ${postIdNumber}, amount ${amountNumber}`);
+        this.logger.log(
+            `TokensClaimed event detected: to ${to}, postId ${postIdNumber}, amount ${amountNumber}`,
+        );
         this.logger.log(`Transaction hash: ${transactionHash}`);
 
         try {
@@ -597,11 +666,13 @@ export class LikeEventService implements OnModuleInit {
             // 중복 기록 방지: 같은 transactionHash로 TRANSFER_IN이 이미 기록되었는지 확인
             const existingTransferIn = await this.tokenTransactionService.getTransactionByHashAndType(
                 transactionHash,
-                TransactionType.TRANSFER_IN
+                TransactionType.TRANSFER_IN,
             );
 
             if (existingTransferIn) {
-                this.logger.log(`TRANSFER_IN already recorded for hash ${transactionHash}, skipping REWARD_CLAIM to avoid duplicate`);
+                this.logger.log(
+                    `TRANSFER_IN already recorded for hash ${transactionHash}, skipping REWARD_CLAIM to avoid duplicate`,
+                );
                 return;
             }
 
@@ -642,26 +713,33 @@ export class LikeEventService implements OnModuleInit {
                         claim_type: 'like_claim',
                         blockchainEvent: 'TokensClaimed',
                         availableTokenBefore: userEntity.availableToken || 0,
-                        availableTokenAfter: userEntity.availableToken || 0 // 좋아요 클레임은 availableToken 변화 없음
+                        availableTokenAfter: userEntity.availableToken || 0, // 좋아요 클레임은 availableToken 변화 없음
                     },
                     referenceId: postIdNumber.toString(),
-                    referenceType: 'post_like'
+                    referenceType: 'post_like',
                 };
 
                 await this.tokenTransactionService.createTransaction(transactionDto);
-                this.logger.log(`Token transaction recorded for claim: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber} (${balanceBefore} → ${balanceAfter}), availableToken: ${userEntity.availableToken || 0} → ${userEntity.availableToken || 0} (unchanged)`);
+                this.logger.log(
+                    `Token transaction recorded for claim: user ${userEntity.id}, post ${postIdNumber}, amount ${amountNumber} (${balanceBefore} → ${balanceAfter}), availableToken: ${userEntity.availableToken || 0} → ${userEntity.availableToken || 0} (unchanged)`,
+                );
             } catch (txError) {
                 this.logger.error(`Failed to record like token claim transaction: ${txError.message}`);
             }
 
             // 클레임 완료 시 token_accumulation 상태 업데이트
             try {
-                await this.tokenAccumulationService.markLikeRewardAsClaimed(to, postIdNumber, transactionHash);
-                this.logger.log(`Token accumulation updated for user ${to}, post ${postIdNumber}, amount ${amountNumber}`);
+                await this.tokenAccumulationService.markLikeRewardAsClaimed(
+                    to,
+                    postIdNumber,
+                    transactionHash,
+                );
+                this.logger.log(
+                    `Token accumulation updated for user ${to}, post ${postIdNumber}, amount ${amountNumber}`,
+                );
             } catch (updateError) {
                 this.logger.error(`Failed to update token accumulation: ${updateError.message}`);
             }
-
         } catch (error) {
             this.logger.error(`Failed to process TokensClaimed: ${(error as Error).message}`);
         }
@@ -683,7 +761,9 @@ export class LikeEventService implements OnModuleInit {
 
         // 좋아요 관련 토큰 이동인지 확인
         if (this.isLikeRelatedTransfer(from, to, amount)) {
-            this.logger.log(`PostLikeSystem transfer detected in LikeEventService: ${amount} tokens from ${from} to ${to}`);
+            this.logger.log(
+                `PostLikeSystem transfer detected in LikeEventService: ${amount} tokens from ${from} to ${to}`,
+            );
             this.logger.log(`Skipping TRANSFER_OUT record - PostLiked event will handle this`);
             // PostLikeSystem으로의 전송은 PostLiked 이벤트에서 처리하므로 여기서는 아무것도 하지 않음
             return;
@@ -700,7 +780,9 @@ export class LikeEventService implements OnModuleInit {
     private isLikeRelatedTransfer(from: string, to: string, amount: string): boolean {
         // PostLikeSystem 컨트랙트 주소 확인
         const activeNetwork = this.configService.get<string>('blockchain.activeNetwork');
-        const postLikeSystemAddress = this.configService.get<string>(`blockchain.contracts.postLikeSystem.${activeNetwork}`);
+        const postLikeSystemAddress = this.configService.get<string>(
+            `blockchain.contracts.postLikeSystem.${activeNetwork}`,
+        );
 
         // PostLikeSystem 컨트랙트로의 토큰 이동인지 확인
         if (to === postLikeSystemAddress) {
@@ -730,7 +812,8 @@ export class LikeEventService implements OnModuleInit {
             clearTimeout(this.reconnectInterval);
         }
 
-        if (this.pollingInterval) { // 폴링 인터벌도 중지
+        if (this.pollingInterval) {
+            // 폴링 인터벌도 중지
             clearInterval(this.pollingInterval);
             this.pollingInterval = null;
         }

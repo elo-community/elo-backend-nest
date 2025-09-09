@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { JwtUser } from '../auth/jwt-user.interface';
 import { PaginationResponseDto } from '../dtos/pagination-response.dto';
 import { CreatePostDto, PostQueryDto, UpdatePostDto } from '../dtos/post.dto';
@@ -10,578 +10,665 @@ import { SportCategory } from '../entities/sport-category.entity';
 import { User } from '../entities/user.entity';
 import { PostHateService } from './post-hate.service';
 import { PostLikeService } from './post-like.service';
+import { S3Service } from './s3.service';
 import { TempImageService } from './temp-image.service';
 import { UserService } from './user.service';
 
 @Injectable()
 export class PostService {
-    // 조회 기록을 저장할 Map (IP_PostId -> timestamp)
-    private viewedPosts = new Map<string, number>();
+  // 조회 기록을 저장할 Map (IP_PostId -> timestamp)
+  private viewedPosts = new Map<string, number>();
 
-    constructor(
-        @InjectRepository(Post)
-        private readonly postRepository: Repository<Post>,
-        @InjectRepository(SportCategory)
-        private readonly sportCategoryRepository: Repository<SportCategory>,
-        @InjectRepository(User)
-        private readonly userRepository: Repository<User>,
-        @InjectRepository(HotPost)
-        private readonly hotPostRepository: Repository<HotPost>,
-        private readonly postLikeService: PostLikeService,
-        private readonly postHateService: PostHateService,
-        private readonly tempImageService: TempImageService,
-        private readonly userService: UserService,
-    ) { }
+  constructor(
+    @InjectRepository(Post)
+    private readonly postRepository: Repository<Post>,
+    @InjectRepository(SportCategory)
+    private readonly sportCategoryRepository: Repository<SportCategory>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(HotPost)
+    private readonly hotPostRepository: Repository<HotPost>,
+    private readonly postLikeService: PostLikeService,
+    private readonly postHateService: PostHateService,
+    private readonly tempImageService: TempImageService,
+    private readonly userService: UserService,
+    private readonly s3Service: S3Service,
+    private readonly dataSource: DataSource,
+  ) {}
 
-    async findAll(query?: PostQueryDto): Promise<PaginationResponseDto<Post>> {
-        const queryBuilder = this.postRepository.createQueryBuilder('post')
-            .leftJoinAndSelect('post.author', 'author')
-            .leftJoinAndSelect('post.sportCategory', 'sportCategory')
-            .leftJoinAndSelect('post.comments', 'comments')
-            .leftJoinAndSelect('post.likes', 'likes')
-            .leftJoinAndSelect('post.hates', 'hates');
+  async findAll(query?: PostQueryDto): Promise<PaginationResponseDto<Post>> {
+    const queryBuilder = this.postRepository
+      .createQueryBuilder('post')
+      .leftJoinAndSelect('post.author', 'author')
+      .leftJoinAndSelect('post.sportCategory', 'sportCategory')
+      .leftJoinAndSelect('post.comments', 'comments')
+      .leftJoinAndSelect('post.likes', 'likes')
+      .leftJoinAndSelect('post.hates', 'hates');
 
-        // 스포츠 카테고리 필터링
-        if (query?.sport) {
-            queryBuilder.andWhere('post.sportCategory.id = :sportId', { sportId: query.sport });
-        }
-
-        // 글 타입 필터링
-        if (query?.type) {
-            queryBuilder.andWhere('post.type = :type', { type: query.type });
-        }
-
-        queryBuilder.orderBy('post.createdAt', 'DESC');
-
-        // 페이지네이션 파라미터 설정
-        const page = query?.page || 1;
-        const limit = query?.limit || 10;
-        const offset = (page - 1) * limit;
-
-        // 전체 개수 조회
-        const total = await queryBuilder.getCount();
-
-        // 페이지네이션 적용
-        queryBuilder.skip(offset).take(limit);
-
-        // 데이터 조회
-        const posts = await queryBuilder.getMany();
-
-        return new PaginationResponseDto(posts, page, limit, total);
+    // 스포츠 카테고리 필터링
+    if (query?.sport) {
+      queryBuilder.andWhere('post.sportCategory.id = :sportId', { sportId: query.sport });
     }
 
-    async findOne(id: number): Promise<Post | null> {
-        return this.postRepository.findOne({ where: { id }, relations: ['author', 'sportCategory'] });
+    // 글 타입 필터링
+    if (query?.type) {
+      queryBuilder.andWhere('post.type = :type', { type: query.type });
     }
 
-    async findOneWithDetails(id: number): Promise<Post | null> {
-        return this.postRepository.findOne({
-            where: { id },
-            relations: [
-                'author',
-                'sportCategory',
-                'comments',
-                'comments.user',
-                'comments.replies',
-                'comments.replies.user',
-                'comments.likes',
-                'comments.likes.user'
-            ],
-            order: {
-                comments: {
-                    createdAt: 'ASC',
-                    replies: {
-                        createdAt: 'ASC'
-                    }
-                }
-            }
+    queryBuilder.orderBy('post.createdAt', 'DESC');
+
+    // 페이지네이션 파라미터 설정
+    const page = query?.page || 1;
+    const limit = query?.limit || 10;
+    const offset = (page - 1) * limit;
+
+    // 전체 개수 조회
+    const total = await queryBuilder.getCount();
+
+    // 페이지네이션 적용
+    queryBuilder.skip(offset).take(limit);
+
+    // 데이터 조회
+    const posts = await queryBuilder.getMany();
+
+    return new PaginationResponseDto(posts, page, limit, total);
+  }
+
+  async findOne(id: number): Promise<Post | null> {
+    return this.postRepository.findOne({ where: { id }, relations: ['author', 'sportCategory'] });
+  }
+
+  async findOneWithDetails(id: number): Promise<Post | null> {
+    return this.postRepository.findOne({
+      where: { id },
+      relations: [
+        'author',
+        'sportCategory',
+        'comments',
+        'comments.user',
+        'comments.replies',
+        'comments.replies.user',
+        'comments.likes',
+        'comments.likes.user',
+      ],
+      order: {
+        comments: {
+          createdAt: 'ASC',
+          replies: {
+            createdAt: 'ASC',
+          },
+        },
+      },
+    });
+  }
+
+  async findByUserId(userId: number): Promise<Post[]> {
+    return this.postRepository.find({
+      where: { author: { id: userId } },
+      relations: ['author', 'sportCategory', 'comments', 'likes', 'hates'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async create(createPostDto: CreatePostDto, user: JwtUser): Promise<Post> {
+    const { sportCategoryId, content, ...rest } = createPostDto;
+    let sportCategoryEntity: SportCategory | undefined = undefined;
+
+    if (typeof sportCategoryId === 'number') {
+      const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategoryId } });
+      sportCategoryEntity = found ?? undefined;
+    }
+
+    const author = await this.userRepository.findOne({ where: { id: user.id } });
+    if (!author) throw new Error('Author not found');
+
+    // content에서 실제 사용된 이미지 URL 추출
+    const usedImageUrls = this.extractImageUrlsFromContent(content || '');
+
+    const post = this.postRepository.create({
+      ...rest,
+      content,
+      sportCategory: sportCategoryEntity,
+      author,
+      imageUrls: usedImageUrls,
+      type: PostType.GENERAL, // 일반글으로 설정
+    });
+
+    const savedPost = await this.postRepository.save(post);
+
+    // 사용된 이미지들을 임시 이미지에서 제거
+    for (const imageUrl of usedImageUrls) {
+      await this.tempImageService.markImageAsUsed(imageUrl, user.id);
+    }
+
+    // 사용되지 않은 임시 이미지들 정리
+    await this.tempImageService.cleanupUnusedImages(usedImageUrls, user.id);
+
+    // 첫글 작성 시 튜토리얼 완료 체크 및 토큰 지급 (아직 완료되지 않은 경우에만)
+    try {
+      // 사용자가 이미 튜토리얼을 완료했는지 먼저 확인
+      const userWithTutorial = await this.userService.findById(user.id);
+      if (userWithTutorial && !userWithTutorial.tutorialFirstPostCompleted) {
+        await this.userService.completeTutorialFirstPost(user.id);
+      }
+    } catch (error) {
+      // 튜토리얼 완료 체크 중 오류 발생 시만 로그 (중복 시도는 로그하지 않음)
+      if (!error.message.includes('already completed')) {
+        console.log(`Tutorial first post check failed for user ${user.id}: ${error.message}`);
+      }
+    }
+
+    return savedPost;
+  }
+
+  async update(id: number, updatePostDto: UpdatePostDto): Promise<Post | null> {
+    const { sportCategoryId, content, type, ...rest } = updatePostDto;
+    let sportCategoryEntity: SportCategory | undefined = undefined;
+
+    // 스포츠 카테고리가 지정된 경우
+    if (typeof sportCategoryId === 'number') {
+      const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategoryId } });
+      sportCategoryEntity = found ?? undefined;
+    } else if (sportCategoryId && typeof sportCategoryId === 'object' && sportCategoryId.id) {
+      const found = await this.sportCategoryRepository.findOne({
+        where: { id: sportCategoryId.id },
+      });
+      sportCategoryEntity = found ?? undefined;
+    }
+
+    // 스포츠 카테고리가 없으면 자유글로 설정
+    if (!sportCategoryEntity) {
+      const freeCategory = await this.sportCategoryRepository.findOne({
+        where: { name: '자유글' },
+      });
+      sportCategoryEntity = freeCategory ?? undefined;
+    }
+
+    // content에서 실제 사용된 이미지 URL 추출
+    const usedImageUrls = this.extractImageUrlsFromContent(content || '');
+
+    await this.postRepository.update(id, {
+      ...rest,
+      content,
+      sportCategory: sportCategoryEntity,
+      imageUrls: usedImageUrls,
+    });
+
+    // 사용된 이미지들을 임시 이미지에서 제거
+    const post = await this.findOne(id);
+    if (post) {
+      for (const imageUrl of usedImageUrls) {
+        await this.tempImageService.markImageAsUsed(imageUrl, post.author.id);
+      }
+      // 사용되지 않은 임시 이미지들 정리
+      await this.tempImageService.cleanupUnusedImages(usedImageUrls, post.author.id);
+    }
+
+    return this.findOne(id);
+  }
+
+  /**
+   * 게시글 삭제 (권한 검증, 연관 데이터 정리, 이미지 파일 삭제 포함)
+   */
+  async remove(id: number, user: JwtUser): Promise<{ success: boolean; message: string }> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. 게시글 존재 여부 및 작성자 확인
+      const post = await queryRunner.manager.findOne(Post, {
+        where: { id },
+        relations: ['author', 'comments', 'likes', 'hates'],
+      });
+
+      if (!post) {
+        throw new NotFoundException('Post not found');
+      }
+
+      // 2. 권한 검증 (작성자 또는 관리자만 삭제 가능)
+      if (post.author.id !== user.id) {
+        // 관리자 권한 확인 (예: role이 'admin'인 경우)
+        const currentUser = await queryRunner.manager.findOne(User, {
+          where: { id: user.id },
         });
-    }
 
-    async findByUserId(userId: number): Promise<Post[]> {
-        return this.postRepository.find({
-            where: { author: { id: userId } },
-            relations: ['author', 'sportCategory', 'comments', 'likes', 'hates'],
-            order: { createdAt: 'DESC' }
-        });
-    }
-
-    async create(createPostDto: CreatePostDto, user: JwtUser): Promise<Post> {
-        const { sportCategoryId, content, ...rest } = createPostDto;
-        let sportCategoryEntity: SportCategory | undefined = undefined;
-
-        if (typeof sportCategoryId === "number") {
-            const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategoryId } });
-            sportCategoryEntity = found ?? undefined;
+        if (!currentUser || currentUser.role !== 'admin') {
+          throw new ForbiddenException('Only the post author or admin can delete this post');
         }
+      }
 
-        const author = await this.userRepository.findOne({ where: { id: user.id } });
-        if (!author) throw new Error('Author not found');
-
-        // content에서 실제 사용된 이미지 URL 추출
-        const usedImageUrls = this.extractImageUrlsFromContent(content || '');
-
-        const post = this.postRepository.create({
-            ...rest,
-            content,
-            sportCategory: sportCategoryEntity,
-            author,
-            imageUrls: usedImageUrls,
-            type: PostType.GENERAL, // 일반글으로 설정
-        });
-
-        const savedPost = await this.postRepository.save(post);
-
-        // 사용된 이미지들을 임시 이미지에서 제거
-        for (const imageUrl of usedImageUrls) {
-            await this.tempImageService.markImageAsUsed(imageUrl, user.id);
-        }
-
-        // 사용되지 않은 임시 이미지들 정리
-        await this.tempImageService.cleanupUnusedImages(usedImageUrls, user.id);
-
-        // 첫글 작성 시 튜토리얼 완료 체크 및 토큰 지급 (아직 완료되지 않은 경우에만)
+      // 3. 이미지 파일 삭제 (S3에서)
+      if (post.imageUrls && post.imageUrls.length > 0) {
         try {
-            // 사용자가 이미 튜토리얼을 완료했는지 먼저 확인
-            const userWithTutorial = await this.userService.findById(user.id);
-            if (userWithTutorial && !userWithTutorial.tutorialFirstPostCompleted) {
-                await this.userService.completeTutorialFirstPost(user.id);
-            }
-        } catch (error) {
-            // 튜토리얼 완료 체크 중 오류 발생 시만 로그 (중복 시도는 로그하지 않음)
-            if (!error.message.includes('already completed')) {
-                console.log(`Tutorial first post check failed for user ${user.id}: ${error.message}`);
-            }
+          await this.deletePostImages(post.imageUrls);
+        } catch (imageError) {
+          console.error('Failed to delete images from S3:', imageError);
+          // 이미지 삭제 실패해도 게시글 삭제는 계속 진행
         }
+      }
 
-        return savedPost;
+      // 4. 연관 데이터 정리 (cascade로 자동 처리되지만 명시적으로 처리)
+      // - 댓글의 대댓글들도 함께 삭제됨 (Comment 엔티티의 cascade 설정)
+      // - 좋아요, 싫어요도 함께 삭제됨 (PostLike, PostHate 엔티티의 cascade 설정)
+
+      // 5. 게시글 삭제
+      await queryRunner.manager.remove(Post, post);
+
+      // 6. HotPost에서도 제거 (만약 있다면)
+      await queryRunner.manager.delete(HotPost, { postId: id });
+
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: 'Post deleted successfully',
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * S3에서 게시글 이미지 파일들 삭제
+   */
+  private async deletePostImages(imageUrls: string[]): Promise<void> {
+    const deletePromises = imageUrls.map(async imageUrl => {
+      try {
+        await this.s3Service.deleteImage(imageUrl);
+      } catch (error) {
+        console.error(`Failed to delete image: ${imageUrl}`, error);
+        // 개별 이미지 삭제 실패는 무시하고 계속 진행
+      }
+    });
+
+    await Promise.allSettled(deletePromises);
+  }
+
+  async incrementViewCount(id: number): Promise<void> {
+    await this.postRepository.increment({ id }, 'viewCount', 1);
+  }
+
+  // 중복 조회를 방지하면서 조회수 증가하는 메서드
+  async incrementViewCountIfNotViewed(id: number, ip: string): Promise<boolean> {
+    const key = `${ip}_${id}`;
+    const now = Date.now();
+    const lastViewed = this.viewedPosts.get(key);
+
+    // 1시간(3600000ms) 내에 조회하지 않았으면 증가
+    if (!lastViewed || now - lastViewed > 60 * 60 * 1000) {
+      await this.incrementViewCount(id);
+      this.viewedPosts.set(key, now);
+
+      // 메모리 관리를 위해 오래된 기록 정리
+      this.cleanupOldRecords();
+
+      return true; // 조회수 증가됨
     }
 
-    async update(id: number, updatePostDto: UpdatePostDto): Promise<Post | null> {
-        const { sportCategoryId, content, type, ...rest } = updatePostDto;
-        let sportCategoryEntity: SportCategory | undefined = undefined;
+    return false; // 조회수 증가하지 않음 (중복 조회)
+  }
 
-        // 스포츠 카테고리가 지정된 경우
-        if (typeof sportCategoryId === 'number') {
-            const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategoryId } });
-            sportCategoryEntity = found ?? undefined;
-        } else if (sportCategoryId && typeof sportCategoryId === 'object' && sportCategoryId.id) {
-            const found = await this.sportCategoryRepository.findOne({ where: { id: sportCategoryId.id } });
-            sportCategoryEntity = found ?? undefined;
-        }
+  // 오래된 조회 기록 정리 (메모리 관리)
+  private cleanupOldRecords(): void {
+    const now = Date.now();
+    const oneHour = 60 * 60 * 1000;
 
-        // 스포츠 카테고리가 없으면 자유글로 설정
-        if (!sportCategoryEntity) {
-            const freeCategory = await this.sportCategoryRepository.findOne({ where: { name: '자유글' } });
-            sportCategoryEntity = freeCategory ?? undefined;
-        }
-
-        // content에서 실제 사용된 이미지 URL 추출
-        const usedImageUrls = this.extractImageUrlsFromContent(content || '');
-
-        await this.postRepository.update(id, {
-            ...rest,
-            content,
-            sportCategory: sportCategoryEntity,
-            imageUrls: usedImageUrls
-        });
-
-        // 사용된 이미지들을 임시 이미지에서 제거
-        const post = await this.findOne(id);
-        if (post) {
-            for (const imageUrl of usedImageUrls) {
-                await this.tempImageService.markImageAsUsed(imageUrl, post.author.id);
-            }
-            // 사용되지 않은 임시 이미지들 정리
-            await this.tempImageService.cleanupUnusedImages(usedImageUrls, post.author.id);
-        }
-
-        return this.findOne(id);
+    for (const [key, timestamp] of this.viewedPosts.entries()) {
+      if (now - timestamp > oneHour) {
+        this.viewedPosts.delete(key);
+      }
     }
+  }
 
-    async remove(id: number) {
-        return this.postRepository.delete(id);
+  async checkUserLikeStatus(postId: number, userId?: number): Promise<boolean> {
+    if (!userId) return false;
+
+    try {
+      const like = await this.postLikeService.findOne(postId, userId);
+      return like?.isLiked || false;
+    } catch (error) {
+      return false;
     }
+  }
 
-    async incrementViewCount(id: number): Promise<void> {
-        await this.postRepository.increment({ id }, 'viewCount', 1);
+  async checkUserHateStatus(postId: number, userId?: number): Promise<boolean> {
+    if (!userId) return false;
+
+    try {
+      const hate = await this.postHateService.findOne(postId, userId);
+      return hate?.isHated || false;
+    } catch (error) {
+      return false;
     }
+  }
 
-    // 중복 조회를 방지하면서 조회수 증가하는 메서드
-    async incrementViewCountIfNotViewed(id: number, ip: string): Promise<boolean> {
-        const key = `${ip}_${id}`;
-        const now = Date.now();
-        const lastViewed = this.viewedPosts.get(key);
+  async getPostLikeCount(postId: number): Promise<number> {
+    try {
+      return await this.postLikeService.getLikeCount(postId);
+    } catch (error) {
+      return 0;
+    }
+  }
 
-        // 1시간(3600000ms) 내에 조회하지 않았으면 증가
-        if (!lastViewed || (now - lastViewed) > 60 * 60 * 1000) {
-            await this.incrementViewCount(id);
-            this.viewedPosts.set(key, now);
+  async getPostHateCount(postId: number): Promise<number> {
+    return this.postRepository
+      .createQueryBuilder('post')
+      .leftJoin('post.hates', 'hate')
+      .where('post.id = :postId', { postId })
+      .andWhere('hate.isHated = :isHated', { isHated: true })
+      .getCount();
+  }
 
-            // 메모리 관리를 위해 오래된 기록 정리
-            this.cleanupOldRecords();
+  /**
+   * 전체 인기글 조회 (최근 24시간 반응 기준)
+   * 스케줄러와 동일한 로직을 사용하여 일관성 유지
+   */
+  async getHotPosts(): Promise<any[]> {
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-            return true; // 조회수 증가됨
+    try {
+      // 1. 모든 게시글을 기본 정보와 함께 조회 (숨겨지지 않은 것만)
+      const allPosts = await this.postRepository.find({
+        where: { isHidden: false },
+        relations: ['author', 'sportCategory'],
+      });
+
+      // 2. 각 게시글에 대해 인기점수 계산
+      const postsWithScore: any[] = [];
+
+      for (const post of allPosts) {
+        if (!post.sportCategory) {
+          continue;
         }
-
-        return false; // 조회수 증가하지 않음 (중복 조회)
-    }
-
-    // 오래된 조회 기록 정리 (메모리 관리)
-    private cleanupOldRecords(): void {
-        const now = Date.now();
-        const oneHour = 60 * 60 * 1000;
-
-        for (const [key, timestamp] of this.viewedPosts.entries()) {
-            if (now - timestamp > oneHour) {
-                this.viewedPosts.delete(key);
-            }
-        }
-    }
-
-    async checkUserLikeStatus(postId: number, userId?: number): Promise<boolean> {
-        if (!userId) return false;
-
-        try {
-            const like = await this.postLikeService.findOne(postId, userId);
-            return like?.isLiked || false;
-        } catch (error) {
-            return false;
-        }
-    }
-
-    async checkUserHateStatus(postId: number, userId?: number): Promise<boolean> {
-        if (!userId) return false;
 
         try {
-            const hate = await this.postHateService.findOne(postId, userId);
-            return hate?.isHated || false;
-        } catch (error) {
-            return false;
-        }
-    }
+          // 좋아요 수 조회 (최근 24시간)
+          const likeCount = await this.postRepository
+            .createQueryBuilder('post')
+            .leftJoin('post.likes', 'like')
+            .where('post.id = :postId', { postId: post.id })
+            .andWhere('like.isLiked = :isLiked', { isLiked: true })
+            .andWhere('like.created_at >= :oneDayAgo', { oneDayAgo })
+            .getCount();
 
-    async getPostLikeCount(postId: number): Promise<number> {
-        try {
-            return await this.postLikeService.getLikeCount(postId);
-        } catch (error) {
-            return 0;
-        }
-    }
+          // 댓글 수 조회 (최근 24시간)
+          const commentCount = await this.postRepository
+            .createQueryBuilder('post')
+            .leftJoin('post.comments', 'comment')
+            .where('post.id = :postId', { postId: post.id })
+            .andWhere('comment.created_at >= :oneDayAgo', { oneDayAgo })
+            .getCount();
 
-    async getPostHateCount(postId: number): Promise<number> {
-        return this.postRepository
+          // 싫어요 수 조회 (최근 24시간)
+          const hateCount = await this.postRepository
             .createQueryBuilder('post')
             .leftJoin('post.hates', 'hate')
-            .where('post.id = :postId', { postId })
+            .where('post.id = :postId', { postId: post.id })
             .andWhere('hate.isHated = :isHated', { isHated: true })
+            .andWhere('hate.created_at >= :oneDayAgo', { oneDayAgo })
             .getCount();
-    }
 
-    /**
-     * 전체 인기글 조회 (최근 24시간 반응 기준)
-     * 스케줄러와 동일한 로직을 사용하여 일관성 유지
-     */
-    async getHotPosts(): Promise<any[]> {
-        const oneDayAgo = new Date();
-        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+          // 인기점수 계산 (스케줄러와 동일한 공식)
+          const popularityScore = likeCount * 2 + commentCount * 1 - hateCount * 0.5;
 
-        try {
-            // 1. 모든 게시글을 기본 정보와 함께 조회 (숨겨지지 않은 것만)
-            const allPosts = await this.postRepository.find({
-                where: { isHidden: false },
-                relations: ['author', 'sportCategory']
-            });
-
-            // 2. 각 게시글에 대해 인기점수 계산
-            const postsWithScore: any[] = [];
-
-            for (const post of allPosts) {
-                if (!post.sportCategory) {
-                    continue;
-                }
-
-                try {
-                    // 좋아요 수 조회 (최근 24시간)
-                    const likeCount = await this.postRepository
-                        .createQueryBuilder('post')
-                        .leftJoin('post.likes', 'like')
-                        .where('post.id = :postId', { postId: post.id })
-                        .andWhere('like.isLiked = :isLiked', { isLiked: true })
-                        .andWhere('like.created_at >= :oneDayAgo', { oneDayAgo })
-                        .getCount();
-
-                    // 댓글 수 조회 (최근 24시간)
-                    const commentCount = await this.postRepository
-                        .createQueryBuilder('post')
-                        .leftJoin('post.comments', 'comment')
-                        .where('post.id = :postId', { postId: post.id })
-                        .andWhere('comment.created_at >= :oneDayAgo', { oneDayAgo })
-                        .getCount();
-
-                    // 싫어요 수 조회 (최근 24시간)
-                    const hateCount = await this.postRepository
-                        .createQueryBuilder('post')
-                        .leftJoin('post.hates', 'hate')
-                        .where('post.id = :postId', { postId: post.id })
-                        .andWhere('hate.isHated = :isHated', { isHated: true })
-                        .andWhere('hate.created_at >= :oneDayAgo', { oneDayAgo })
-                        .getCount();
-
-                    // 인기점수 계산 (스케줄러와 동일한 공식)
-                    const popularityScore = (likeCount * 2) + (commentCount * 1) - (hateCount * 0.5);
-
-                    postsWithScore.push({
-                        ...post,
-                        popularityScore,
-                        likeCount,
-                        commentCount,
-                        hateCount
-                    });
-                } catch (error) {
-                    console.error(`Error calculating score for post ${post.id}:`, error);
-                    // 개별 게시글 에러는 건너뛰고 계속 진행
-                    continue;
-                }
-            }
-
-            // 3. 전체 게시글을 인기점수 순으로 정렬하고 상위 3개만 유지
-            postsWithScore.sort((a, b) => b.popularityScore - a.popularityScore);
-            const topPosts = postsWithScore.slice(0, 3);
-
-            // 4. 결과를 배열로 변환
-            const result: any[] = [];
-            for (const post of topPosts) {
-                const category = post.sportCategory;
-                if (category) {
-                    result.push({
-                        id: post.id,
-                        title: post.title,
-                        content: post.content,
-                        author: {
-                            id: post.author.id,
-                            nickname: post.author.nickname
-                        },
-                        sportCategory: {
-                            id: category.id,
-                            name: category.name
-                        },
-                        popularityScore: post.popularityScore,
-                        likeCount: post.likeCount,
-                        commentCount: post.commentCount,
-                        hateCount: post.hateCount,
-                        createdAt: post.createdAt,
-                        viewCount: post.viewCount
-                    });
-                }
-            }
-
-            return result;
+          postsWithScore.push({
+            ...post,
+            popularityScore,
+            likeCount,
+            commentCount,
+            hateCount,
+          });
         } catch (error) {
-            console.error('Error in getHotPosts:', error);
-            return [];
+          console.error(`Error calculating score for post ${post.id}:`, error);
+          // 개별 게시글 에러는 건너뛰고 계속 진행
+          continue;
         }
-    }
+      }
 
-    /**
-     * 카테고리별 실시간 인기글 조회 (최근 1시간 반응 기준)
-     */
-    async getRealTimeHotPosts(): Promise<any[]> {
-        const oneHourAgo = new Date();
-        oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+      // 3. 전체 게시글을 인기점수 순으로 정렬하고 상위 3개만 유지
+      postsWithScore.sort((a, b) => b.popularityScore - a.popularityScore);
+      const topPosts = postsWithScore.slice(0, 3);
 
-        try {
-            // 1. 모든 게시글을 기본 정보와 함께 조회 (숨겨지지 않은 것만)
-            const allPosts = await this.postRepository.find({
-                where: { isHidden: false },
-                relations: ['author', 'sportCategory']
-            });
-
-            // 2. 각 게시글에 대해 인기점수 계산
-            const postsWithScore: any[] = [];
-
-            for (const post of allPosts) {
-                if (!post.sportCategory) continue;
-
-                // 좋아요 수 조회 (최근 1시간)
-                const likeCount = await this.postRepository
-                    .createQueryBuilder('post')
-                    .leftJoin('post.likes', 'like')
-                    .where('post.id = :postId', { postId: post.id })
-                    .andWhere('like.isLiked = :isLiked', { isLiked: true })
-                    .andWhere('like.created_at >= :oneHourAgo', { oneHourAgo })
-                    .getCount();
-
-                // 댓글 수 조회 (최근 1시간)
-                const commentCount = await this.postRepository
-                    .createQueryBuilder('post')
-                    .leftJoin('post.comments', 'comment')
-                    .where('post.id = :postId', { postId: post.id })
-                    .andWhere('comment.created_at >= :oneHourAgo', { oneHourAgo })
-                    .getCount();
-
-                // 싫어요 수 조회 (최근 1시간)
-                const hateCount = await this.postRepository
-                    .createQueryBuilder('post')
-                    .leftJoin('post.hates', 'hate')
-                    .where('post.id = :postId', { postId: post.id })
-                    .andWhere('hate.isHated = :isHated', { isHated: true })
-                    .andWhere('hate.created_at >= :oneHourAgo', { oneHourAgo })
-                    .getCount();
-
-                // 인기점수 계산
-                const popularityScore = (likeCount * 2) + (commentCount * 1) - (hateCount * 0.5);
-
-                postsWithScore.push({
-                    ...post,
-                    popularityScore
-                });
-            }
-
-            // 3. 카테고리별로 그룹화
-            const groupedPosts = new Map<number, any[]>();
-
-            postsWithScore.forEach(post => {
-                const categoryId = post.sportCategory.id;
-                if (!groupedPosts.has(categoryId)) {
-                    groupedPosts.set(categoryId, []);
-                }
-                groupedPosts.get(categoryId)!.push(post);
-            });
-
-            // 4. 각 카테고리 내에서 인기점수 순으로 정렬하고 상위 3개만 유지
-            for (const [categoryId, posts] of groupedPosts) {
-                posts.sort((a, b) => b.popularityScore - a.popularityScore);
-                groupedPosts.set(categoryId, posts.slice(0, 3));
-            }
-
-            // 5. 결과를 배열로 변환
-            const result: any[] = [];
-            for (const [categoryId, posts] of groupedPosts) {
-                const category = posts[0]?.sportCategory;
-                if (category) {
-                    result.push({
-                        categoryId,
-                        categoryName: category.name || 'Unknown',
-                        posts: posts.map(post => ({
-                            id: post.id,
-                            title: post.title,
-                            content: post.content,
-                            author: {
-                                id: post.author.id,
-                                nickname: post.author.nickname
-                            },
-                            sportCategory: {
-                                id: post.sportCategory.id,
-                                name: post.sportCategory.name
-                            },
-                            popularityScore: post.popularityScore,
-                            createdAt: post.createdAt,
-                            viewCount: post.viewCount
-                        }))
-                    });
-                }
-            }
-
-            return result;
-        } catch (error) {
-            console.error('Error in getRealTimeHotPosts:', error);
-            return [];
+      // 4. 결과를 배열로 변환
+      const result: any[] = [];
+      for (const post of topPosts) {
+        const category = post.sportCategory;
+        if (category) {
+          result.push({
+            id: post.id,
+            title: post.title,
+            content: post.content,
+            author: {
+              id: post.author.id,
+              nickname: post.author.nickname,
+            },
+            sportCategory: {
+              id: category.id,
+              name: category.name,
+            },
+            popularityScore: post.popularityScore,
+            likeCount: post.likeCount,
+            commentCount: post.commentCount,
+            hateCount: post.hateCount,
+            createdAt: post.createdAt,
+            viewCount: post.viewCount,
+          });
         }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error in getHotPosts:', error);
+      return [];
     }
+  }
 
-    /**
-     * 저장된 인기글 조회 (24시간마다 선정된 것)
-     */
-    async getStoredHotPosts(date?: Date): Promise<any[]> {
-        try {
-            const targetDate = date || new Date();
-            targetDate.setHours(0, 0, 0, 0);
+  /**
+   * 카테고리별 실시간 인기글 조회 (최근 1시간 반응 기준)
+   */
+  async getRealTimeHotPosts(): Promise<any[]> {
+    const oneHourAgo = new Date();
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
 
-            const hotPosts = await this.hotPostRepository.find({
-                where: { selectionDate: targetDate },
-                relations: ['post', 'post.author', 'post.sportCategory'],
-                order: { rank: 'ASC' }
-            });
+    try {
+      // 1. 모든 게시글을 기본 정보와 함께 조회 (숨겨지지 않은 것만)
+      const allPosts = await this.postRepository.find({
+        where: { isHidden: false },
+        relations: ['author', 'sportCategory'],
+      });
 
-            return hotPosts.map(hotPost => ({
-                id: hotPost.post.id,
-                title: hotPost.post.title,
-                content: hotPost.post.content,
-                author: {
-                    id: hotPost.post.author.id,
-                    nickname: hotPost.post.author.nickname
-                },
-                sportCategory: hotPost.post.sportCategory ? {
-                    id: hotPost.post.sportCategory.id,
-                    name: hotPost.post.sportCategory.name
-                } : null,
-                popularityScore: hotPost.popularityScore,
-                rank: hotPost.rank,
-                selectionDate: hotPost.selectionDate,
-                createdAt: hotPost.post.createdAt,
-                viewCount: hotPost.post.viewCount,
-                isRewarded: hotPost.isRewarded
-            }));
-        } catch (error) {
-            console.error('Error in getStoredHotPosts:', error);
-            return [];
+      // 2. 각 게시글에 대해 인기점수 계산
+      const postsWithScore: any[] = [];
+
+      for (const post of allPosts) {
+        if (!post.sportCategory) continue;
+
+        // 좋아요 수 조회 (최근 1시간)
+        const likeCount = await this.postRepository
+          .createQueryBuilder('post')
+          .leftJoin('post.likes', 'like')
+          .where('post.id = :postId', { postId: post.id })
+          .andWhere('like.isLiked = :isLiked', { isLiked: true })
+          .andWhere('like.created_at >= :oneHourAgo', { oneHourAgo })
+          .getCount();
+
+        // 댓글 수 조회 (최근 1시간)
+        const commentCount = await this.postRepository
+          .createQueryBuilder('post')
+          .leftJoin('post.comments', 'comment')
+          .where('post.id = :postId', { postId: post.id })
+          .andWhere('comment.created_at >= :oneHourAgo', { oneHourAgo })
+          .getCount();
+
+        // 싫어요 수 조회 (최근 1시간)
+        const hateCount = await this.postRepository
+          .createQueryBuilder('post')
+          .leftJoin('post.hates', 'hate')
+          .where('post.id = :postId', { postId: post.id })
+          .andWhere('hate.isHated = :isHated', { isHated: true })
+          .andWhere('hate.created_at >= :oneHourAgo', { oneHourAgo })
+          .getCount();
+
+        // 인기점수 계산
+        const popularityScore = likeCount * 2 + commentCount * 1 - hateCount * 0.5;
+
+        postsWithScore.push({
+          ...post,
+          popularityScore,
+        });
+      }
+
+      // 3. 카테고리별로 그룹화
+      const groupedPosts = new Map<number, any[]>();
+
+      postsWithScore.forEach(post => {
+        const categoryId = post.sportCategory.id;
+        if (!groupedPosts.has(categoryId)) {
+          groupedPosts.set(categoryId, []);
         }
+        groupedPosts.get(categoryId)!.push(post);
+      });
+
+      // 4. 각 카테고리 내에서 인기점수 순으로 정렬하고 상위 3개만 유지
+      for (const [categoryId, posts] of groupedPosts) {
+        posts.sort((a, b) => b.popularityScore - a.popularityScore);
+        groupedPosts.set(categoryId, posts.slice(0, 3));
+      }
+
+      // 5. 결과를 배열로 변환
+      const result: any[] = [];
+      for (const [categoryId, posts] of groupedPosts) {
+        const category = posts[0]?.sportCategory;
+        if (category) {
+          result.push({
+            categoryId,
+            categoryName: category.name || 'Unknown',
+            posts: posts.map(post => ({
+              id: post.id,
+              title: post.title,
+              content: post.content,
+              author: {
+                id: post.author.id,
+                nickname: post.author.nickname,
+              },
+              sportCategory: {
+                id: post.sportCategory.id,
+                name: post.sportCategory.name,
+              },
+              popularityScore: post.popularityScore,
+              createdAt: post.createdAt,
+              viewCount: post.viewCount,
+            })),
+          });
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error in getRealTimeHotPosts:', error);
+      return [];
     }
+  }
 
-    /**
-     * 게시글 작성자 업데이트
-     */
-    async updateAuthor(postId: number, newAuthorId: number): Promise<Post | null> {
-        try {
-            const post = await this.postRepository.findOne({
-                where: { id: postId },
-                relations: ['author']
-            });
+  /**
+   * 저장된 인기글 조회 (24시간마다 선정된 것)
+   */
+  async getStoredHotPosts(date?: Date): Promise<any[]> {
+    try {
+      const targetDate = date || new Date();
+      targetDate.setHours(0, 0, 0, 0);
 
-            if (!post) {
-                throw new Error(`Post with ID ${postId} not found`);
+      const hotPosts = await this.hotPostRepository.find({
+        where: { selectionDate: targetDate },
+        relations: ['post', 'post.author', 'post.sportCategory'],
+        order: { rank: 'ASC' },
+      });
+
+      return hotPosts.map(hotPost => ({
+        id: hotPost.post.id,
+        title: hotPost.post.title,
+        content: hotPost.post.content,
+        author: {
+          id: hotPost.post.author.id,
+          nickname: hotPost.post.author.nickname,
+        },
+        sportCategory: hotPost.post.sportCategory
+          ? {
+              id: hotPost.post.sportCategory.id,
+              name: hotPost.post.sportCategory.name,
             }
-
-            const newAuthor = await this.userRepository.findOne({
-                where: { id: newAuthorId }
-            });
-
-            if (!newAuthor) {
-                throw new Error(`User with ID ${newAuthorId} not found`);
-            }
-
-            post.author = newAuthor;
-            const updatedPost = await this.postRepository.save(post);
-
-            console.log(`Post ${postId} author updated from ${post.author.id} to ${newAuthorId}`);
-            return updatedPost;
-        } catch (error) {
-            console.error(`Failed to update post author: ${error.message}`);
-            throw error;
-        }
+          : null,
+        popularityScore: hotPost.popularityScore,
+        rank: hotPost.rank,
+        selectionDate: hotPost.selectionDate,
+        createdAt: hotPost.post.createdAt,
+        viewCount: hotPost.post.viewCount,
+        isRewarded: hotPost.isRewarded,
+      }));
+    } catch (error) {
+      console.error('Error in getStoredHotPosts:', error);
+      return [];
     }
+  }
 
-    /**
-     * 특정 작성자의 모든 게시글 조회
-     */
-    async findByAuthorId(authorId: number): Promise<Post[]> {
-        try {
-            return await this.postRepository.find({
-                where: { author: { id: authorId } },
-                relations: ['author', 'sportCategory'],
-                order: { createdAt: 'DESC' }
-            });
-        } catch (error) {
-            console.error(`Failed to find posts by author ID ${authorId}: ${error.message}`);
-            throw error;
-        }
-    }
+  /**
+   * 게시글 작성자 업데이트
+   */
+  async updateAuthor(postId: number, newAuthorId: number): Promise<Post | null> {
+    try {
+      const post = await this.postRepository.findOne({
+        where: { id: postId },
+        relations: ['author'],
+      });
 
-    // content에서 이미지 URL 추출
-    private extractImageUrlsFromContent(content: string): string[] {
-        const imageUrlRegex = /https:\/\/[^\s<>"']+\.(jpg|jpeg|png|gif|webp)/gi;
-        const matches = content.match(imageUrlRegex);
-        return matches ? [...new Set(matches)] : []; // 중복 제거
+      if (!post) {
+        throw new Error(`Post with ID ${postId} not found`);
+      }
+
+      const newAuthor = await this.userRepository.findOne({
+        where: { id: newAuthorId },
+      });
+
+      if (!newAuthor) {
+        throw new Error(`User with ID ${newAuthorId} not found`);
+      }
+
+      post.author = newAuthor;
+      const updatedPost = await this.postRepository.save(post);
+
+      console.log(`Post ${postId} author updated from ${post.author.id} to ${newAuthorId}`);
+      return updatedPost;
+    } catch (error) {
+      console.error(`Failed to update post author: ${error.message}`);
+      throw error;
     }
-} 
+  }
+
+  /**
+   * 특정 작성자의 모든 게시글 조회
+   */
+  async findByAuthorId(authorId: number): Promise<Post[]> {
+    try {
+      return await this.postRepository.find({
+        where: { author: { id: authorId } },
+        relations: ['author', 'sportCategory'],
+        order: { createdAt: 'DESC' },
+      });
+    } catch (error) {
+      console.error(`Failed to find posts by author ID ${authorId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  // content에서 이미지 URL 추출
+  private extractImageUrlsFromContent(content: string): string[] {
+    const imageUrlRegex = /https:\/\/[^\s<>"']+\.(jpg|jpeg|png|gif|webp)/gi;
+    const matches = content.match(imageUrlRegex);
+    return matches ? [...new Set(matches)] : []; // 중복 제거
+  }
+}

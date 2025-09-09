@@ -18,20 +18,19 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  async login(
-    @Body() loginDto: { accounts: any[]; email: string; idToken: string },
-  ) {
+  async login(@Body() loginDto: { accounts: any[]; email: string; idToken: string }) {
     try {
       // Google ID Token 디코드
-      const decodedToken = jwtDecode(loginDto.idToken) as any;
+      const decodedToken = jwtDecode(loginDto.idToken);
 
       // 디코드된 토큰에서 정보 추출
-      const walletUserId = decodedToken.user_id || `user_${Date.now()}`;
-      const email = decodedToken.email;
+      const walletUserId = decodedToken['user_id'] || `user_${Date.now()}`;
+      const email = decodedToken['email'];
 
       // accounts 배열에서 evmVERY 네트워크의 주소 찾기
-      const walletAddress = loginDto.accounts?.find(account => account.network === 'evmVERY').address;
-
+      const walletAddress = loginDto.accounts?.find(
+        account => account.network === 'evmVERY',
+      ).address;
 
       // 기존 사용자 찾기 (email 또는 walletUserId로)
       let user = await this.userService.findByEmail(email);
@@ -40,7 +39,7 @@ export class AuthController {
       }
 
       // 이메일 인증 여부 확인
-      if (decodedToken.email !== loginDto.email) {
+      if (decodedToken['email'] !== loginDto.email) {
         return {
           success: false,
           message: 'Login failed',
@@ -56,21 +55,29 @@ export class AuthController {
         });
 
         // 새로 생성된 사용자는 첫 로그인으로 간주
-        console.log(`[AuthController] New user created: ${walletAddress}, performing initial token sync`);
+        console.log(
+          `[AuthController] New user created: ${walletAddress}, performing initial token sync`,
+        );
       }
 
       // 첫 로그인 여부 확인 및 토큰 동기화
       const isFirstLogin = await this.userService.isFirstLogin(walletAddress);
       if (isFirstLogin) {
         try {
-          console.log(`[AuthController] First login detected for ${walletAddress}, syncing token balance from blockchain`);
+          console.log(
+            `[AuthController] First login detected for ${walletAddress}, syncing token balance from blockchain`,
+          );
 
           // 블록체인에서 토큰 잔액 동기화
           user = await this.userService.syncTokenBalanceFromBlockchain(walletAddress);
 
-          console.log(`[AuthController] Token balance synced for ${walletAddress}: ${user.tokenAmount} EXP`);
+          console.log(
+            `[AuthController] Token balance synced for ${walletAddress}: ${user.tokenAmount} EXP`,
+          );
         } catch (syncError) {
-          console.warn(`[AuthController] Token sync failed for ${walletAddress}: ${syncError.message}`);
+          console.warn(
+            `[AuthController] Token sync failed for ${walletAddress}: ${syncError.message}`,
+          );
           // 토큰 동기화 실패 시에도 로그인은 계속 진행
         }
       }
@@ -84,17 +91,14 @@ export class AuthController {
       return {
         success: false,
         message: 'Failed to process Google login',
-        error: error.message
+        error: error.message,
       };
     }
   }
 
   @Public()
   @Post('sample-login')
-
-  async sampleLogin(
-    @Body() loginDto: { userType: 'sample-user' | 'table-tennis-user' },
-  ) {
+  async sampleLogin(@Body() loginDto: { userType: 'sample-user' | 'table-tennis-user' }) {
     try {
       let walletAddress: string;
       let nickname: string;
@@ -103,7 +107,8 @@ export class AuthController {
         walletAddress = process.env.SAMPLE_USER_ADDRESS || 'sample-user-wallet';
         nickname = '샘플유저';
       } else if (loginDto.userType === 'table-tennis-user') {
-        walletAddress = process.env.TABLE_TENNIS_USER_ADDRESS || '0x8313F74e78a2E1D7D6Bb27176100d88EE4028516';
+        walletAddress =
+          process.env.TABLE_TENNIS_USER_ADDRESS || '0x8313F74e78a2E1D7D6Bb27176100d88EE4028516';
         nickname = '탁구왕민수';
       } else {
         return {
@@ -121,12 +126,13 @@ export class AuthController {
       }
 
       // 기존 사용자 찾기
-      let user = await this.userService.findByWalletAddress(walletAddress);
+      const user = await this.userService.findByWalletAddress(walletAddress);
 
       if (!user) {
         return {
           success: false,
-          message: 'Sample user not found. Please start the application first to create sample users.',
+          message:
+            'Sample user not found. Please start the application first to create sample users.',
         };
       }
 
@@ -156,7 +162,7 @@ export class AuthController {
       return {
         success: false,
         message: 'Failed to login with sample user',
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -249,17 +255,18 @@ export class AuthController {
           balanceAfter,
           balanceDifference,
           lastSyncAt: updatedUser.lastTokenSyncAt,
-          message: balanceDifference !== 0
-            ? `Token balance synced: ${balanceBefore} → ${balanceAfter} (${balanceDifference > 0 ? '+' : ''}${balanceDifference})`
-            : 'Token balance already in sync'
+          message:
+            balanceDifference !== 0
+              ? `Token balance synced: ${balanceBefore} → ${balanceAfter} (${balanceDifference > 0 ? '+' : ''}${balanceDifference})`
+              : 'Token balance already in sync',
         },
-        message: 'Token synchronization completed successfully'
+        message: 'Token synchronization completed successfully',
       };
     } catch (error) {
       return {
         success: false,
         message: 'Failed to sync tokens',
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -307,15 +314,15 @@ export class AuthController {
           syncStatus: isFirstLogin ? 'NEVER_SYNCED' : 'SYNCED',
           message: isFirstLogin
             ? 'User has never synced tokens from blockchain'
-            : `Last synced at: ${user.lastTokenSyncAt}`
+            : `Last synced at: ${user.lastTokenSyncAt}`,
         },
-        message: 'Token sync status retrieved successfully'
+        message: 'Token sync status retrieved successfully',
       };
     } catch (error) {
       return {
         success: false,
         message: 'Failed to get token sync status',
-        error: error.message
+        error: error.message,
       };
     }
   }

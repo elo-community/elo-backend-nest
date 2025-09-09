@@ -16,11 +16,17 @@ async function bootstrap() {
 
   // 로그 레벨 설정 (환경변수에서 가져오기)
   const logLevel = process.env.LOG_LEVEL || 'log';
-  Logger.overrideLogger(logLevel === 'error' ? ['error'] :
-    logLevel === 'warn' ? ['warn', 'error'] :
-      logLevel === 'log' ? ['log', 'warn', 'error'] :
-        logLevel === 'debug' ? ['debug', 'log', 'warn', 'error'] :
-          ['log', 'warn', 'error']);
+  Logger.overrideLogger(
+    logLevel === 'error'
+      ? ['error']
+      : logLevel === 'warn'
+        ? ['warn', 'error']
+        : logLevel === 'log'
+          ? ['log', 'warn', 'error']
+          : logLevel === 'debug'
+            ? ['debug', 'log', 'warn', 'error']
+            : ['log', 'warn', 'error'],
+  );
 
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
@@ -31,7 +37,7 @@ async function bootstrap() {
     .setDescription('Trivus Backend API Documentation')
     .setVersion('1.0')
     .addServer('http://localhost:3000/api/v1', 'Local Development')
-    .addServer('https://api.trivus.io/api/v1', 'Production')
+    .addServer('https://api.trivus.net/api/v1', 'Production')
     .addBearerAuth()
     .addTag('users', 'User management endpoints')
     .addTag('posts', 'Post management endpoints')
@@ -45,7 +51,33 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   app.enableCors({
-    origin: configService.get('app.corsOrigins'),
+    origin: (origin, callback) => {
+      const allowedOrigins = configService.get('app.corsOrigins') || [];
+
+      // 개발 환경에서는 origin이 없는 요청도 허용 (Postman, curl 등)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // 와일드카드 도메인 체크
+      const isAllowed = allowedOrigins.some(allowedOrigin => {
+        if (allowedOrigin.includes('*')) {
+          // 와일드카드 패턴을 정규식으로 변환
+          const pattern = allowedOrigin
+            .replace(/\./g, '\\.')  // . 을 \. 로 이스케이프
+            .replace(/\*/g, '.*');  // * 을 .* 로 변환
+          const regex = new RegExp(`^https?://${pattern}$`);
+          return regex.test(origin);
+        }
+        return allowedOrigin === origin;
+      });
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
     allowedHeaders: [
@@ -56,15 +88,15 @@ async function bootstrap() {
       'X-Requested-With',
       'Access-Control-Allow-Origin',
       'Access-Control-Allow-Headers',
-      'Access-Control-Allow-Methods'
+      'Access-Control-Allow-Methods',
     ],
     exposedHeaders: [
       'Access-Control-Allow-Origin',
       'Access-Control-Allow-Headers',
-      'Access-Control-Allow-Methods'
+      'Access-Control-Allow-Methods',
     ],
     preflightContinue: false,
-    optionsSuccessStatus: 204
+    optionsSuccessStatus: 204,
   });
 
   app.setGlobalPrefix('api/v1');

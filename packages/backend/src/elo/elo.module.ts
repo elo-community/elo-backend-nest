@@ -5,11 +5,9 @@ import { EloController } from './elo.controller';
 import { EloService } from './elo.service';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([UserElo]),
-    ],
-    controllers: [EloController],
-    providers: [EloService],
-    exports: [EloService, TypeOrmModule],
+  imports: [TypeOrmModule.forFeature([UserElo])],
+  controllers: [EloController],
+  providers: [EloService],
+  exports: [EloService, TypeOrmModule],
 })
-export class EloModule { } 
+export class EloModule {}

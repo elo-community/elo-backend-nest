@@ -15,646 +15,683 @@ import { UserService } from './user.service';
 
 @Injectable()
 export class MatchResultService {
-    constructor(
-        @InjectRepository(MatchResult)
-        private readonly matchResultRepository: Repository<MatchResult>,
-        @InjectRepository(MatchResultHistory)
-        private readonly matchResultHistoryRepository: Repository<MatchResultHistory>,
-        @InjectRepository(SportCategory)
-        private readonly sportCategoryRepository: Repository<SportCategory>,
-        @InjectRepository(User)
-        private readonly userRepository: Repository<User>,
-        @InjectRepository(UserElo)
-        private readonly userEloRepository: Repository<UserElo>,
-        private readonly sseService: SseService,
-        private readonly eloService: EloService,
-        private readonly dataSource: DataSource,
-        private readonly userService: UserService,
-    ) { }
+  constructor(
+    @InjectRepository(MatchResult)
+    private readonly matchResultRepository: Repository<MatchResult>,
+    @InjectRepository(MatchResultHistory)
+    private readonly matchResultHistoryRepository: Repository<MatchResultHistory>,
+    @InjectRepository(SportCategory)
+    private readonly sportCategoryRepository: Repository<SportCategory>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(UserElo)
+    private readonly userEloRepository: Repository<UserElo>,
+    private readonly sseService: SseService,
+    private readonly eloService: EloService,
+    private readonly dataSource: DataSource,
+    private readonly userService: UserService,
+  ) {}
 
-    async create(createMatchResultDto: CreateMatchResultDto, user: JwtUser): Promise<MatchResult> {
-        const { sportCategoryId, partnerNickname, senderResult, isHandicap = false, playedAt, ...rest } = createMatchResultDto;
+  async create(createMatchResultDto: CreateMatchResultDto, user: JwtUser): Promise<MatchResult> {
+    const {
+      sportCategoryId,
+      partnerNickname,
+      senderResult,
+      isHandicap = false,
+      playedAt,
+      ...rest
+    } = createMatchResultDto;
 
-        // 스포츠 카테고리 조회
-        const sportCategory = await this.sportCategoryRepository.findOne({
-            where: { id: sportCategoryId }
-        });
-        if (!sportCategory) {
-            throw new Error('Sport category not found');
-        }
+    // 스포츠 카테고리 조회
+    const sportCategory = await this.sportCategoryRepository.findOne({
+      where: { id: sportCategoryId },
+    });
+    if (!sportCategory) {
+      throw new Error('Sport category not found');
+    }
 
-        // 사용자 조회
-        const userEntity = await this.userRepository.findOne({
-            where: { id: user.id }
-        });
-        if (!userEntity) {
-            throw new Error('User not found');
-        }
+    // 사용자 조회
+    const userEntity = await this.userRepository.findOne({
+      where: { id: user.id },
+    });
+    if (!userEntity) {
+      throw new Error('User not found');
+    }
 
-        // 파트너 사용자 조회 (닉네임으로)
-        const partnerUser = await this.userRepository.findOne({
-            where: { nickname: partnerNickname }
-        });
-        if (!partnerUser) {
-            throw new Error('Partner user not found');
-        }
+    // 파트너 사용자 조회 (닉네임으로)
+    const partnerUser = await this.userRepository.findOne({
+      where: { nickname: partnerNickname },
+    });
+    if (!partnerUser) {
+      throw new Error('Partner user not found');
+    }
 
-        // 자기 자신과의 매치는 불가능
-        if (userEntity.id === partnerUser.id) {
-            throw new Error('Cannot create match with yourself');
-        }
+    // 자기 자신과의 매치는 불가능
+    if (userEntity.id === partnerUser.id) {
+      throw new Error('Cannot create match with yourself');
+    }
 
-        // 만료 시간 설정 (12시간 후)
-        const expiredTime = new Date();
-        expiredTime.setHours(expiredTime.getHours() + 12);
+    // 만료 시간 설정 (12시간 후)
+    const expiredTime = new Date();
+    expiredTime.setHours(expiredTime.getHours() + 12);
 
-        // playedAt을 Date 객체로 변환하고 유효성 검사
-        let playedAtDate: Date;
-        let playedDate: Date;
+    // playedAt을 Date 객체로 변환하고 유효성 검사
+    let playedAtDate: Date;
+    let playedDate: Date;
 
-        if (playedAt) {
-            playedAtDate = new Date(playedAt);
-            if (isNaN(playedAtDate.getTime())) {
-                throw new Error('Invalid playedAt date format');
-            }
-            // playedDate는 playedAt의 날짜 부분만 (시간 제외)
-            playedDate = new Date(playedAtDate.getFullYear(), playedAtDate.getMonth(), playedAtDate.getDate());
-        } else {
-            // playedAt이 제공되지 않은 경우 현재 시간 사용
-            playedAtDate = new Date();
-            playedDate = new Date(playedAtDate.getFullYear(), playedAtDate.getMonth(), playedAtDate.getDate());
-        }
+    if (playedAt) {
+      playedAtDate = new Date(playedAt);
+      if (isNaN(playedAtDate.getTime())) {
+        throw new Error('Invalid playedAt date format');
+      }
+      // playedDate는 playedAt의 날짜 부분만 (시간 제외)
+      playedDate = new Date(
+        playedAtDate.getFullYear(),
+        playedAtDate.getMonth(),
+        playedAtDate.getDate(),
+      );
+    } else {
+      // playedAt이 제공되지 않은 경우 현재 시간 사용
+      playedAtDate = new Date();
+      playedDate = new Date(
+        playedAtDate.getFullYear(),
+        playedAtDate.getMonth(),
+        playedAtDate.getDate(),
+      );
+    }
 
-        // pair_user_lo와 pair_user_hi 계산
-        const pairUserLo = Math.min(userEntity.id, partnerUser.id);
-        const pairUserHi = Math.max(userEntity.id, partnerUser.id);
+    // pair_user_lo와 pair_user_hi 계산
+    const pairUserLo = Math.min(userEntity.id, partnerUser.id);
+    const pairUserHi = Math.max(userEntity.id, partnerUser.id);
 
-        // partnerResult 자동 설정 (senderResult와 반대)
-        let partnerResult: 'win' | 'lose' | 'draw';
-        if (senderResult === 'win') {
-            partnerResult = 'lose';
-        } else if (senderResult === 'lose') {
-            partnerResult = 'win';
-        } else {
-            partnerResult = 'draw';
-        }
+    // partnerResult 자동 설정 (senderResult와 반대)
+    let partnerResult: 'win' | 'lose' | 'draw';
+    if (senderResult === 'win') {
+      partnerResult = 'lose';
+    } else if (senderResult === 'lose') {
+      partnerResult = 'win';
+    } else {
+      partnerResult = 'draw';
+    }
 
-        const matchResult = this.matchResultRepository.create({
-            ...rest,
-            sportCategory,
-            user: userEntity,
-            partner: partnerUser,
-            senderResult,
-            partnerResult,
-            isHandicap,
-            playedAt: playedAtDate,
-            playedDate,
-            pairUserLo,
-            pairUserHi,
-            status: MatchStatus.PENDING,
-            expiredTime,
-        });
+    const matchResult = this.matchResultRepository.create({
+      ...rest,
+      sportCategory,
+      user: userEntity,
+      partner: partnerUser,
+      senderResult,
+      partnerResult,
+      isHandicap,
+      playedAt: playedAtDate,
+      playedDate,
+      pairUserLo,
+      pairUserHi,
+      status: MatchStatus.PENDING,
+      expiredTime,
+    });
 
-        const savedMatchResult = await this.matchResultRepository.save(matchResult);
+    const savedMatchResult = await this.matchResultRepository.save(matchResult);
 
-        // 상대방에게 SSE 알림 전송
-        console.log(`[MatchResultService] Sending SSE notification to partner user ${partnerUser.id} for match result ${savedMatchResult.id}`);
-        this.sseService.sendMatchResultNotification(
-            partnerUser.id,
-            savedMatchResult.id,
-            sportCategory.name || 'Unknown Sport'
+    // 상대방에게 SSE 알림 전송
+    console.log(
+      `[MatchResultService] Sending SSE notification to partner user ${partnerUser.id} for match result ${savedMatchResult.id}`,
+    );
+    this.sseService.sendMatchResultNotification(
+      partnerUser.id,
+      savedMatchResult.id,
+      sportCategory.name || 'Unknown Sport',
+    );
+
+    // 첫 매치결과 등록 시 튜토리얼 완료 체크는 상대방이 승인했을 때 수행
+
+    return savedMatchResult;
+  }
+
+  async findSentRequests(user: JwtUser): Promise<MatchResult[]> {
+    return this.matchResultRepository.find({
+      where: {
+        user: { id: user.id },
+        status: MatchStatus.PENDING, // pending 상태만 필터링
+      },
+      relations: ['sportCategory', 'partner'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async findReceivedRequests(user: JwtUser): Promise<MatchResult[]> {
+    // 받은 요청은 partner가 현재 사용자인 것들 (pending 상태만)
+    return this.matchResultRepository.find({
+      where: {
+        partner: { id: user.id },
+        status: MatchStatus.PENDING, // pending 상태만 필터링
+      },
+      relations: ['sportCategory', 'user'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async findOne(id: number): Promise<MatchResult | null> {
+    return this.matchResultRepository.findOne({
+      where: { id },
+      relations: ['sportCategory', 'user', 'partner'],
+    });
+  }
+
+  // 만료된 요청들을 정리하는 메서드 (스케줄러에서 사용)
+  async cleanupExpiredRequests(): Promise<void> {
+    const now = new Date();
+
+    try {
+      // 만료된 요청 개수 확인 (별칭 명확화)
+      const expiredCount = await this.matchResultRepository
+        .createQueryBuilder('matchResult')
+        .select('COUNT(*)', 'count')
+        .where('matchResult.status = :status', { status: MatchStatus.PENDING })
+        .andWhere('matchResult.expiredTime < :now', { now })
+        .getRawOne();
+
+      const count = parseInt(expiredCount?.count || '0');
+
+      if (count > 0) {
+        console.log(`[MatchResultService] 만료된 요청 ${count}개 발견, 정리 시작`);
+
+        // 만료된 요청들을 찾고 업데이트 (UPDATE 쿼리에서는 별칭 사용 불가)
+        const result = await this.matchResultRepository
+          .createQueryBuilder()
+          .update(MatchResult)
+          .set({ status: MatchStatus.EXPIRED })
+          .where('status = :status', { status: MatchStatus.PENDING })
+          .andWhere('expired_time < :now', { now })
+          .execute();
+
+        console.log(`[MatchResultService] 만료 처리 완료: ${result.affected}개 요청`);
+      }
+      // 만료된 요청이 없으면 로그 출력하지 않음
+    } catch (error) {
+      console.error('[MatchResultService] 만료된 요청 정리 중 오류 발생:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Partner responds to a match result (accept, reject, or counter)
+   */
+  async respond(
+    matchResultId: number,
+    respondDto: RespondMatchResultDto,
+    user: JwtUser,
+  ): Promise<MatchResult> {
+    const matchResult = await this.findOne(matchResultId);
+    if (!matchResult) {
+      throw new Error('Match result not found');
+    }
+
+    // 권한 확인 (받은 요청만 처리 가능)
+    if (matchResult.partner?.id !== user.id) {
+      throw new Error('You can only respond to requests sent to you');
+    }
+
+    // 상태 확인
+    if (matchResult.status !== MatchStatus.PENDING) {
+      throw new Error('Match result is not pending');
+    }
+
+    const { action } = respondDto;
+
+    if (action === 'accept') {
+      // 승인 시 즉시 ACCEPTED로 변경하고 Elo 계산
+      matchResult.status = MatchStatus.ACCEPTED;
+      matchResult.confirmedAt = new Date();
+
+      // 먼저 MatchResult를 저장
+      const updatedMatchResult = await this.matchResultRepository.save(matchResult);
+
+      console.log('After save - partnerResult:', updatedMatchResult.partnerResult);
+
+      // Elo 계산 및 적용 (저장된 MatchResult 전달)
+      await this.applyEloToMatch(updatedMatchResult);
+
+      // SSE 알림 전송: 매치 생성자에게 승인 알림
+      if (updatedMatchResult.user && updatedMatchResult.sportCategory) {
+        this.sseService.sendMatchResultStatusNotification(
+          updatedMatchResult.user.id,
+          updatedMatchResult.id,
+          'approved',
+          updatedMatchResult.sportCategory.name || 'Unknown',
         );
+      }
 
-        // 첫 매치결과 등록 시 튜토리얼 완료 체크는 상대방이 승인했을 때 수행
+      // SSE 알림 전송: 승인한 사람에게 승인 완료 알림
+      this.sseService.sendMatchResultStatusNotification(
+        user.id,
+        updatedMatchResult.id,
+        'approved',
+        updatedMatchResult.sportCategory?.name || 'Unknown',
+      );
 
-        return savedMatchResult;
+      // 첫 매치결과 승인 시 튜토리얼 완료 체크 및 토큰 지급 (매치 생성자에게)
+      try {
+        await this.userService.completeTutorialFirstMatch(updatedMatchResult.user.id);
+      } catch (error) {
+        // 이미 완료된 경우나 다른 오류는 무시 (로그만 남김)
+        console.log(
+          `Tutorial first match check failed for user ${updatedMatchResult.user.id}: ${error.message}`,
+        );
+      }
+
+      return updatedMatchResult;
+    } else if (action === 'reject') {
+      // 거부 시 REJECTED로 변경
+      matchResult.status = MatchStatus.REJECTED;
+      const rejectedMatchResult = await this.matchResultRepository.save(matchResult);
+
+      // SSE 알림 전송: 매치 생성자에게 거부 알림
+      if (rejectedMatchResult.user && rejectedMatchResult.sportCategory) {
+        this.sseService.sendMatchResultStatusNotification(
+          rejectedMatchResult.user.id,
+          rejectedMatchResult.id,
+          'rejected',
+          rejectedMatchResult.sportCategory.name || 'Unknown',
+        );
+      }
+
+      // SSE 알림 전송: 거부한 사람에게 거부 완료 알림
+      this.sseService.sendMatchResultStatusNotification(
+        user.id,
+        rejectedMatchResult.id,
+        'rejected',
+        rejectedMatchResult.sportCategory?.name || 'Unknown',
+      );
+
+      return rejectedMatchResult;
     }
 
-    async findSentRequests(user: JwtUser): Promise<MatchResult[]> {
-        return this.matchResultRepository.find({
-            where: {
-                user: { id: user.id },
-                status: MatchStatus.PENDING // pending 상태만 필터링
-            },
-            relations: ['sportCategory', 'partner'],
-            order: { createdAt: 'DESC' }
+    throw new Error('Invalid action');
+  }
+
+  /**
+   * Calculate H2H gap between two users in the same sport
+   */
+  async h2hGap(sportCategoryId: number, aId: number, bId: number): Promise<number> {
+    // ACCEPTED 상태의 매치만 계산에 포함 (relations 포함)
+    const confirmedMatches = await this.matchResultRepository.find({
+      where: [
+        {
+          sportCategory: { id: sportCategoryId },
+          user: { id: aId },
+          partner: { id: bId },
+          status: MatchStatus.ACCEPTED,
+        },
+        {
+          sportCategory: { id: sportCategoryId },
+          user: { id: bId },
+          partner: { id: aId },
+          status: MatchStatus.ACCEPTED,
+        },
+      ],
+      relations: ['user', 'partner'],
+    });
+
+    let aWins = 0;
+    let aLosses = 0;
+
+    for (const match of confirmedMatches) {
+      if (!match.user || !match.partner) {
+        continue; // 잘못된 데이터는 스킵
+      }
+
+      if (match.user.id === aId) {
+        if (match.senderResult === 'win') aWins++;
+        else if (match.senderResult === 'lose') aLosses++;
+      } else {
+        if (match.senderResult === 'lose') aWins++;
+        else if (match.senderResult === 'win') aLosses++;
+      }
+    }
+
+    return Math.abs(aWins - aLosses);
+  }
+
+  /**
+   * Apply Elo rating changes to a confirmed match
+   */
+  private async applyEloToMatch(matchResult: MatchResult): Promise<void> {
+    if (!matchResult.user || !matchResult.partner || !matchResult.sportCategory) {
+      throw new Error('Invalid match result for Elo calculation');
+    }
+
+    // 트랜잭션으로 Elo 계산 및 적용
+    await this.dataSource.transaction(async manager => {
+      // 매치 결과 로드 (relations 포함, lock 제거)
+      const lockedMatchResult = await manager.findOne(MatchResult, {
+        where: { id: matchResult.id },
+        relations: ['user', 'partner', 'sportCategory'],
+      });
+
+      console.log('Transaction loaded match result:', {
+        id: lockedMatchResult?.id,
+        senderResult: lockedMatchResult?.senderResult,
+        hasUser: !!lockedMatchResult?.user,
+        hasPartner: !!lockedMatchResult?.partner,
+        hasSportCategory: !!lockedMatchResult?.sportCategory,
+      });
+
+      if (!lockedMatchResult || lockedMatchResult.status !== MatchStatus.ACCEPTED) {
+        throw new Error('Match result is not accepted or has been modified');
+      }
+
+      if (
+        !lockedMatchResult.user ||
+        !lockedMatchResult.partner ||
+        !lockedMatchResult.sportCategory
+      ) {
+        throw new Error('Invalid match result: missing user, partner, or sport category');
+      }
+
+      const userId = lockedMatchResult.user.id;
+      const partnerId = lockedMatchResult.partner.id;
+      const sportCategoryId = lockedMatchResult.sportCategory.id;
+      const isHandicap = lockedMatchResult.isHandicap;
+      const result = lockedMatchResult.senderResult;
+
+      console.log('Elo calculation params:', {
+        userId,
+        partnerId,
+        sportCategoryId,
+        isHandicap,
+        result,
+      });
+
+      if (!result) {
+        throw new Error('Match result is missing');
+      }
+
+      // H2H gap 계산
+      const h2hGap = await this.h2hGap(sportCategoryId, userId, partnerId);
+
+      // 현재 rating 조회 또는 초기화
+      const ratingA = await this.userEloRepository.findOne({
+        where: { user: { id: userId }, sportCategory: { id: sportCategoryId } },
+        relations: ['user', 'sportCategory'],
+      });
+      const ratingB = await this.userEloRepository.findOne({
+        where: { user: { id: partnerId }, sportCategory: { id: sportCategoryId } },
+        relations: ['user', 'sportCategory'],
+      });
+
+      // Elo 계산
+      const eloResult = this.eloService.calculateMatch(
+        ratingA?.eloPoint || this.eloService.getInitialRating(), // 기본값 설정
+        ratingB?.eloPoint || this.eloService.getInitialRating(), // 기본값 설정
+        result,
+        isHandicap,
+        h2hGap,
+      );
+
+      // Rating 업데이트
+      if (ratingA) {
+        ratingA.eloPoint = Math.round(eloResult.aNew);
+        // 승패 기록 업데이트
+        if (result === 'win') {
+          ratingA.wins += 1;
+        } else if (result === 'lose') {
+          ratingA.losses += 1;
+        } else {
+          ratingA.draws += 1;
+        }
+        ratingA.totalMatches += 1;
+        await this.userEloRepository.save(ratingA);
+      } else {
+        // 새로운 UserElo 생성 (UserService 사용)
+        const newUserEloA = await this.userService.createUserElo(userId, sportCategoryId);
+        newUserEloA.eloPoint = Math.round(eloResult.aNew);
+        // 승패 기록 업데이트
+        if (result === 'win') {
+          newUserEloA.wins = 1;
+        } else if (result === 'lose') {
+          newUserEloA.losses = 1;
+        } else {
+          newUserEloA.draws = 1;
+        }
+        newUserEloA.totalMatches = 1;
+        await this.userEloRepository.save(newUserEloA);
+      }
+
+      if (ratingB) {
+        ratingB.eloPoint = Math.round(eloResult.bNew);
+        // 승패 기록 업데이트 (B의 결과는 A의 반대)
+        if (result === 'win') {
+          ratingB.losses += 1;
+        } else if (result === 'lose') {
+          ratingB.wins += 1;
+        } else {
+          ratingB.draws += 1;
+        }
+        ratingB.totalMatches += 1;
+        await this.userEloRepository.save(ratingB);
+      } else {
+        // 새로운 UserElo 생성 (UserService 사용)
+        const newUserEloB = await this.userService.createUserElo(partnerId, sportCategoryId);
+        newUserEloB.eloPoint = Math.round(eloResult.bNew);
+        // 승패 기록 업데이트 (B의 결과는 A의 반대)
+        if (result === 'win') {
+          newUserEloB.losses = 1;
+        } else if (result === 'lose') {
+          newUserEloB.wins = 1;
+        } else {
+          newUserEloB.draws = 1;
+        }
+        newUserEloB.totalMatches = 1;
+        await this.userEloRepository.save(newUserEloB);
+      }
+
+      // History 기록
+      const history = this.matchResultHistoryRepository.create({
+        matchResult: lockedMatchResult,
+        aUser: { id: userId },
+        bUser: { id: partnerId },
+        aOld: eloResult.aOld,
+        aNew: eloResult.aNew,
+        aDelta: eloResult.aDelta,
+        bOld: eloResult.bOld,
+        bNew: eloResult.bNew,
+        bDelta: eloResult.bDelta,
+        kEff: eloResult.kEff,
+        h2hGap: eloResult.h2hGap,
+      });
+
+      await manager.save(history);
+
+      // MatchResult 엔티티의 Elo 필드들 업데이트
+      lockedMatchResult.eloBefore = Math.round(eloResult.aOld);
+      lockedMatchResult.eloAfter = Math.round(eloResult.aNew);
+      lockedMatchResult.eloDelta = Math.round(eloResult.aDelta);
+      lockedMatchResult.partnerEloBefore = Math.round(eloResult.bOld);
+      lockedMatchResult.partnerEloAfter = Math.round(eloResult.bNew);
+      lockedMatchResult.partnerEloDelta = Math.round(eloResult.bDelta);
+
+      // 업데이트된 MatchResult 저장
+      await manager.save(lockedMatchResult);
+    });
+  }
+
+  async findByUserId(userId: number): Promise<MatchResult[]> {
+    return this.matchResultRepository.find({
+      where: { user: { id: userId } },
+      relations: ['sportCategory', 'user', 'partner'],
+    });
+  }
+
+  async findUserMatchHistory(
+    user: JwtUser,
+    query: any = {},
+  ): Promise<{ data: any[]; pagination: any }> {
+    const { sport, partner, page = 1, limit = 10 } = query;
+
+    // QueryBuilder를 사용하여 더 정확한 필터링 구현
+    const queryBuilder = this.matchResultRepository
+      .createQueryBuilder('match')
+      .leftJoinAndSelect('match.sportCategory', 'sportCategory')
+      .leftJoinAndSelect('match.user', 'user')
+      .leftJoinAndSelect('match.partner', 'partner')
+      .where('match.status = :status', { status: MatchStatus.ACCEPTED })
+      .andWhere('(match.user.id = :userId OR match.partner.id = :userId)', { userId: user.id });
+
+    // 스포츠 카테고리 필터링
+    if (sport) {
+      queryBuilder.andWhere('sportCategory.id = :sportId', { sportId: sport });
+    }
+
+    // 파트너 필터링
+    if (partner) {
+      queryBuilder.andWhere('(partner.nickname = :partnerName OR user.nickname = :partnerName)', {
+        partnerName: partner,
+      });
+    }
+
+    // 전체 개수 조회
+    const totalCount = await queryBuilder.getCount();
+
+    // 페이지네이션 적용하여 데이터 조회
+    const matchResults = await queryBuilder
+      .orderBy('match.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
+
+    const historyItems: any[] = [];
+
+    for (const match of matchResults) {
+      // 현재 사용자가 매치의 주체인지 파트너인지 확인
+      const isUserCreator = match.user.id === user.id;
+      const partnerUser = isUserCreator ? match.partner : match.user;
+
+      // partner가 undefined인 경우 스킵
+      if (!partnerUser) {
+        continue;
+      }
+
+      // 결과 결정
+      let result: 'win' | 'lose' | 'draw';
+      if (isUserCreator) {
+        result = match.senderResult || 'draw';
+      } else {
+        // 파트너의 결과는 반대
+        result =
+          match.senderResult === 'win' ? 'lose' : match.senderResult === 'lose' ? 'win' : 'draw';
+      }
+
+      // ELO 정보 조회 (실제 Elo 값 사용)
+      let elo_before, elo_after, elo_delta;
+      let partner_elo_before, partner_elo_after, partner_elo_delta;
+
+      if (isUserCreator) {
+        // 사용자가 매치 생성자인 경우
+        elo_before = match.eloBefore || this.eloService.getInitialRating();
+        elo_after = match.eloAfter || this.eloService.getInitialRating();
+        elo_delta = match.eloDelta || 0;
+
+        // 상대방의 Elo 정보
+        partner_elo_before = match.partnerEloBefore || this.eloService.getInitialRating();
+        partner_elo_after = match.partnerEloAfter || this.eloService.getInitialRating();
+        partner_elo_delta = match.partnerEloDelta || 0;
+      } else {
+        // 사용자가 파트너인 경우
+        elo_before = match.partnerEloBefore || this.eloService.getInitialRating();
+        elo_after = match.partnerEloAfter || this.eloService.getInitialRating();
+        elo_delta = match.partnerEloDelta || 0;
+
+        // 상대방의 Elo 정보
+        partner_elo_before = match.eloBefore || this.eloService.getInitialRating();
+        partner_elo_after = match.eloAfter || this.eloService.getInitialRating();
+        partner_elo_delta = match.eloDelta || 0;
+      }
+
+      // 상대방의 현재 Elo 점수 조회
+      let partnerCurrentElo = this.eloService.getInitialRating();
+      let partnerWins = 0,
+        partnerLosses = 0,
+        partnerDraws = 0,
+        partnerTotalMatches = 0;
+      try {
+        const partnerElo = await this.userEloRepository.findOne({
+          where: {
+            user: { id: partnerUser.id },
+            sportCategory: { id: match.sportCategory.id },
+          },
         });
-    }
+        partnerCurrentElo = partnerElo?.eloPoint || this.eloService.getInitialRating();
+        partnerWins = partnerElo?.wins || 0;
+        partnerLosses = partnerElo?.losses || 0;
+        partnerDraws = partnerElo?.draws || 0;
+        partnerTotalMatches = partnerElo?.totalMatches || 0;
+      } catch (error) {
+        console.log(`Failed to get current Elo for partner ${partnerUser.id}:`, error);
+      }
 
-    async findReceivedRequests(user: JwtUser): Promise<MatchResult[]> {
-        // 받은 요청은 partner가 현재 사용자인 것들 (pending 상태만)
-        return this.matchResultRepository.find({
-            where: {
-                partner: { id: user.id },
-                status: MatchStatus.PENDING // pending 상태만 필터링
-            },
-            relations: ['sportCategory', 'user'],
-            order: { createdAt: 'DESC' }
+      // 내 현재 승패 기록 조회
+      let myWins = 0,
+        myLosses = 0,
+        myDraws = 0,
+        myTotalMatches = 0;
+      try {
+        const myElo = await this.userEloRepository.findOne({
+          where: {
+            user: { id: user.id },
+            sportCategory: { id: match.sportCategory.id },
+          },
         });
+        myWins = myElo?.wins || 0;
+        myLosses = myElo?.losses || 0;
+        myDraws = myElo?.draws || 0;
+        myTotalMatches = myElo?.totalMatches || 0;
+      } catch (error) {
+        console.log(`Failed to get current Elo for user ${user.id}:`, error);
+      }
+
+      historyItems.push({
+        id: match.id,
+        partner: partnerUser.id,
+        partner_nickname: partnerUser.nickname || 'Unknown',
+        sportCategory: match.sportCategory.name || 'Unknown',
+        result,
+        isHandicap: match.isHandicap,
+        created_at: match.createdAt,
+        elo_before,
+        elo_after,
+        elo_delta,
+        partner_elo_before,
+        partner_elo_after,
+        partner_elo_delta,
+        partner_current_elo: partnerCurrentElo,
+        // 내 승패 기록
+        my_wins: myWins,
+        my_losses: myLosses,
+        my_draws: myDraws,
+        my_total_matches: myTotalMatches,
+        // 상대방 승패 기록
+        partner_wins: partnerWins,
+        partner_losses: partnerLosses,
+        partner_draws: partnerDraws,
+        partner_total_matches: partnerTotalMatches,
+      });
     }
 
-    async findOne(id: number): Promise<MatchResult | null> {
-        return this.matchResultRepository.findOne({
-            where: { id },
-            relations: ['sportCategory', 'user', 'partner']
-        });
-    }
-
-    // 만료된 요청들을 정리하는 메서드 (스케줄러에서 사용)
-    async cleanupExpiredRequests(): Promise<void> {
-        const now = new Date();
-
-        try {
-            // 만료된 요청 개수 확인 (별칭 명확화)
-            const expiredCount = await this.matchResultRepository
-                .createQueryBuilder('matchResult')
-                .select('COUNT(*)', 'count')
-                .where('matchResult.status = :status', { status: MatchStatus.PENDING })
-                .andWhere('matchResult.expiredTime < :now', { now })
-                .getRawOne();
-
-            const count = parseInt(expiredCount?.count || '0');
-
-            if (count > 0) {
-                console.log(`[MatchResultService] 만료된 요청 ${count}개 발견, 정리 시작`);
-
-                // 만료된 요청들을 찾고 업데이트 (UPDATE 쿼리에서는 별칭 사용 불가)
-                const result = await this.matchResultRepository
-                    .createQueryBuilder()
-                    .update(MatchResult)
-                    .set({ status: MatchStatus.EXPIRED })
-                    .where('status = :status', { status: MatchStatus.PENDING })
-                    .andWhere('expired_time < :now', { now })
-                    .execute();
-
-                console.log(`[MatchResultService] 만료 처리 완료: ${result.affected}개 요청`);
-            }
-            // 만료된 요청이 없으면 로그 출력하지 않음
-        } catch (error) {
-            console.error('[MatchResultService] 만료된 요청 정리 중 오류 발생:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Partner responds to a match result (accept, reject, or counter)
-     */
-    async respond(matchResultId: number, respondDto: RespondMatchResultDto, user: JwtUser): Promise<MatchResult> {
-        const matchResult = await this.findOne(matchResultId);
-        if (!matchResult) {
-            throw new Error('Match result not found');
-        }
-
-        // 권한 확인 (받은 요청만 처리 가능)
-        if (matchResult.partner?.id !== user.id) {
-            throw new Error('You can only respond to requests sent to you');
-        }
-
-        // 상태 확인
-        if (matchResult.status !== MatchStatus.PENDING) {
-            throw new Error('Match result is not pending');
-        }
-
-        const { action } = respondDto;
-
-        if (action === 'accept') {
-            // 승인 시 즉시 ACCEPTED로 변경하고 Elo 계산
-            matchResult.status = MatchStatus.ACCEPTED;
-            matchResult.confirmedAt = new Date();
-
-            // 먼저 MatchResult를 저장
-            const updatedMatchResult = await this.matchResultRepository.save(matchResult);
-
-            console.log('After save - partnerResult:', updatedMatchResult.partnerResult);
-
-            // Elo 계산 및 적용 (저장된 MatchResult 전달)
-            await this.applyEloToMatch(updatedMatchResult);
-
-            // SSE 알림 전송: 매치 생성자에게 승인 알림
-            if (updatedMatchResult.user && updatedMatchResult.sportCategory) {
-                this.sseService.sendMatchResultStatusNotification(
-                    updatedMatchResult.user.id,
-                    updatedMatchResult.id,
-                    'approved',
-                    updatedMatchResult.sportCategory.name || 'Unknown'
-                );
-            }
-
-            // SSE 알림 전송: 승인한 사람에게 승인 완료 알림
-            this.sseService.sendMatchResultStatusNotification(
-                user.id,
-                updatedMatchResult.id,
-                'approved',
-                updatedMatchResult.sportCategory?.name || 'Unknown'
-            );
-
-            // 첫 매치결과 승인 시 튜토리얼 완료 체크 및 토큰 지급 (매치 생성자에게)
-            try {
-                await this.userService.completeTutorialFirstMatch(updatedMatchResult.user.id);
-            } catch (error) {
-                // 이미 완료된 경우나 다른 오류는 무시 (로그만 남김)
-                console.log(`Tutorial first match check failed for user ${updatedMatchResult.user.id}: ${error.message}`);
-            }
-
-            return updatedMatchResult;
-        } else if (action === 'reject') {
-            // 거부 시 REJECTED로 변경
-            matchResult.status = MatchStatus.REJECTED;
-            const rejectedMatchResult = await this.matchResultRepository.save(matchResult);
-
-            // SSE 알림 전송: 매치 생성자에게 거부 알림
-            if (rejectedMatchResult.user && rejectedMatchResult.sportCategory) {
-                this.sseService.sendMatchResultStatusNotification(
-                    rejectedMatchResult.user.id,
-                    rejectedMatchResult.id,
-                    'rejected',
-                    rejectedMatchResult.sportCategory.name || 'Unknown'
-                );
-            }
-
-            // SSE 알림 전송: 거부한 사람에게 거부 완료 알림
-            this.sseService.sendMatchResultStatusNotification(
-                user.id,
-                rejectedMatchResult.id,
-                'rejected',
-                rejectedMatchResult.sportCategory?.name || 'Unknown'
-            );
-
-            return rejectedMatchResult;
-        }
-
-        throw new Error('Invalid action');
-    }
-
-    /**
-     * Calculate H2H gap between two users in the same sport
-     */
-    async h2hGap(sportCategoryId: number, aId: number, bId: number): Promise<number> {
-        // ACCEPTED 상태의 매치만 계산에 포함 (relations 포함)
-        const confirmedMatches = await this.matchResultRepository.find({
-            where: [
-                {
-                    sportCategory: { id: sportCategoryId },
-                    user: { id: aId },
-                    partner: { id: bId },
-                    status: MatchStatus.ACCEPTED,
-                },
-                {
-                    sportCategory: { id: sportCategoryId },
-                    user: { id: bId },
-                    partner: { id: aId },
-                    status: MatchStatus.ACCEPTED,
-                },
-            ],
-            relations: ['user', 'partner'],
-        });
-
-        let aWins = 0;
-        let aLosses = 0;
-
-        for (const match of confirmedMatches) {
-            if (!match.user || !match.partner) {
-                continue; // 잘못된 데이터는 스킵
-            }
-
-            if (match.user.id === aId) {
-                if (match.senderResult === 'win') aWins++;
-                else if (match.senderResult === 'lose') aLosses++;
-            } else {
-                if (match.senderResult === 'lose') aWins++;
-                else if (match.senderResult === 'win') aLosses++;
-            }
-        }
-
-        return Math.abs(aWins - aLosses);
-    }
-
-    /**
-     * Apply Elo rating changes to a confirmed match
-     */
-    private async applyEloToMatch(matchResult: MatchResult): Promise<void> {
-
-        if (!matchResult.user || !matchResult.partner || !matchResult.sportCategory) {
-            throw new Error('Invalid match result for Elo calculation');
-        }
-
-        // 트랜잭션으로 Elo 계산 및 적용
-        await this.dataSource.transaction(async (manager) => {
-            // 매치 결과 로드 (relations 포함, lock 제거)
-            const lockedMatchResult = await manager.findOne(MatchResult, {
-                where: { id: matchResult.id },
-                relations: ['user', 'partner', 'sportCategory'],
-            });
-
-            console.log('Transaction loaded match result:', {
-                id: lockedMatchResult?.id,
-                senderResult: lockedMatchResult?.senderResult,
-                hasUser: !!lockedMatchResult?.user,
-                hasPartner: !!lockedMatchResult?.partner,
-                hasSportCategory: !!lockedMatchResult?.sportCategory
-            });
-
-            if (!lockedMatchResult || lockedMatchResult.status !== MatchStatus.ACCEPTED) {
-                throw new Error('Match result is not accepted or has been modified');
-            }
-
-            if (!lockedMatchResult.user || !lockedMatchResult.partner || !lockedMatchResult.sportCategory) {
-                throw new Error('Invalid match result: missing user, partner, or sport category');
-            }
-
-            const userId = lockedMatchResult.user.id;
-            const partnerId = lockedMatchResult.partner.id;
-            const sportCategoryId = lockedMatchResult.sportCategory.id;
-            const isHandicap = lockedMatchResult.isHandicap;
-            const result = lockedMatchResult.senderResult;
-
-            console.log('Elo calculation params:', {
-                userId,
-                partnerId,
-                sportCategoryId,
-                isHandicap,
-                result
-            });
-
-            if (!result) {
-                throw new Error('Match result is missing');
-            }
-
-            // H2H gap 계산
-            const h2hGap = await this.h2hGap(sportCategoryId, userId, partnerId);
-
-            // 현재 rating 조회 또는 초기화
-            const ratingA = await this.userEloRepository.findOne({
-                where: { user: { id: userId }, sportCategory: { id: sportCategoryId } },
-                relations: ['user', 'sportCategory']
-            });
-            const ratingB = await this.userEloRepository.findOne({
-                where: { user: { id: partnerId }, sportCategory: { id: sportCategoryId } },
-                relations: ['user', 'sportCategory']
-            });
-
-            // Elo 계산
-            const eloResult = this.eloService.calculateMatch(
-                ratingA?.eloPoint || this.eloService.getInitialRating(), // 기본값 설정
-                ratingB?.eloPoint || this.eloService.getInitialRating(), // 기본값 설정
-                result,
-                isHandicap,
-                h2hGap
-            );
-
-            // Rating 업데이트
-            if (ratingA) {
-                ratingA.eloPoint = Math.round(eloResult.aNew);
-                // 승패 기록 업데이트
-                if (result === 'win') {
-                    ratingA.wins += 1;
-                } else if (result === 'lose') {
-                    ratingA.losses += 1;
-                } else {
-                    ratingA.draws += 1;
-                }
-                ratingA.totalMatches += 1;
-                await this.userEloRepository.save(ratingA);
-            } else {
-                // 새로운 UserElo 생성 (UserService 사용)
-                const newUserEloA = await this.userService.createUserElo(userId, sportCategoryId);
-                newUserEloA.eloPoint = Math.round(eloResult.aNew);
-                // 승패 기록 업데이트
-                if (result === 'win') {
-                    newUserEloA.wins = 1;
-                } else if (result === 'lose') {
-                    newUserEloA.losses = 1;
-                } else {
-                    newUserEloA.draws = 1;
-                }
-                newUserEloA.totalMatches = 1;
-                await this.userEloRepository.save(newUserEloA);
-            }
-
-            if (ratingB) {
-                ratingB.eloPoint = Math.round(eloResult.bNew);
-                // 승패 기록 업데이트 (B의 결과는 A의 반대)
-                if (result === 'win') {
-                    ratingB.losses += 1;
-                } else if (result === 'lose') {
-                    ratingB.wins += 1;
-                } else {
-                    ratingB.draws += 1;
-                }
-                ratingB.totalMatches += 1;
-                await this.userEloRepository.save(ratingB);
-            } else {
-                // 새로운 UserElo 생성 (UserService 사용)
-                const newUserEloB = await this.userService.createUserElo(partnerId, sportCategoryId);
-                newUserEloB.eloPoint = Math.round(eloResult.bNew);
-                // 승패 기록 업데이트 (B의 결과는 A의 반대)
-                if (result === 'win') {
-                    newUserEloB.losses = 1;
-                } else if (result === 'lose') {
-                    newUserEloB.wins = 1;
-                } else {
-                    newUserEloB.draws = 1;
-                }
-                newUserEloB.totalMatches = 1;
-                await this.userEloRepository.save(newUserEloB);
-            }
-
-            // History 기록
-            const history = this.matchResultHistoryRepository.create({
-                matchResult: lockedMatchResult,
-                aUser: { id: userId },
-                bUser: { id: partnerId },
-                aOld: eloResult.aOld,
-                aNew: eloResult.aNew,
-                aDelta: eloResult.aDelta,
-                bOld: eloResult.bOld,
-                bNew: eloResult.bNew,
-                bDelta: eloResult.bDelta,
-                kEff: eloResult.kEff,
-                h2hGap: eloResult.h2hGap,
-            });
-
-            await manager.save(history);
-
-            // MatchResult 엔티티의 Elo 필드들 업데이트
-            lockedMatchResult.eloBefore = Math.round(eloResult.aOld);
-            lockedMatchResult.eloAfter = Math.round(eloResult.aNew);
-            lockedMatchResult.eloDelta = Math.round(eloResult.aDelta);
-            lockedMatchResult.partnerEloBefore = Math.round(eloResult.bOld);
-            lockedMatchResult.partnerEloAfter = Math.round(eloResult.bNew);
-            lockedMatchResult.partnerEloDelta = Math.round(eloResult.bDelta);
-
-            // 업데이트된 MatchResult 저장
-            await manager.save(lockedMatchResult);
-        });
-    }
-
-    async findByUserId(userId: number): Promise<MatchResult[]> {
-        return this.matchResultRepository.find({
-            where: { user: { id: userId } },
-            relations: ['sportCategory', 'user', 'partner']
-        });
-    }
-
-    async findUserMatchHistory(user: JwtUser, query: any = {}): Promise<{ data: any[], pagination: any }> {
-        const { sport, partner, page = 1, limit = 10 } = query;
-
-        // QueryBuilder를 사용하여 더 정확한 필터링 구현
-        const queryBuilder = this.matchResultRepository
-            .createQueryBuilder('match')
-            .leftJoinAndSelect('match.sportCategory', 'sportCategory')
-            .leftJoinAndSelect('match.user', 'user')
-            .leftJoinAndSelect('match.partner', 'partner')
-            .where('match.status = :status', { status: MatchStatus.ACCEPTED })
-            .andWhere('(match.user.id = :userId OR match.partner.id = :userId)', { userId: user.id });
-
-        // 스포츠 카테고리 필터링
-        if (sport) {
-            queryBuilder.andWhere('sportCategory.id = :sportId', { sportId: sport });
-        }
-
-        // 파트너 필터링
-        if (partner) {
-            queryBuilder.andWhere('(partner.nickname = :partnerName OR user.nickname = :partnerName)', { partnerName: partner });
-        }
-
-        // 전체 개수 조회
-        const totalCount = await queryBuilder.getCount();
-
-        // 페이지네이션 적용하여 데이터 조회
-        const matchResults = await queryBuilder
-            .orderBy('match.createdAt', 'DESC')
-            .skip((page - 1) * limit)
-            .take(limit)
-            .getMany();
-
-        const historyItems: any[] = [];
-
-        for (const match of matchResults) {
-            // 현재 사용자가 매치의 주체인지 파트너인지 확인
-            const isUserCreator = match.user.id === user.id;
-            const partnerUser = isUserCreator ? match.partner : match.user;
-
-            // partner가 undefined인 경우 스킵
-            if (!partnerUser) {
-                continue;
-            }
-
-            // 결과 결정
-            let result: 'win' | 'lose' | 'draw';
-            if (isUserCreator) {
-                result = match.senderResult || 'draw';
-            } else {
-                // 파트너의 결과는 반대
-                result = match.senderResult === 'win' ? 'lose' :
-                    match.senderResult === 'lose' ? 'win' : 'draw';
-            }
-
-            // ELO 정보 조회 (실제 Elo 값 사용)
-            let elo_before, elo_after, elo_delta;
-            let partner_elo_before, partner_elo_after, partner_elo_delta;
-
-            if (isUserCreator) {
-                // 사용자가 매치 생성자인 경우
-                elo_before = match.eloBefore || this.eloService.getInitialRating();
-                elo_after = match.eloAfter || this.eloService.getInitialRating();
-                elo_delta = match.eloDelta || 0;
-
-                // 상대방의 Elo 정보
-                partner_elo_before = match.partnerEloBefore || this.eloService.getInitialRating();
-                partner_elo_after = match.partnerEloAfter || this.eloService.getInitialRating();
-                partner_elo_delta = match.partnerEloDelta || 0;
-            } else {
-                // 사용자가 파트너인 경우
-                elo_before = match.partnerEloBefore || this.eloService.getInitialRating();
-                elo_after = match.partnerEloAfter || this.eloService.getInitialRating();
-                elo_delta = match.partnerEloDelta || 0;
-
-                // 상대방의 Elo 정보
-                partner_elo_before = match.eloBefore || this.eloService.getInitialRating();
-                partner_elo_after = match.eloAfter || this.eloService.getInitialRating();
-                partner_elo_delta = match.eloDelta || 0;
-            }
-
-            // 상대방의 현재 Elo 점수 조회
-            let partnerCurrentElo = this.eloService.getInitialRating();
-            let partnerWins = 0, partnerLosses = 0, partnerDraws = 0, partnerTotalMatches = 0;
-            try {
-                const partnerElo = await this.userEloRepository.findOne({
-                    where: {
-                        user: { id: partnerUser.id },
-                        sportCategory: { id: match.sportCategory.id }
-                    }
-                });
-                partnerCurrentElo = partnerElo?.eloPoint || this.eloService.getInitialRating();
-                partnerWins = partnerElo?.wins || 0;
-                partnerLosses = partnerElo?.losses || 0;
-                partnerDraws = partnerElo?.draws || 0;
-                partnerTotalMatches = partnerElo?.totalMatches || 0;
-            } catch (error) {
-                console.log(`Failed to get current Elo for partner ${partnerUser.id}:`, error);
-            }
-
-            // 내 현재 승패 기록 조회
-            let myWins = 0, myLosses = 0, myDraws = 0, myTotalMatches = 0;
-            try {
-                const myElo = await this.userEloRepository.findOne({
-                    where: {
-                        user: { id: user.id },
-                        sportCategory: { id: match.sportCategory.id }
-                    }
-                });
-                myWins = myElo?.wins || 0;
-                myLosses = myElo?.losses || 0;
-                myDraws = myElo?.draws || 0;
-                myTotalMatches = myElo?.totalMatches || 0;
-            } catch (error) {
-                console.log(`Failed to get current Elo for user ${user.id}:`, error);
-            }
-
-            historyItems.push({
-                id: match.id,
-                partner: partnerUser.id,
-                partner_nickname: partnerUser.nickname || 'Unknown',
-                sportCategory: match.sportCategory.name || 'Unknown',
-                result,
-                isHandicap: match.isHandicap,
-                created_at: match.createdAt,
-                elo_before,
-                elo_after,
-                elo_delta,
-                partner_elo_before,
-                partner_elo_after,
-                partner_elo_delta,
-                partner_current_elo: partnerCurrentElo,
-                // 내 승패 기록
-                my_wins: myWins,
-                my_losses: myLosses,
-                my_draws: myDraws,
-                my_total_matches: myTotalMatches,
-                // 상대방 승패 기록
-                partner_wins: partnerWins,
-                partner_losses: partnerLosses,
-                partner_draws: partnerDraws,
-                partner_total_matches: partnerTotalMatches
-            });
-        }
-
-        // 페이지네이션 정보 계산
-        const totalPages = Math.ceil(totalCount / limit);
-        const hasNext = page < totalPages;
-        const hasPrev = page > 1;
-
-        return {
-            data: historyItems,
-            pagination: {
-                page,
-                limit,
-                total: totalCount,
-                totalPages,
-                hasNext,
-                hasPrev
-            }
-        };
-    }
-} 
+    // 페이지네이션 정보 계산
+    const totalPages = Math.ceil(totalCount / limit);
+    const hasNext = page < totalPages;
+    const hasPrev = page > 1;
+
+    return {
+      data: historyItems,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        totalPages,
+        hasNext,
+        hasPrev,
+      },
+    };
+  }
+}
