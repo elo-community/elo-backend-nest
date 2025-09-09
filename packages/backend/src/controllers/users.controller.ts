@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Put, Query, Request, UnauthorizedException, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Put,
+  Query,
+  Request,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Public } from 'src/auth/public.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -18,245 +29,246 @@ import { UserService } from '../services/user.service';
 @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
-    constructor(
-        private readonly userService: UserService,
-        private readonly sportCategoryService: SportCategoryService,
-        private readonly postService: PostService,
-        private readonly matchResultService: MatchResultService,
-    ) { }
+  constructor(
+    private readonly userService: UserService,
+    private readonly sportCategoryService: SportCategoryService,
+    private readonly postService: PostService,
+    private readonly matchResultService: MatchResultService,
+  ) {}
 
-    @Get()
-    @ApiExcludeEndpoint()
-    async findAll() {
-        const users = await this.userService.findAll();
+  @Get()
+  @ApiExcludeEndpoint()
+  async findAll() {
+    const users = await this.userService.findAll();
+    return {
+      success: true,
+      data: users.map(user => new UserResponseDto(user)),
+      message: 'Users retrieved successfully',
+    };
+  }
+
+  @Get('me')
+  async getMe(@CurrentUser() currentUser: JwtUser) {
+    const user = await this.userService.findOne(currentUser.id);
+    if (!user) {
+      return {
+        success: false,
+        message: 'User not found',
+      };
+    }
+    return {
+      success: true,
+      data: new UserResponseDto(user),
+      message: 'Current user profile retrieved successfully',
+    };
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: number) {
+    const user = await this.userService.findOne(id);
+    if (!user) {
+      return {
+        success: false,
+        message: 'User not found',
+      };
+    }
+    return {
+      success: true,
+      data: new UserResponseDto(user),
+      message: 'User retrieved successfully',
+    };
+  }
+
+  @Get('me/profile')
+  async getMyProfile(@CurrentUser() user?: JwtUser): Promise<UserProfileResponseDto> {
+    const userId = user?.id;
+
+    if (!userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
+
+    const profileData = await this.userService.findProfileWithElos(userId);
+    return new UserProfileResponseDto(profileData.user, profileData.userElos);
+  }
+
+  @Public()
+  @Get(':id/profile')
+  async getProfile(@Param('id') id: string): Promise<UserProfileResponseDto> {
+    const userId = parseInt(id);
+
+    if (!userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
+
+    const profileData = await this.userService.findProfileWithElos(userId);
+    return new UserProfileResponseDto(profileData.user, profileData.userElos);
+  }
+
+  @Get(':id/posts')
+  async getUserPosts(@Param('id') id: string, @CurrentUser() currentUser: JwtUser) {
+    const userId = id === 'me' ? currentUser.id : parseInt(id);
+
+    if (!userId) {
+      return {
+        success: false,
+        message: 'Invalid user ID',
+      };
+    }
+
+    // Check if user exists
+    const user = await this.userService.findOne(userId);
+    if (!user) {
+      return {
+        success: false,
+        message: 'User not found',
+      };
+    }
+
+    // Get posts by user
+    const posts = await this.postService.findByUserId(userId);
+
+    // 각 포스트에 대해 사용자의 좋아요/싫어요 여부 확인
+    const postsWithStatus = await Promise.all(
+      posts.map(async post => {
+        const isLiked = await this.postService.checkUserLikeStatus(post.id, currentUser.id);
+        const isHated = await this.postService.checkUserHateStatus(post.id, currentUser.id);
+        return new PostResponseDto(post, isLiked, isHated);
+      }),
+    );
+
+    return {
+      success: true,
+      data: postsWithStatus,
+      message: 'User posts retrieved successfully',
+    };
+  }
+
+  /**
+   * 사용자 토큰 정보 조회
+   */
+  @Get(':id/tokens')
+  async getUserTokens(@Param('id') id: string, @CurrentUser() currentUser: JwtUser) {
+    try {
+      const userId = id === 'me' ? currentUser.id : parseInt(id);
+
+      if (!userId) {
         return {
-            success: true,
-            data: users.map((user) => new UserResponseDto(user)),
-            message: 'Users retrieved successfully'
+          success: false,
+          message: 'Invalid user ID',
         };
-    }
+      }
 
-    @Get('me')
-    async getMe(@CurrentUser() currentUser: JwtUser) {
-        const user = await this.userService.findOne(currentUser.id);
-        if (!user) {
-            return {
-                success: false,
-                message: 'User not found'
-            };
-        }
+      // 사용자 정보 조회
+      const user = await this.userService.findOne(userId);
+      if (!user) {
         return {
-            success: true,
-            data: new UserResponseDto(user),
-            message: 'Current user profile retrieved successfully'
+          success: false,
+          message: 'User not found',
         };
-    }
+      }
 
-    @Get(':id')
-    async findOne(@Param('id') id: number) {
-        const user = await this.userService.findOne(id);
-        if (!user) {
-            return {
-                success: false,
-                message: 'User not found'
-            };
-        }
+      // 사용자의 availableToken 업데이트 (accumulation에서 최신 데이터로)
+      if (!user.walletAddress) {
         return {
-            success: true,
-            data: new UserResponseDto(user),
-            message: 'User retrieved successfully'
+          success: false,
+          message: 'User wallet address not found',
         };
+      }
+
+      await this.userService.updateAvailableTokens(user.walletAddress);
+
+      // 토큰 정보 조회
+      const tokenInfo = await this.userService.getUserTokenInfo(user.walletAddress);
+
+      return {
+        success: true,
+        data: {
+          userId: user.id,
+          walletAddress: user.walletAddress,
+          totalTokens: tokenInfo.totalTokens, // 총 보유 토큰 (token_amount)
+          availableTokens: tokenInfo.availableTokens, // 클레임 가능한 토큰 (avail_token)
+        },
+        message: 'User token info retrieved successfully',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to get user token info: ${error.message}`,
+      };
     }
+  }
 
-
-    @Get('me/profile')
-    async getMyProfile(@CurrentUser() user?: JwtUser): Promise<UserProfileResponseDto> {
-        const userId = user?.id;
-
-        if (!userId) {
-            throw new UnauthorizedException('User not authenticated');
-        }
-
-        const profileData = await this.userService.findProfileWithElos(userId);
-        return new UserProfileResponseDto(profileData.user, profileData.userElos);
+  @Put('me/nickname')
+  async updateNickname(@Body() createUserDto: CreateUserDto, @CurrentUser() currentUser: JwtUser) {
+    const user = await this.userService.findById(currentUser.id);
+    if (!user) {
+      return {
+        success: false,
+        message: 'User not found',
+      };
     }
+    user.nickname = createUserDto.nickname;
+    await this.userService.update(currentUser.id, user);
 
-    @Public()
-    @Get(':id/profile')
-    async getProfile(@Param('id') id: string): Promise<UserProfileResponseDto> {
-        const userId = parseInt(id);
+    return {
+      success: true,
+      data: new UserResponseDto(user),
+      message: 'User created successfully',
+    };
+  }
 
-        if (!userId) {
-            throw new UnauthorizedException('User not authenticated');
-        }
-
-        const profileData = await this.userService.findProfileWithElos(userId);
-        return new UserProfileResponseDto(profileData.user, profileData.userElos);
+  @Put(':id')
+  @ApiExcludeEndpoint()
+  async update(@Param('id') id: number, @Body() updateUserDto: UpdateUserDto) {
+    const user = await this.userService.update(id, updateUserDto);
+    if (!user) {
+      return {
+        success: false,
+        message: 'User not found',
+      };
     }
+    return {
+      success: true,
+      data: new UserResponseDto(user),
+      message: 'User updated successfully',
+    };
+  }
 
-    @Get(':id/posts')
-    async getUserPosts(@Param('id') id: string, @CurrentUser() currentUser: JwtUser) {
-        const userId = id === 'me' ? currentUser.id : parseInt(id);
+  @Get('me/match-results')
+  async getMyMatchHistory(
+    @Query() query: MatchResultHistoryQueryDto,
+    @CurrentUser() currentUser: JwtUser,
+  ) {
+    const matchHistory = await this.matchResultService.findUserMatchHistory(currentUser, query);
 
-        if (!userId) {
-            return {
-                success: false,
-                message: 'Invalid user ID'
-            };
-        }
+    return {
+      success: true,
+      data: {
+        matches: matchHistory.data,
+      },
+      pagination: matchHistory.pagination,
+      message: 'Match history retrieved successfully',
+    };
+  }
 
-        // Check if user exists
-        const user = await this.userService.findOne(userId);
-        if (!user) {
-            return {
-                success: false,
-                message: 'User not found'
-            };
-        }
-
-        // Get posts by user
-        const posts = await this.postService.findByUserId(userId);
-
-        // 각 포스트에 대해 사용자의 좋아요/싫어요 여부 확인
-        const postsWithStatus = await Promise.all(
-            posts.map(async (post) => {
-                const isLiked = await this.postService.checkUserLikeStatus(post.id, currentUser.id);
-                const isHated = await this.postService.checkUserHateStatus(post.id, currentUser.id);
-                return new PostResponseDto(post, isLiked, isHated);
-            })
-        );
-
-        return {
-            success: true,
-            data: postsWithStatus,
-            message: 'User posts retrieved successfully'
-        };
+  @Get('tutorial-status')
+  @UseGuards(JwtAuthGuard)
+  async getTutorialStatus(@Request() req: any) {
+    const user = await this.userService.findById(req.user.id);
+    if (!user) {
+      throw new Error('User not found');
     }
+    return this.userService.getTutorialStatus(user.id);
+  }
 
-    /**
-     * 사용자 토큰 정보 조회
-     */
-    @Get(':id/tokens')
-    async getUserTokens(@Param('id') id: string, @CurrentUser() currentUser: JwtUser) {
-        try {
-            const userId = id === 'me' ? currentUser.id : parseInt(id);
-
-            if (!userId) {
-                return {
-                    success: false,
-                    message: 'Invalid user ID'
-                };
-            }
-
-            // 사용자 정보 조회
-            const user = await this.userService.findOne(userId);
-            if (!user) {
-                return {
-                    success: false,
-                    message: 'User not found'
-                };
-            }
-
-            // 사용자의 availableToken 업데이트 (accumulation에서 최신 데이터로)
-            if (!user.walletAddress) {
-                return {
-                    success: false,
-                    message: 'User wallet address not found'
-                };
-            }
-
-            await this.userService.updateAvailableTokens(user.walletAddress);
-
-            // 토큰 정보 조회
-            const tokenInfo = await this.userService.getUserTokenInfo(user.walletAddress);
-
-            return {
-                success: true,
-                data: {
-                    userId: user.id,
-                    walletAddress: user.walletAddress,
-                    totalTokens: tokenInfo.totalTokens,        // 총 보유 토큰 (token_amount)
-                    availableTokens: tokenInfo.availableTokens  // 클레임 가능한 토큰 (avail_token)
-                },
-                message: 'User token info retrieved successfully'
-            };
-        } catch (error) {
-            return {
-                success: false,
-                message: `Failed to get user token info: ${error.message}`
-            };
-        }
-    }
-
-
-    @Put('me/nickname')
-    async updateNickname(@Body() createUserDto: CreateUserDto, @CurrentUser() currentUser: JwtUser) {
-        const user = await this.userService.findById(currentUser.id);
-        if (!user) {
-            return {
-                success: false,
-                message: 'User not found'
-            };
-        }
-        user.nickname = createUserDto.nickname;
-        await this.userService.update(currentUser.id, user);
-
-        return {
-            success: true,
-            data: new UserResponseDto(user),
-            message: 'User created successfully'
-        };
-    }
-
-    @Put(':id')
-    @ApiExcludeEndpoint()
-    async update(@Param('id') id: number, @Body() updateUserDto: UpdateUserDto) {
-        const user = await this.userService.update(id, updateUserDto);
-        if (!user) {
-            return {
-                success: false,
-                message: 'User not found'
-            };
-        }
-        return {
-            success: true,
-            data: new UserResponseDto(user),
-            message: 'User updated successfully'
-        };
-    }
-
-    @Get('me/match-results')
-    async getMyMatchHistory(@Query() query: MatchResultHistoryQueryDto, @CurrentUser() currentUser: JwtUser) {
-        const matchHistory = await this.matchResultService.findUserMatchHistory(currentUser, query);
-
-        return {
-            success: true,
-            data: {
-                matches: matchHistory.data
-            },
-            pagination: matchHistory.pagination,
-            message: 'Match history retrieved successfully'
-        };
-    }
-
-    @Get('tutorial-status')
-    @UseGuards(JwtAuthGuard)
-    async getTutorialStatus(@Request() req: any) {
-        const user = await this.userService.findById(req.user.id);
-        if (!user) {
-            throw new Error('User not found');
-        }
-        return this.userService.getTutorialStatus(user.id);
-    }
-
-    @Delete(':id')
-    @ApiExcludeEndpoint()
-    async remove(@Param('id') id: number) {
-        const result = await this.userService.remove(id);
-        return {
-            success: true,
-            data: { deleted: !!result.affected },
-            message: 'User deleted successfully'
-        };
-    }
-} 
+  @Delete(':id')
+  @ApiExcludeEndpoint()
+  async remove(@Param('id') id: number) {
+    const result = await this.userService.remove(id);
+    return {
+      success: true,
+      data: { deleted: !!result.affected },
+      message: 'User deleted successfully',
+    };
+  }
+}

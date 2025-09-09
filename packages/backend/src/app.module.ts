@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Module, OnModuleInit, forwardRef } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -9,7 +9,7 @@ import {
   awsConfig,
   blockchainConfig,
   databaseConfig,
-  jwtConfig
+  jwtConfig,
 } from './config/env.config';
 import { AuthController } from './controllers/auth.controller';
 import { CommentLikesController } from './controllers/comment-likes.controller';
@@ -18,7 +18,10 @@ import { HealthController } from './controllers/health.controller';
 import { HotPostRewardController } from './controllers/hot-post-reward.controller';
 import { ImageController } from './controllers/image.controller';
 import { MatchPostController } from './controllers/match-post.controller';
-import { MatchResultsController, UserMatchesController } from './controllers/match-results.controller';
+import {
+  MatchResultsController,
+  UserMatchesController,
+} from './controllers/match-results.controller';
 import { PostHatesController } from './controllers/post-hates.controller';
 import { PostLikeSignatureController } from './controllers/post-like-signature.controller';
 import { PostLikesController } from './controllers/post-likes.controller';
@@ -102,18 +105,83 @@ import { UserService } from './services/user.service';
       inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([
-      User, Post, Comment, Reply, SportCategory, PostLike, PostHate, CommentLike, UserElo, MatchResult, MatchResultHistory, TempImage, HotPost, HotPostReward, TokenTransaction, TokenAccumulation, ClaimNonce, ClaimRequest, MatchRequest
+      User,
+      Post,
+      Comment,
+      Reply,
+      SportCategory,
+      PostLike,
+      PostHate,
+      CommentLike,
+      UserElo,
+      MatchResult,
+      MatchResultHistory,
+      TempImage,
+      HotPost,
+      HotPostReward,
+      TokenTransaction,
+      TokenAccumulation,
+      ClaimNonce,
+      ClaimRequest,
+      MatchRequest,
     ]),
     AuthModule,
     EloModule,
-    BlockchainModule,
+    forwardRef(() => BlockchainModule),
     RewardsModule,
   ],
   controllers: [
-    AuthController, UsersController, PostsController, CommentsController, RepliesController, SportCategoriesController, HotPostRewardController, PostLikeSignatureController, PostLikesController, PostHatesController, CommentLikesController, MatchResultsController, UserMatchesController, ImageController, SseController, RewardsSseController, RewardsController, TrivusExpController, TokenTransactionsController, TokenAccumulationController, MatchPostController, HealthController
+    AuthController,
+    UsersController,
+    PostsController,
+    CommentsController,
+    RepliesController,
+    SportCategoriesController,
+    HotPostRewardController,
+    PostLikeSignatureController,
+    PostLikesController,
+    PostHatesController,
+    CommentLikesController,
+    MatchResultsController,
+    UserMatchesController,
+    ImageController,
+    SseController,
+    RewardsSseController,
+    RewardsController,
+    TrivusExpController,
+    TokenTransactionsController,
+    TokenAccumulationController,
+    MatchPostController,
+    HealthController,
   ],
   providers: [
-    PostService, CommentService, ReplyService, SportCategoryService, PostHateService, PostLikeService, CommentLikeService, MatchResultService, MatchResultScheduler, S3Service, SseService, TempImageService, TempImageCleanupScheduler, EloService, HotPostsScheduler, RealTimeHotPostsScheduler, TokenTransactionService, TokenAccumulationService, BlockchainSyncService, MatchPostService, ClaimNonceService
+    PostService,
+    CommentService,
+    ReplyService,
+    SportCategoryService,
+    PostHateService,
+    PostLikeService,
+    CommentLikeService,
+    MatchResultService,
+    MatchResultScheduler,
+    S3Service,
+    SseService,
+    TempImageService,
+    TempImageCleanupScheduler,
+    EloService,
+    HotPostsScheduler,
+    RealTimeHotPostsScheduler,
+    TokenTransactionService,
+    TokenAccumulationService,
+    BlockchainSyncService,
+    MatchPostService,
+    ClaimNonceService,
+  ],
+  exports: [
+    PostService,
+    PostLikeService,
+    TokenAccumulationService,
+    TokenTransactionService,
   ],
 })
 export class AppModule implements OnModuleInit {
@@ -160,15 +228,23 @@ export class AppModule implements OnModuleInit {
       const currentBlock = await this.getCurrentBlockNumber();
       const fromBlock = Math.max(0, currentBlock - 1000);
 
-      const syncResult = await this.blockchainSyncService.syncExistingLikes(fromBlock, currentBlock);
+      const syncResult = await this.blockchainSyncService.syncExistingLikes(
+        fromBlock,
+        currentBlock,
+      );
 
       if (syncResult.totalEvents > 0) {
-        console.log(`✅ 블록체인 동기화 완료: ${syncResult.processedEvents}/${syncResult.totalEvents} 이벤트 처리, ${syncResult.newLikes}개 새 좋아요 추가`);
+        console.log(
+          `✅ 블록체인 동기화 완료: ${syncResult.processedEvents}/${syncResult.totalEvents} 이벤트 처리, ${syncResult.newLikes}개 새 좋아요 추가`,
+        );
       } else {
         console.log('ℹ️ 동기화할 좋아요 이벤트가 없습니다.');
       }
     } catch (error) {
-      console.warn('⚠️ 블록체인 좋아요 동기화 실패 (블록체인 네트워크 문제일 수 있음):', error.message);
+      console.warn(
+        '⚠️ 블록체인 좋아요 동기화 실패 (블록체인 네트워크 문제일 수 있음):',
+        error.message,
+      );
       console.log('ℹ️ 애플리케이션은 정상적으로 실행됩니다. 좋아요 동기화는 제한될 수 있습니다.');
     }
   }
@@ -204,7 +280,7 @@ export class AppModule implements OnModuleInit {
 
     return {
       mainUser,
-      tableTennisUser
+      tableTennisUser,
     };
   }
 
@@ -212,7 +288,7 @@ export class AppModule implements OnModuleInit {
     // 기존 매치 요청이 있는지 확인
     const existingRequests = await this.matchResultService.findSentRequests({
       id: sampleUsers.mainUser.id,
-      nickname: sampleUsers.mainUser.nickname
+      nickname: sampleUsers.mainUser.nickname,
     } as any);
 
     if (existingRequests.length > 0) {
@@ -234,16 +310,19 @@ export class AppModule implements OnModuleInit {
         walletAddress: sampleUsers.mainUser.walletAddress,
         tokenAmount: sampleUsers.mainUser.tokenAmount,
         availableToken: sampleUsers.mainUser.availableToken,
-        createdAt: sampleUsers.mainUser.createdAt
+        createdAt: sampleUsers.mainUser.createdAt,
       };
 
-      await this.matchResultService.create({
-        partnerNickname: '탁구왕민수',
-        sportCategoryId: tableTennisCategory.id,
-        senderResult: 'win',
-        isHandicap: false,
-        playedAt: new Date() // 현재 시간으로 설정
-      }, sampleUserJwt);
+      await this.matchResultService.create(
+        {
+          partnerNickname: '탁구왕민수',
+          sportCategoryId: tableTennisCategory.id,
+          senderResult: 'win',
+          isHandicap: false,
+          playedAt: new Date(), // 현재 시간으로 설정
+        },
+        sampleUserJwt,
+      );
 
       console.log('샘플 매치 요청이 생성되었습니다: 샘플유저 → 탁구왕민수');
     }
@@ -260,47 +339,130 @@ export class AppModule implements OnModuleInit {
     const categories = await this.sportCategoryService.findAll();
     const samplePosts = [
       // 자유글
-      { title: '안녕하세요!', content: '처음 가입했습니다. 반갑습니다!', categoryName: '자유글', type: PostType.GENERAL },
-      { title: '오늘 날씨가 좋네요', content: '산책하기 좋은 날씨입니다.', categoryName: '자유글', type: PostType.GENERAL },
+      {
+        title: '안녕하세요!',
+        content: '처음 가입했습니다. 반갑습니다!',
+        categoryName: '자유글',
+        type: PostType.GENERAL,
+      },
+      {
+        title: '오늘 날씨가 좋네요',
+        content: '산책하기 좋은 날씨입니다.',
+        categoryName: '자유글',
+        type: PostType.GENERAL,
+      },
 
       // 테니스
-      { title: '테니스 레슨 후기', content: '오늘 테니스 레슨 받았는데 정말 재미있었어요!', categoryName: '테니스', type: PostType.GENERAL },
-      { title: '테니스 라켓 추천', content: '초보자용 테니스 라켓 추천해주세요.', categoryName: '테니스', type: PostType.GENERAL },
+      {
+        title: '테니스 레슨 후기',
+        content: '오늘 테니스 레슨 받았는데 정말 재미있었어요!',
+        categoryName: '테니스',
+        type: PostType.GENERAL,
+      },
+      {
+        title: '테니스 라켓 추천',
+        content: '초보자용 테니스 라켓 추천해주세요.',
+        categoryName: '테니스',
+        type: PostType.GENERAL,
+      },
 
       // 배드민턴
-      { title: '배드민턴 동호회 모집', content: '배드민턴 동호회에 가입하고 싶습니다.', categoryName: '배드민턴', type: PostType.GENERAL },
-      { title: '배드민턴 기술 팁', content: '배드민턴 서브 기술을 연마하고 있습니다.', categoryName: '배드민턴', type: PostType.GENERAL },
+      {
+        title: '배드민턴 동호회 모집',
+        content: '배드민턴 동호회에 가입하고 싶습니다.',
+        categoryName: '배드민턴',
+        type: PostType.GENERAL,
+      },
+      {
+        title: '배드민턴 기술 팁',
+        content: '배드민턴 서브 기술을 연마하고 있습니다.',
+        categoryName: '배드민턴',
+        type: PostType.GENERAL,
+      },
 
       // 탁구
-      { title: '탁구 대회 정보', content: '다음 달에 탁구 대회가 열린다고 하네요.', categoryName: '탁구', type: PostType.GENERAL },
-      { title: '탁구 연습 방법', content: '탁구 연습을 위한 좋은 방법이 있을까요?', categoryName: '탁구', type: PostType.GENERAL },
+      {
+        title: '탁구 대회 정보',
+        content: '다음 달에 탁구 대회가 열린다고 하네요.',
+        categoryName: '탁구',
+        type: PostType.GENERAL,
+      },
+      {
+        title: '탁구 연습 방법',
+        content: '탁구 연습을 위한 좋은 방법이 있을까요?',
+        categoryName: '탁구',
+        type: PostType.GENERAL,
+      },
 
       // 당구
-      { title: '당구장 추천', content: '좋은 당구장 추천해주세요.', categoryName: '당구', type: PostType.GENERAL },
-      { title: '당구 기술 연습', content: '당구 기술을 연마하고 있습니다.', categoryName: '당구', type: PostType.GENERAL },
+      {
+        title: '당구장 추천',
+        content: '좋은 당구장 추천해주세요.',
+        categoryName: '당구',
+        type: PostType.GENERAL,
+      },
+      {
+        title: '당구 기술 연습',
+        content: '당구 기술을 연마하고 있습니다.',
+        categoryName: '당구',
+        type: PostType.GENERAL,
+      },
 
       // 바둑
-      { title: '바둑 동호회', content: '바둑 동호회에 가입하고 싶습니다.', categoryName: '바둑', type: PostType.GENERAL },
-      { title: '바둑 기보 공유', content: '재미있는 바둑 기보를 공유합니다.', categoryName: '바둑', type: PostType.GENERAL },
+      {
+        title: '바둑 동호회',
+        content: '바둑 동호회에 가입하고 싶습니다.',
+        categoryName: '바둑',
+        type: PostType.GENERAL,
+      },
+      {
+        title: '바둑 기보 공유',
+        content: '재미있는 바둑 기보를 공유합니다.',
+        categoryName: '바둑',
+        type: PostType.GENERAL,
+      },
 
       // 체스
-      { title: '체스 대회 정보', content: '체스 대회가 열린다고 하네요.', categoryName: '체스', type: PostType.GENERAL },
-      { title: '체스 전략', content: '체스 전략에 대해 이야기해보세요.', categoryName: '체스', type: PostType.GENERAL },
+      {
+        title: '체스 대회 정보',
+        content: '체스 대회가 열린다고 하네요.',
+        categoryName: '체스',
+        type: PostType.GENERAL,
+      },
+      {
+        title: '체스 전략',
+        content: '체스 전략에 대해 이야기해보세요.',
+        categoryName: '체스',
+        type: PostType.GENERAL,
+      },
 
       // 공지사항
-      { title: '커뮤니티 이용 안내', content: '커뮤니티 이용 시 주의사항을 확인해주세요.', categoryName: '공지사항', type: PostType.GENERAL },
-      { title: '새로운 기능 안내', content: '새로운 기능이 추가되었습니다.', categoryName: '공지사항', type: PostType.GENERAL },
+      {
+        title: '커뮤니티 이용 안내',
+        content: '커뮤니티 이용 시 주의사항을 확인해주세요.',
+        categoryName: '공지사항',
+        type: PostType.GENERAL,
+      },
+      {
+        title: '새로운 기능 안내',
+        content: '새로운 기능이 추가되었습니다.',
+        categoryName: '공지사항',
+        type: PostType.GENERAL,
+      },
     ];
 
     for (const postData of samplePosts) {
       const category = categories.find(cat => cat.name === postData.categoryName);
       if (category) {
-        await this.postService.create({
-          title: postData.title,
-          content: postData.content,
-          sportCategoryId: category.id,
-          type: postData.type,
-        }, user);
+        await this.postService.create(
+          {
+            title: postData.title,
+            content: postData.content,
+            sportCategoryId: category.id,
+            type: postData.type,
+          },
+          user,
+        );
       }
     }
 
@@ -319,14 +481,15 @@ export class AppModule implements OnModuleInit {
     const sampleMatchPosts = [
       {
         title: '테니스 2:2 매칭 구합니다',
-        content: '강남구 테니스장에서 2:2 매칭 구합니다. 실력은 중급 정도이고, 즐겁게 치고 싶습니다.',
+        content:
+          '강남구 테니스장에서 2:2 매칭 구합니다. 실력은 중급 정도이고, 즐겁게 치고 싶습니다.',
         categoryName: '테니스',
         matchLocation: '강남구 테니스장',
         myElo: 1200,
         preferredElo: 'similar',
         participantCount: 4,
         deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1주일 후
-        matchDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3일 후
+        matchDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3일 후
       },
       {
         title: '탁구 1:1 연습 상대 구합니다',
@@ -337,7 +500,7 @@ export class AppModule implements OnModuleInit {
         preferredElo: 'any',
         participantCount: 2,
         deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5일 후
-        matchDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000) // 2일 후
+        matchDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2일 후
       },
       {
         title: '배드민턴 복식 파트너 구합니다',
@@ -348,24 +511,27 @@ export class AppModule implements OnModuleInit {
         preferredElo: 'similar',
         participantCount: 2,
         deadline: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10일 후
-        matchDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000) // 4일 후
-      }
+        matchDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000), // 4일 후
+      },
     ];
 
     for (const matchPostData of sampleMatchPosts) {
       const category = categories.find(cat => cat.name === matchPostData.categoryName);
       if (category) {
-        await this.matchPostService.createMatchPost({
-          title: matchPostData.title,
-          content: matchPostData.content,
-          sportCategoryId: category.id,
-          matchLocation: matchPostData.matchLocation,
-          myElo: matchPostData.myElo,
-          preferredElo: matchPostData.preferredElo,
-          participantCount: matchPostData.participantCount,
-          deadline: matchPostData.deadline.toISOString(),
-          matchDate: matchPostData.matchDate.toISOString()
-        }, user);
+        await this.matchPostService.createMatchPost(
+          {
+            title: matchPostData.title,
+            content: matchPostData.content,
+            sportCategoryId: category.id,
+            matchLocation: matchPostData.matchLocation,
+            myElo: matchPostData.myElo,
+            preferredElo: matchPostData.preferredElo,
+            participantCount: matchPostData.participantCount,
+            deadline: matchPostData.deadline.toISOString(),
+            matchDate: matchPostData.matchDate.toISOString(),
+          },
+          user,
+        );
       }
     }
 
@@ -386,8 +552,8 @@ export class AppModule implements OnModuleInit {
           jsonrpc: '2.0',
           method: 'eth_blockNumber',
           params: [],
-          id: 1
-        })
+          id: 1,
+        }),
       });
 
       const data = await response.json();
