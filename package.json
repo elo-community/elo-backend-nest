@@ -19,12 +19,21 @@
     "contracts:deploy:very": "npm run deploy:very --workspace=contracts",
     "install:all": "npm install && npm install --workspace=contracts && npm install --workspace=backend",
     "clean": "npm run clean --workspaces",
-    "lint": "npm run lint --workspaces",
+    "lint": "eslint packages/*/src/**/*.{ts,js} packages/*/scripts/**/*.{ts,js} packages/*/test/**/*.{ts,js}",
+    "lint:fix": "eslint packages/*/src/**/*.{ts,js} packages/*/scripts/**/*.{ts,js} packages/*/test/**/*.{ts,js} --fix",
+    "lint:backend": "eslint packages/backend/src/**/*.ts",
+    "lint:contracts": "eslint packages/contracts/scripts/**/*.ts packages/contracts/test/**/*.ts",
     "test": "npm run test --workspaces"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "eslint": "^9.0.0",
+    "@eslint/js": "^9.0.0",
+    "typescript-eslint": "^8.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "prettier": "^3.0.0",
+    "globals": "^15.0.0"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0"
