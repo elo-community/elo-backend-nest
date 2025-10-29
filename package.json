@@ -19,6 +19,7 @@
     "contracts:deploy:very": "npm run deploy:very --workspace=contracts",
     "install:all": "npm install && npm install --workspace=contracts && npm install --workspace=backend",
     "clean": "npm run clean --workspaces",
+    "setup": "npm run setup:env:all --workspace=backend",
     "lint": "eslint packages/*/src/**/*.{ts,js} packages/*/scripts/**/*.{ts,js} packages/*/test/**/*.{ts,js}",
     "lint:fix": "eslint packages/*/src/**/*.{ts,js} packages/*/scripts/**/*.{ts,js} packages/*/test/**/*.{ts,js} --fix",
     "lint:backend": "eslint packages/backend/src/**/*.ts",
