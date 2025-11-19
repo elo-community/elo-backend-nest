@@ -60,7 +60,6 @@ import { SseController as RewardsSseController } from './rewards/sse.controller'
 import { HotPostsScheduler } from './schedulers/hot-posts.scheduler';
 import { MatchResultScheduler } from './schedulers/match-result.scheduler';
 import { RealTimeHotPostsScheduler } from './schedulers/real-time-hot-posts.scheduler';
-import { TempImageCleanupScheduler } from './schedulers/temp-image-cleanup.scheduler';
 import { BlockchainSyncService } from './services/blockchain-sync.service';
 import { ClaimNonceService } from './services/claim-nonce.service';
 import { CommentLikeService } from './services/comment-like.service';
@@ -167,7 +166,6 @@ import { UserService } from './services/user.service';
     S3Service,
     SseService,
     TempImageService,
-    TempImageCleanupScheduler,
     EloService,
     HotPostsScheduler,
     RealTimeHotPostsScheduler,
