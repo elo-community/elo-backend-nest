@@ -1,4 +1,4 @@
-import { Module, OnModuleInit, forwardRef } from '@nestjs/common';
+import { Logger, LoggerService, Module, OnModuleInit, forwardRef } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -191,59 +191,42 @@ export class AppModule implements OnModuleInit {
     private readonly matchPostService: MatchPostService,
     private readonly blockchainSyncService: BlockchainSyncService,
   ) { }
-
+  private readonly logger: LoggerService = new Logger(AppModule.name);
   async onModuleInit() {
+
     // 기본 스포츠 카테고리 생성
     await this.sportCategoryService.createDefaultCategories();
-    console.log('✅ 기본 스포츠 카테고리가 생성되었습니다.');
 
     // 샘플 사용자들 생성
     const sampleUsers = await this.createSampleUsers();
-    console.log('✅ 샘플 사용자들이 생성되었습니다.');
 
     // 각 카테고리별 샘플 게시글 생성
     await this.createSamplePosts(sampleUsers.mainUser);
-    console.log('✅ 샘플 게시글이 생성되었습니다.');
 
     // 샘플 매치 요청 생성
     await this.createSampleMatchRequests(sampleUsers);
-    console.log('✅ 샘플 매치 요청이 생성되었습니다.');
 
     // 모든 사용자의 토큰 잔액을 블록체인에서 동기화 (에러 처리 추가)
     try {
       await this.userService.syncAllUsersTokenAmount();
-      console.log('✅ 모든 사용자의 토큰 잔액이 블록체인과 동기화되었습니다.');
     } catch (error) {
-      console.warn('⚠️ 토큰 잔액 동기화 실패 (블록체인 네트워크 문제일 수 있음):', error.message);
-      console.log('ℹ️ 애플리케이션은 정상적으로 실행됩니다. 토큰 기능은 제한될 수 있습니다.');
+      this.logger.error(error.message);
     }
 
     // 블록체인에서 기존 좋아요 현황 동기화
     try {
-      console.log('🔄 블록체인에서 기존 좋아요 현황을 동기화하는 중...');
 
       // 최근 1000블록에서 좋아요 이벤트 검색 (약 1-2일치)
       const currentBlock = await this.getCurrentBlockNumber();
       const fromBlock = Math.max(0, currentBlock - 1000);
 
-      const syncResult = await this.blockchainSyncService.syncExistingLikes(
+      await this.blockchainSyncService.syncExistingLikes(
         fromBlock,
         currentBlock,
       );
 
-      if (syncResult.totalEvents > 0) {
-        console.log(
-          `✅ 블록체인 동기화 완료: ${syncResult.processedEvents}/${syncResult.totalEvents} 이벤트 처리, ${syncResult.newLikes}개 새 좋아요 추가`,
-        );
-      } else {
-        console.log('ℹ️ 동기화할 좋아요 이벤트가 없습니다.');
-      }
     } catch (error) {
-      console.warn(
-        '⚠️ 블록체인 좋아요 동기화 실패 (블록체인 네트워크 문제일 수 있음):',
-        error.message,
-      );
-      console.log('ℹ️ 애플리케이션은 정상적으로 실행됩니다. 좋아요 동기화는 제한될 수 있습니다.');
+      this.logger.error(error.message);
     }
   }
 
@@ -290,7 +273,6 @@ export class AppModule implements OnModuleInit {
     } as any);
 
     if (existingRequests.length > 0) {
-      console.log('이미 매치 요청이 존재합니다. 샘플 매치 요청 생성을 건너뜁니다.');
       return;
     }
 
@@ -321,8 +303,6 @@ export class AppModule implements OnModuleInit {
         },
         sampleUserJwt,
       );
-
-      console.log('샘플 매치 요청이 생성되었습니다: 샘플유저 → 탁구왕민수');
     }
   }
 
@@ -330,7 +310,6 @@ export class AppModule implements OnModuleInit {
     // 기존 게시글이 있는지 확인
     const existingPosts = await this.postService.findAll();
     if (existingPosts.data.length > 0) {
-      console.log('이미 게시글이 존재합니다. 샘플 게시글 생성을 건너뜁니다.');
       return;
     }
 
@@ -472,7 +451,6 @@ export class AppModule implements OnModuleInit {
     // 기존 매치글이 있는지 확인
     const existingMatchPosts = await this.postService.findAll({ type: PostType.MATCH });
     if (existingMatchPosts.data.length > 0) {
-      console.log('이미 매치글이 존재합니다. 샘플 매치글 생성을 건너뜁니다.');
       return;
     }
 
@@ -532,8 +510,6 @@ export class AppModule implements OnModuleInit {
         );
       }
     }
-
-    console.log('✅ 샘플 매치글 3개가 생성되었습니다.');
   }
 
   /**

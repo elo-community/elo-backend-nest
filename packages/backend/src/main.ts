@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { initializeNetwork } from './config/network-loader';
+import { LoggingInterceptor } from './utils/LoggingInterceptor';
 
 // BigInt 직렬화 문제 해결
 (BigInt.prototype as any).toJSON = function () {
@@ -100,6 +101,8 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api/v1');
+
+  app.useGlobalInterceptors(new LoggingInterceptor());
 
   const port = configService.get('app.port');
   await app.listen(port);

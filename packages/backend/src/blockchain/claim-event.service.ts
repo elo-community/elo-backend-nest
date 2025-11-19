@@ -41,7 +41,7 @@ export class ClaimEventService implements OnModuleInit {
     private userService: UserService,
     @Inject(forwardRef(() => TrivusExpService))
     private trivusExpService: TrivusExpService,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     await this.initializeBlockchainConnection();

@@ -189,29 +189,6 @@ export class LikeEventService implements OnModuleInit {
                 return;
             }
 
-            // PostLikeEvent는 더 이상 사용되지 않음 - PostLiked 이벤트만 처리
-            // let postLikeEvents: any[] = [];
-            // try {
-            //     postLikeEvents = await this.provider.getLogs({
-            //         address: this.postLikeContract.target,
-            //         topics: [
-            //         ethers.id('PostLikeEvent(address,uint256,uint256,bool)')
-            //         ],
-            //         fromBlock: fromBlock,
-            //         toBlock: toBlock
-            //     });
-
-            //     if (postLikeEvents.length > 0) {
-            //         this.logger.log(`Found ${postLikeEvents.length} PostLikeEvent(s)`);
-            //     }
-            // } catch (error) {
-            //     if (error.message && error.message.includes('network does not support ENS')) {
-            //         this.logger.warn('ENS not supported, skipping PostLikeEvent query');
-            //     } else {
-            //         this.logger.error(`Failed to query PostLikeEvent: ${error.message}`);
-            //     }
-            // }
-
             // PostLiked 이벤트 폴링 (getLogs 사용)
             let postLikedEvents: any[] = [];
             try {
@@ -253,24 +230,6 @@ export class LikeEventService implements OnModuleInit {
                     this.logger.error(`Failed to query PostUnliked: ${error.message}`);
                 }
             }
-
-            // PostLikeEvent는 더 이상 사용되지 않음 - PostLiked 이벤트만 처리
-            // for (const event of postLikeEvents) {
-            //     try {
-            //         const parsedEvent = this.postLikeContract.interface.parseLog(event);
-            //         if (parsedEvent && parsedEvent.args) {
-            //             await this.handlePostLikeEvent(
-            //                 parsedEvent.args[1] as string, // user (address)
-            //                 parsedEvent.args[0] as bigint, // postId (uint256)
-            //                 parsedEvent.args[2] as bigint, // amount (uint256)
-            //                 true, // isLike (PostLiked는 항상 true)
-            //                 event
-            //             );
-            //         }
-            //     } catch (parseError) {
-            //         this.logger.warn(`Failed to parse PostLikeEvent: ${parseError.message}`);
-            //     }
-            // }
 
             // PostLiked 이벤트 처리
             if (postLikedEvents.length > 0) {
