@@ -31,8 +31,8 @@ function createEnvFile(network, environment) {
     // 루트 디렉토리에 파일 생성
     const filePath = path.join(process.cwd(), '..', '..', fileName);
 
-    // 템플릿 파일 경로
-    const templatePath = path.join(process.cwd(), 'env', fileName);
+    // 템플릿 파일 경로 (docs 폴더의 예제 파일 사용)
+    const templatePath = path.join(process.cwd(), '..', '..', 'docs', `env.example.${network}`);
 
     if (fs.existsSync(templatePath)) {
         // 템플릿 파일이 있으면 복사

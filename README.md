@@ -117,7 +117,7 @@ elo-community-backend-nest/
 ```bash
 cd packages/backend
 
-# 모든 환경 설정 (amoy local, amoy deploy, very local, very deploy)
+# 모든 환경 설정 (amoy local, amoy production, very local, very production)
 npm run setup:env:all
 
 # 또는 특정 환경만 설정
@@ -129,15 +129,17 @@ npm run setup:env:very:production # Very 배포용
 
 #### 수동 환경변수 설정
 ```bash
-# 환경변수 파일 복사
-cp packages/backend/env.amoy.local packages/backend/.env.amoy.local
+# 루트 디렉토리에서 템플릿 파일을 복사하여 환경변수 파일 생성
+cp docs/env.example.amoy .env.amoy.local
+cp docs/env.example.very .env.very.local
 
-# 환경변수 설정
-# 각 파일에서 실제 값으로 변경
+# 또는 특정 환경 파일 생성
+cp docs/env.example.amoy .env.amoy.production
+cp docs/env.example.very .env.very.production
 ```
 
-#### 환경변수 설정
-각 파일에서 실제 값으로 변경:
+#### 환경변수 값 설정
+생성된 파일에서 실제 값으로 변경:
 ```bash
 # .env.amoy.local 예시
 NETWORK=amoy
@@ -155,7 +157,7 @@ TRIVUS_EXP_1363_AMOY=0x01234...
 
 **주요 환경변수**:
 - `NETWORK`: 활성 네트워크 (amoy/very)
-- `NODE_ENV`: 환경 (local/deploy)
+- `NODE_ENV`: 환경 (local/production)
 
 ### 2. 의존성 설치
 ```bash
@@ -262,7 +264,7 @@ http://localhost:3000/api/v1
 
 ### 환경별 설정
 - **Local**: 로컬 개발 환경
-- **Deploy**: 배포/운영 환경
+- **Production**: 배포/운영 환경
 
 ## 데이터베이스 스키마
 
