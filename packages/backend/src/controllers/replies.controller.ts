@@ -52,6 +52,13 @@ export class RepliesController {
     };
   }
 
+  /**
+   * 사용 안하는 것으로 추정 25-10-28
+   * @param id 
+   * @param updateReplyDto 
+   * @param user 
+   * @returns 
+   */
   @Put(':id')
   async update(
     @Param('id', ParseIntPipe) id: number,

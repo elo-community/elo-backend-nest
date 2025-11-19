@@ -211,7 +211,9 @@ export class AuthController {
   }
 
   /**
+   * 사용 안하는 것으로 추정 25-10-28
    * 사용자의 토큰 잔액을 블록체인에서 동기화 (수동)
+   * 
    * @param walletAddress 지갑 주소
    * @returns 동기화 결과
    */
